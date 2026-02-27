@@ -214,7 +214,7 @@ This file defines how EPIC builds, tests, scans, and deploys the application.
 
 ```
 {
-  "appName": "My_App",
+  "appName": "my-app",
   "appType": "angular",
   "codePath": "/src",
 
@@ -224,8 +224,9 @@ This file defines how EPIC builds, tests, scans, and deploys the application.
   "unitTestTool": "jest",
   "integrationTestTool": "playwright",
 
-  "awsAccountId": "123456789012",
-  "awsRegion": "us-west-2"
+  // AWS resource information based on app
+  "s3": "pge-epic-my-app-web-dev",
+  "cloudfront": "X9X9X9XX99XX9X"
 }
 ```
 
@@ -445,10 +446,10 @@ Used only when deploying to AWS.
 
 ---
 
-### awsAccountId
+### s3
 
 **Description**  
-Target AWS account ID.
+Target S3 bucket. Used to store app files or deployment (zip) files.
 
 **Type**  
 string
@@ -458,17 +459,47 @@ string
 
 ---
 
-### awsRegion
+### cloudfront
 
 **Description**  
-AWS region for deployment.
+CloudFront instance id used with static and node-based web apps.
 
 **Type**  
 string
 
 **Example**
 ```
-"us-west-2"
+"X9X9X9XX99XX9X"
+```
+
+---
+
+### ec2InstanceId
+
+**Description**  
+EC2 instance id used with .net, python, java apps.
+
+**Type**  
+string
+
+**Example**
+```
+"i-99x999xxx999xxxx9"
+```
+
+---
+
+### appExecutable
+
+**Description**  
+Executable name used with .net, python, java apps.
+
+**Type**  
+string
+
+**Example**
+```
+"My.App"
 ```
 
 ---
