@@ -1,45 +1,59 @@
-resource "aws_lb" "api" {
-  name               = "pge-epic-${var.app_name}-${var.environment}-alb"
-  internal           = true
-  load_balancer_type = "application"
-  security_groups    = [module.aws_security_group_web.aws_security_group_id]
-  subnets            = var.network.subnet_ids
-  tags               = module.tags.tags
+resource "aws_security_group" "default" {
+  name        = "pge-epic-${var.app_name}-${var.environment}-${var.label}-sg"
+  description = var.description
+  vpc_id      = var.vpc_id
+  tags        = merge(var.tags, { Name = "pge-epic-${var.app_name}-${var.environment}-${var.label}-sg"})
 }
 
-resource "aws_lb_target_group" "api" {
-  name     = "pge-epic-${var.app_name}-${var.environment}-tg"
-  port     = 5000
-  protocol = "HTTP"
-  vpc_id   = var.network.vpc_id
+resource "aws_security_group_rule" "cidr_ingress" {
+  type              = "ingress"
+  security_group_id = resource.aws_security_group.default.id
+  for_each = {
+  for ingress in var.cidr_ingress_rules : "${ingress.description} ${ingress.from} ${ingress.to} ${ingress.protocol}}" => ingress }
 
-  health_check {
-    path                = var.health_check_path
-    healthy_threshold   = 2
-    unhealthy_threshold = 3
-    interval            = 30
-  }
-
-  tags = module.tags.tags
+  from_port        = each.value.from
+  to_port          = each.value.to
+  protocol         = each.value.protocol
+  cidr_blocks      = each.value.cidr_blocks
+  ipv6_cidr_blocks = each.value.ipv6_cidr_blocks
+  prefix_list_ids  = each.value.prefix_list_ids
+  description      = each.value.description
 }
 
-resource "aws_lb_listener" "https" {
-  load_balancer_arn = aws_lb.api.arn
-  port              = 443
-  protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = module.acm_api.certificate_arn
+resource "aws_security_group_rule" "cidr_egress" {
+  type              = "egress"
+  security_group_id = resource.aws_security_group.default.id
+  for_each = {
+  for egress in var.cidr_egress_rules : "${egress.description} ${egress.from} ${egress.to} ${egress.protocol}}" => egress }
 
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.api.arn
-  }
-
-  tags = module.tags.tags
+  from_port        = each.value.from
+  to_port          = each.value.to
+  protocol         = each.value.protocol
+  cidr_blocks      = each.value.cidr_blocks
+  ipv6_cidr_blocks = each.value.ipv6_cidr_blocks
+  prefix_list_ids  = each.value.prefix_list_ids
+  description      = each.value.description
 }
 
-resource "aws_lb_target_group_attachment" "api" {
-  target_group_arn = aws_lb_target_group.api.arn
-  target_id        = module.ec2.instance_id
-  port             = 5000
+resource "aws_security_group_rule" "security_group_ingress" {
+  type              = "ingress"
+  security_group_id = resource.aws_security_group.default.id
+  for_each = {
+  for ingress in var.security_group_ingress_rules : "${ingress.description} ${ingress.from} ${ingress.to} ${ingress.protocol} }" => ingress }
+  from_port                = each.value.from
+  to_port                  = each.value.to
+  protocol                 = each.value.protocol
+  source_security_group_id = each.value.source_security_group_id == "" ? aws_security_group.default.id : each.value.source_security_group_id
+}
+
+resource "aws_security_group_rule" "security_group_egress" {
+  type              = "egress"
+  security_group_id = resource.aws_security_group.default.id
+  for_each = {
+  for egress in var.security_group_egress_rules : "${egress.description} ${egress.from} ${egress.to} ${egress.protocol}" => egress }
+
+  from_port                = each.value.from
+  to_port                  = each.value.to
+  protocol                 = each.value.protocol
+  source_security_group_id = each.value.source_security_group_id == "" ? aws_security_group.default.id : each.value.source_security_group_id
 }
