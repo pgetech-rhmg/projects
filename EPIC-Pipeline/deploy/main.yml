@@ -113,14 +113,14 @@ jobs:
                 \"set -e\",
                 \"sudo mkdir -p /opt/${{ parameters.appName }}\",
                 \"cd /opt/${{ parameters.appName }}\",
-                \"sudo rm -rf api\",
-                \"sudo mkdir -p api\",
+                \"sudo rm -rf app\",
+                \"sudo mkdir -p app\",
                 \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
-                \"sudo unzip -o $APP_NAME.zip -d api\",
-                \"sudo find /opt/${{ parameters.appName }}/api -maxdepth 1 -type f ! -name '*.*' -exec chmod +x {} \\;\",
+                \"sudo unzip -o $APP_NAME.zip -d app\",
+                \"sudo find /opt/${{ parameters.appName }}/app -maxdepth 1 -type f ! -name '*.*' -exec chmod +x {} \\;\",
                 \"sudo systemctl daemon-reload\",
-                \"sudo systemctl stop ${{ parameters.appName }}-api || true\",
-                \"sudo systemctl start ${{ parameters.appName }}-api\"
+                \"sudo systemctl stop ${{ parameters.appName }} || true\",
+                \"sudo systemctl start ${{ parameters.appName }}\"
               ]"
 
             echo "Deployment complete."
@@ -129,7 +129,6 @@ jobs:
             AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
             AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
             AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
-
 
       ###########################################################################
       # Deploy to EC2 via SSM (Python)

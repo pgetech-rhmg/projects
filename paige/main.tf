@@ -290,16 +290,25 @@ set -e
 dnf update -y
 dnf install -y libicu unzip jq awscli git
 
-mkdir -p /opt/${var.app_name}/api
+mkdir -p /opt/${var.app_name}/app
 
-cat <<SERVICE > /etc/systemd/system/${var.app_name}-api.service
+# Wrapper script that finds and runs the executable
+cat <<SCRIPT > /opt/${var.app_name}/start.sh
+#!/bin/bash
+EXEC=$(find /opt/${var.app_name}/app -maxdepth 1 -type f ! -name '*.*' | head -1)
+exec "$EXEC"
+SCRIPT
+
+chmod +x /opt/${var.app_name}/start.sh
+
+cat <<SERVICE > /etc/systemd/system/${var.app_name}.service
 [Unit]
-Description=${var.api_command}
+Description=${var.app_name}
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/${var.app_name}/api
-ExecStart=/opt/${var.app_name}/api/${var.api_command}
+WorkingDirectory=/opt/${var.app_name}/app
+ExecStart=/opt/${var.app_name}/start.sh
 Restart=always
 RestartSec=5
 User=ec2-user
@@ -311,7 +320,7 @@ WantedBy=multi-user.target
 SERVICE
 
 systemctl daemon-reload
-systemctl enable ${var.app_name}-api
+systemctl enable ${var.app_name}
 EOF
 
   tags = module.tags.tags
