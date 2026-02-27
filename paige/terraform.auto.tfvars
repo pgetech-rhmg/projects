@@ -27,7 +27,6 @@ secrets = {
 
 force_s3_destroy		= true
 secrets_description	= "Appsettings for Paige.API"
-api_command					= "Paige.Api"
 health_check_path 	= "/api/health"
 
 network = {

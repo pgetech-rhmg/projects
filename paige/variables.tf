@@ -231,11 +231,6 @@ variable "content_type_overrides" {
   default     = {}
 }
 
-variable "api_command" {
-  type        = string
-  description = "Name of the API executable"
-}
-
 variable "health_check_path" {
   type        = string
   description = "API health_check path."
