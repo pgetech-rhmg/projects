@@ -111,6 +111,7 @@ jobs:
               --comment "Deploy $APP_NAME" \
               --parameters commands="[
                 \"set -e\",
+                \"sudo mkdir -p /opt/${{ parameters.appName }}\",
                 \"cd /opt/${{ parameters.appName }}\",
                 \"sudo rm -rf api\",
                 \"sudo mkdir -p api\",
@@ -158,8 +159,8 @@ jobs:
                 \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
                 \"sudo unzip -o $APP_NAME.zip -d app\",
                 \"cd app\",
-                \"sudo python3 -m venv venv\",
-                \"sudo venv/bin/pip install -r requirements.txt\",
+                \"sudo python3 -m venv /opt/${{ parameters.appName }}/app/venv || true\",
+                \"sudo /opt/${{ parameters.appName }}/app/venv/bin/pip install -r /opt/${{ parameters.appName }}/app/requirements.txt\",
                 \"sudo systemctl daemon-reload\",
                 \"sudo systemctl stop ${{ parameters.appName }} || true\",
                 \"sudo systemctl start ${{ parameters.appName }}\"
