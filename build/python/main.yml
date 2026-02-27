@@ -1,0 +1,177 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Initialize build artifact
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      rm -rf .build
+
+      mkdir .build
+
+      rsync -a --exclude=".build" ./ .build/
+
+      cd .build
+
+      rm -r .gitignore
+      rm -r requirements-dev.txt
+      rm -rf tests
+      rm -rf .pipeline
+    displayName: "Pre-load .build"
+
+
+  #############################################################################
+  # Set Python Version
+  #############################################################################
+  - task: UsePythonVersion@0
+    displayName: "Use Python ${{ parameters.pythonVersion }}"
+    inputs:
+      versionSpec: "${{ parameters.pythonVersion }}"
+      addToPath: true
+
+
+  #############################################################################
+  # Verify Python
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Python version"
+      python --version
+
+      echo ">> Python path"
+      which python
+    displayName: "Verify Python"
+
+
+  #############################################################################
+  # Create Virtual Environment
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Creating virtual environment"
+      python -m venv .venv
+    displayName: "Create venv"
+
+
+  #############################################################################
+  # Install Dependencies
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Activating venv"
+      source .venv/bin/activate
+
+      echo ">> Upgrading pip"
+      python -m pip install --upgrade pip
+
+      echo ">> Installing runtime dependencies"
+      python -m pip install -r requirements.txt
+
+      echo ">> Installing dev dependencies"
+      python -m pip install -r requirements-dev.txt
+    displayName: "Install dependencies"
+
+
+  #############################################################################
+  # Install Project
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Activating venv"
+      source .venv/bin/activate
+
+      echo ">> Installing project"
+      python -m pip install -e .
+    displayName: "Install project"
+
+
+  #############################################################################
+  # Build = Syntax Validation
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Activating venv"
+      source .venv/bin/activate
+
+      echo ">> Running compileall"
+      python -m compileall app main.py
+    displayName: "Build (syntax validation)"
+
+
+  #############################################################################
+  # Build = egg (Legacy)
+  #############################################################################
+  - ${{ if eq(parameters.buildType, 'egg') }}:
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        source .venv/bin/activate
+
+        echo ">> Building egg distribution"
+        python setup.py bdist_egg
+        
+        rm -rf .build
+        cp -R dist/. .build/
+      displayName: "Build egg"
+
+
+  #############################################################################
+  # Build = wheel
+  #############################################################################
+  - ${{ if eq(parameters.buildType, 'wheel') }}:
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        source .venv/bin/activate
+
+        echo ">> Building wheel"
+        python -m build --wheel
+        
+        rm -rf .build
+        cp -R dist/. .build/
+      displayName: "Build wheel"
+
+
+  #############################################################################
+  # Build = sdist
+  #############################################################################
+  - ${{ if eq(parameters.buildType, 'sdist') }}:
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        source .venv/bin/activate
+
+        echo ">> Building source distribution (sdist)"
+        python -m build --sdist
+        
+        rm -rf .build
+        cp -R dist/. .build/
+      displayName: "Build sdist"
+

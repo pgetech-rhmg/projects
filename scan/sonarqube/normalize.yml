@@ -1,0 +1,49 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  ###############################################################################
+  # Normalize coverage.xml paths (multi-agent safe)
+  ###############################################################################
+  - ${{ if eq(parameters.unitTestTool, 'xunit') }}:
+    - bash: |
+        set -euo pipefail
+
+        COVERAGE_FILE="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/coverage.xml"
+
+        if [ ! -f "$COVERAGE_FILE" ]; then
+          echo "Coverage file not found at $COVERAGE_FILE"
+          exit 1
+        fi
+
+        echo ">> Detecting original workspace root from coverage file"
+
+        # Grab first fullPath entry
+        ORIGINAL_PATH=$(grep -m1 'fullPath="' "$COVERAGE_FILE" | sed -E 's/.*fullPath="([^"]+)".*/\1/')
+
+        if [ -z "$ORIGINAL_PATH" ]; then
+          echo "Could not detect fullPath inside coverage.xml"
+          exit 1
+        fi
+
+        # Extract everything up to /s
+        ORIGINAL_ROOT=$(echo "$ORIGINAL_PATH" | sed -E 's|(.*)/s/.*|\1/s|')
+
+        CURRENT_ROOT="$(Build.SourcesDirectory)"
+
+        echo "Original root detected:"
+        echo "$ORIGINAL_ROOT"
+        echo ""
+        echo "Current root:"
+        echo "$CURRENT_ROOT"
+
+        echo ">> Rewriting coverage.xml paths..."
+
+        sed -i '' "s|$ORIGINAL_ROOT|$CURRENT_ROOT|g" "$COVERAGE_FILE" || \
+        sed -i "s|$ORIGINAL_ROOT|$CURRENT_ROOT|g" "$COVERAGE_FILE"
+
+        echo ">> Coverage paths normalized."
+
+      displayName: "Normalize coverage.xml paths"
+

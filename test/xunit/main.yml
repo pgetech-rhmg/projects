@@ -1,0 +1,68 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Use .NET SDK
+  #############################################################################
+  - task: UseDotNet@2
+    displayName: "Use .NET SDK ${{ parameters.dotnetVersion }}"
+    inputs:
+      packageType: "sdk"
+      version: "${{ parameters.dotnetVersion }}"
+
+
+  #############################################################################
+  # Verify .NET
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      dotnet --info
+    displayName: "Verify .NET SDK"
+
+
+  #############################################################################
+  # Restore
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      dotnet restore
+    displayName: "Restore"
+
+
+  #############################################################################
+  # Build
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      dotnet build -c Release --no-restore
+    displayName: "Build"
+
+
+  #############################################################################
+  # Test with coverage
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      mkdir -p .reports
+
+      dotnet test -c Release \
+        /p:CollectCoverage=true \
+        /p:CoverletOutputFormat=opencover \
+        /p:CoverletOutput=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/coverage.xml \
+        /p:DeterministicSourcePath=true \
+        --no-build \
+        --logger "trx;LogFileName=tests.trx" \
+        --results-directory .reports
+    displayName: "Execute tests with coverage"

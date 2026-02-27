@@ -1,0 +1,111 @@
+jobs:
+- job: BuildJob
+  displayName: "Build App"
+  pool:
+    ${{ if and(ne(parameters.appType, 'dotnet_core'), ne(parameters.appType, 'dotnet_framework')) }}:
+      vmImage: ubuntu-latest
+    ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_framework'))}}:
+      ${{ if and(eq(parameters.scan, 'true'), eq(parameters.scanTool, 'sonarqube')) }}:
+        name: EPIC - Self-hosted
+      ${{ if or(ne(parameters.scan, 'true'), ne(parameters.scanTool, 'sonarqube')) }}:
+        vmImage: windows-latest
+
+  workspace:
+    clean: all
+
+  #############################################################################
+  # Steps
+  #############################################################################
+  steps:
+
+    ###########################################################################
+    # Download App Artifact
+    ###########################################################################
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download app artifact"
+      inputs:
+        artifactName: epic-app
+        targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.appName }}
+
+
+    ###########################################################################
+    # HTML (Static)
+    ###########################################################################
+    - ${{ if eq(parameters.appType, 'html') }}:
+      - bash: |
+          set -euo pipefail
+
+          cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+          
+          rm -rf .build
+          mkdir -p .build
+          rsync -a --exclude='.build' ./ .build/
+
+          cd .build
+
+          rm -rf .infra
+          rm -rf .pipeline
+          rm .gitignore
+
+        displayName: "Build app"
+
+
+    ###########################################################################
+    # Angular
+    ###########################################################################
+    - ${{ if eq(parameters.appType, 'angular') }}:
+      - template: angular/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
+
+
+    ###########################################################################
+    # Python
+    ###########################################################################
+    - ${{ if eq(parameters.appType, 'python') }}:
+      - template: python/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
+
+
+    ###########################################################################
+    # .NET (core)
+    ###########################################################################
+    - ${{ if eq(parameters.appType, 'dotnet_core') }}:
+      - template: dotnet_core/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
+
+
+    ###########################################################################
+    # .NET (framework)
+    ###########################################################################
+    - ${{ if eq(parameters.appType, 'dotnet_framework') }}:
+      - template: dotnet_framework/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
+
+
+    ###########################################################################
+    # Artifact Validation
+    ###########################################################################
+    - bash: |
+        set -euo pipefail
+        if [ -d "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build" ]; then
+          echo "##vso[task.setvariable variable=buildExists]true"
+        else
+          echo "##vso[task.setvariable variable=buildExists]false"
+        fi
+      displayName: "Artifact validation"
+
+
+    ###########################################################################
+    # Publish Build Artifact
+    ###########################################################################
+    - task: PublishPipelineArtifact@1
+      displayName: "Publish build artifact"
+      condition: eq(variables['buildExists'], 'true')
+      inputs:
+        targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+        artifact: "epic-build"
+        publishLocation: "pipeline"

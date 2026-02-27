@@ -1,0 +1,120 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Prepare SonarQube (if applicable)
+  #############################################################################
+  - ${{ if and(eq(parameters.scan, 'true'), eq(parameters.scanTool, 'sonarqube')) }}:
+    - template: /scan/sonarqube/prepare.yml
+      parameters:
+        repo: ${{ parameters.repo }}
+        branch: ${{ parameters.branch }}
+        appName: ${{ parameters.appName }}
+        appType: ${{ parameters.appType }}
+        codePath: ${{ parameters.codePath }}
+        unitTestTool: ${{ parameters.unitTestTool }}
+
+
+  #############################################################################
+  # Verify MSBuild / VS Environment
+  #############################################################################
+  - powershell: |
+      Write-Host ">> MSBuild Version"
+      msbuild -version
+    displayName: "Verify MSBuild"
+
+
+  #############################################################################
+  # Restore (NuGet)
+  #############################################################################
+  - task: NuGetToolInstaller@1
+    displayName: "Install NuGet"
+
+  - task: NuGetCommand@2
+    displayName: "Restore packages"
+    inputs:
+      command: "restore"
+      restoreSolution: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/*.sln"
+
+
+  #############################################################################
+  # Build (MSBuild)
+  #############################################################################
+  - task: VSBuild@1
+    displayName: "Build solution"
+    inputs:
+      solution: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/*.sln"
+      configuration: "Release"
+      msbuildArgs: "/p:DeployOnBuild=true"
+      clean: true
+      restoreNugetPackages: false
+
+
+  #############################################################################
+  # Publish or Pack (based on buildType)
+  #############################################################################
+  - powershell: |
+      $ProjectDir = "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+      $BuildType  = "${{ parameters.buildType }}"
+
+      Write-Host ">> Build Type: $BuildType"
+
+      Remove-Item "$ProjectDir\.build" -Recurse -Force -ErrorAction SilentlyContinue
+      New-Item -ItemType Directory -Path "$ProjectDir\.build" | Out-Null
+
+      if ($BuildType -eq "nuget")
+      {
+          Write-Host ">> Packing NuGet package"
+
+          nuget pack `
+            "$ProjectDir\*.csproj" `
+            -Properties Configuration=Release `
+            -OutputDirectory "$ProjectDir\.build"
+      }
+      else
+      {
+          Write-Host ">> Copying compiled output"
+
+          Get-ChildItem "$ProjectDir" -Recurse -Include bin `
+          | Where-Object { $_.FullName -like "*\Release\*" } `
+          | ForEach-Object {
+              Copy-Item $_.FullName -Destination "$ProjectDir\.build" -Recurse -Force
+            }
+      }
+
+      Write-Host ">> Output written to .build"
+    displayName: "Publish or Pack"
+
+
+  ###########################################################################
+  # Scan Artifact
+  ###########################################################################
+  - ${{ if and(eq(parameters.scan, 'true'), eq(parameters.scanTool, 'sonarqube')) }}:
+
+    #########################################################################
+    # Copy scan results
+    #########################################################################
+    - powershell: |
+        $ProjectDir = "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        Remove-Item "$ProjectDir\.scan" -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path "$ProjectDir\.scan" | Out-Null
+
+        Copy-Item "$(Pipeline.Workspace)\.sonarqube\*" "$ProjectDir\.scan" -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item "$ProjectDir\**\bin\Release\*" "$ProjectDir\.scan" -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item "$ProjectDir\**\obj\*" "$ProjectDir\.scan" -Recurse -Force -ErrorAction SilentlyContinue
+      displayName: "Copy scan artifacts"
+
+
+    #########################################################################
+    # Publish Scan Artifact
+    #########################################################################
+    - task: PublishPipelineArtifact@1
+      displayName: "Publish scan artifact"
+      inputs:
+        targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.scan"
+        artifact: "epic-scan"
+        publishLocation: "pipeline"
+

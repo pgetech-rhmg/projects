@@ -1,0 +1,78 @@
+parameters:
+  testType: ""
+
+jobs:
+- job: TestJob
+  displayName: "${{ parameters.testType }} Tests"
+  pool:
+    vmImage: ubuntu-latest
+
+  workspace:
+    clean: all
+
+  #############################################################################
+  # Steps
+  #############################################################################
+  steps:
+
+    ###########################################################################
+    # Download App Artifact
+    ###########################################################################
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download app artifact"
+      inputs:
+        artifactName: epic-app
+        targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.appName }}
+
+
+    ###########################################################################
+    # Unit Tests - Jest
+    ###########################################################################
+    - ${{ if and(eq(lower(parameters.testType), 'unit'), eq(parameters.unitTestTool, 'jest')) }}:
+      - template: jest/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
+
+
+    ###########################################################################
+    # Unit Tests - Pytest
+    ###########################################################################
+    - ${{ if and(eq(lower(parameters.testType), 'unit'), eq(parameters.unitTestTool, 'pytest')) }}:
+      - template: pytest/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
+
+
+    ###########################################################################
+    # Unit Tests - xUnit
+    ###########################################################################
+    - ${{ if and(eq(lower(parameters.testType), 'unit'), eq(parameters.unitTestTool, 'xunit')) }}:
+      - template: xunit/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
+
+
+    ###########################################################################
+    # Artifact Validation
+    ###########################################################################
+    - bash: |
+        set -euo pipefail
+
+        if [ -d "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports" ]; then
+          echo "##vso[task.setvariable variable=reportsExists]true"
+        else
+          echo "##vso[task.setvariable variable=reportsExists]false"
+        fi
+      displayName: "Artifact validation"
+
+
+    ###########################################################################
+    # Publish Test Artifact
+    ###########################################################################
+    - task: PublishPipelineArtifact@1
+      displayName: "Publish test artifact"
+      condition: eq(variables['reportsExists'], 'true')
+      inputs:
+        targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports"
+        artifact: "epic-${{ lower(parameters.testType) }}-tests"
+        publishLocation: "pipeline"

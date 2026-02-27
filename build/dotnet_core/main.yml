@@ -1,0 +1,139 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Prepare SonarQube (if applicable)
+  #############################################################################
+  - ${{ if and(eq(parameters.scan, 'true'), eq(parameters.scanTool, 'sonarqube')) }}:
+    - template: /scan/sonarqube/prepare.yml
+      parameters:
+        repo: ${{ parameters.repo }}
+        branch: ${{ parameters.branch }}
+        appName: ${{ parameters.appName }}
+        appType: ${{ parameters.appType }}
+        codePath: ${{ parameters.codePath }}
+        unitTestTool: ${{ parameters.unitTestTool }}
+
+
+  #############################################################################
+  # Use .NET SDK Version
+  #############################################################################
+  - task: UseDotNet@2
+    displayName: "Use .NET SDK ${{ parameters.dotnetVersion }}"
+    inputs:
+      packageType: "sdk"
+      version: "${{ parameters.dotnetVersion }}"
+      installationPath: $(Agent.ToolsDirectory)/dotnet
+
+
+  #############################################################################
+  # Verify .NET
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      dotnet --version
+      dotnet --info
+    displayName: "Verify .NET SDK"
+
+
+  #############################################################################
+  # Restore
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Restoring packages"
+      dotnet restore
+    displayName: "Restore packages"
+
+
+  #############################################################################
+  # Build
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Building project"
+      dotnet build --configuration Release --no-restore
+    displayName: "Build project"
+
+
+  #############################################################################
+  # Publish or Pack (based on buildType)
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      PROJECT_DIR="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+      BUILD_TYPE="${{ parameters.buildType }}"
+
+      cd "$PROJECT_DIR"
+
+      rm -rf .build
+      mkdir -p .build
+
+      echo ">> Build Type: $BUILD_TYPE"
+
+      if [[ "$BUILD_TYPE" == "nuget" ]]; then
+
+        echo ">> Packing NuGet package"
+
+        dotnet pack \
+          --configuration Release \
+          --no-build \
+          --output "$PROJECT_DIR/.build"
+
+      else
+
+        echo ">> Publishing application"
+
+        dotnet publish -c Release \
+          -r linux-x64 \
+          --self-contained true \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -o "$PROJECT_DIR/.build"
+
+      fi
+
+      echo ">> Output written to .build"
+    displayName: "Publish or Pack"
+
+
+  ###########################################################################
+  # Scan Artifact
+  ###########################################################################
+  - ${{ if and(eq(parameters.scan, 'true'), eq(parameters.scanTool, 'sonarqube')) }}:
+
+    #########################################################################
+    # Copy scan results
+    #########################################################################
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        rm -rf .scan/*
+
+        cp -R $(Pipeline.Workspace)/.sonarqube/. .scan/
+        cp -R **/bin/. .scan/
+        cp -R **/obj/. .scan/
+      displayName: "Copy scan artifacts"
+
+
+    #########################################################################
+    # Publish Scan Artifact
+    #########################################################################
+    - task: PublishPipelineArtifact@1
+      displayName: "Publish scan artifact"
+      inputs:
+        targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.scan"
+        artifact: "epic-scan"
+        publishLocation: "pipeline"

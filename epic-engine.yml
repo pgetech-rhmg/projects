@@ -1,0 +1,216 @@
+trigger: none
+pr: none
+
+
+###############################################################################
+# Pipeline Parameters (provided at runtime)
+###############################################################################
+parameters:
+  # App-specific
+  - name: repo
+    type: string
+    default: ""
+  - name: branch
+    type: string
+    default: ""
+  - name: environment
+    type: string
+    default: ""
+
+  - name: appName
+    type: string
+    default: ""
+  - name: appType
+    type: string
+    default: ""
+  - name: buildType
+    type: string
+    default: ""
+  - name: codePath
+    type: string
+    default: ""
+  - name: testPath
+    type: string
+    default: ""
+
+  # Build versions
+  - name: nodeVersion
+    type: string
+    default: "18"
+  - name: pythonVersion
+    type: string
+    default: "3.11"
+  - name: dotnetVersion
+    type: string
+    default: "9.x"
+
+  # Tools
+  - name: scanTool
+    type: string
+    default: ""
+  - name: unitTestTool
+    type: string
+    default: ""
+  - name: integrationTestTool
+    type: string
+    default: ""
+
+  # AWS
+  - name: awsAccountId
+    type: string
+    default: ""
+  - name: awsRegion
+    type: string
+    default: ""
+
+  # AWS Resources
+  - name: s3
+    type: string
+    default: ""
+  - name: cloudfront
+    type: string
+    default: ""
+  - name: ec2InstanceId
+    type: string
+    default: ""
+  - name: ec2Command
+    type: string
+    default: ""
+
+  # Azure
+  - name: azureSubscription
+    type: string
+    default: ""
+  - name: azureResourceGroup
+    type: string
+    default: ""
+
+  # Pipeline stages
+  - name: build
+    type: boolean
+    default: true
+  - name: tests
+    type: boolean
+    default: true
+  - name: scan
+    type: boolean
+    default: true
+  - name: deploy
+    type: boolean
+    default: true
+  - name: integrations
+    type: boolean
+    default: true
+
+
+###############################################################################
+# Global Variables
+###############################################################################
+variables:
+  - group: GV-account-access
+
+
+###############################################################################
+# Stages
+###############################################################################
+stages:
+
+  #############################################################################
+  # Download App
+  #############################################################################
+  - stage: Download
+    displayName: "Download App"
+
+    jobs:
+      - template: /common/download.yml
+        parameters:
+          repo: ${{ parameters.repo }}
+          branch: ${{ parameters.branch }}
+
+
+  #############################################################################
+  # Build App
+  #############################################################################
+  - ${{ if eq(parameters.build, 'true') }}:
+    - stage: Build
+      displayName: "Build App"
+      dependsOn: 
+        - Download
+
+      jobs:
+        - template: /build/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+
+
+  #############################################################################
+  # Unit Tests
+  #############################################################################
+  - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.unitTestTool, '')) }}:
+    - stage: UnitTest
+      displayName: "Unit Tests"
+      dependsOn: 
+        - Download
+
+      jobs:
+        - template: /test/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            testType: "Unit"
+
+
+  #############################################################################
+  # Scan App
+  #############################################################################
+  - ${{ if and(eq(parameters.scan, 'true'), ne(parameters.scanTool, '')) }}:
+    - stage: Scan
+      displayName: "Scan App"
+      dependsOn: 
+        - Download
+        - ${{ if eq(parameters.build, 'true') }}:
+          - Build
+        - ${{ if eq(parameters.tests, 'true') }}:
+          - UnitTest
+
+      jobs:
+        - template: /scan/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+
+
+  #############################################################################
+  # Deploy App
+  #############################################################################
+  - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true')) }}:
+    - stage: Deploy
+      displayName: "Deploy App"
+      dependsOn: 
+        - Download
+        - Build
+        - ${{ if eq(parameters.tests, 'true') }}:
+          - UnitTest
+        - ${{ if eq(parameters.scan, 'true') }}:
+          - Scan
+
+      jobs:
+        - template: /deploy/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+  
+  
+  #############################################################################
+  # Integration Tests
+  #############################################################################
+  - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true'), eq(parameters.integrations, 'true'), ne(parameters.integrationTestTool, '')) }}:
+    - stage: IntegrationTest
+      displayName: "Integration Tests"
+      dependsOn: 
+        - Download
+        - Build
+        - Deploy
+
+      jobs:
+        - template: /test/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            testType: "Integration"

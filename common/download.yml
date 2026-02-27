@@ -1,0 +1,50 @@
+parameters:
+  repo: ""
+  branch: ""
+
+jobs:
+- job: DownloadJob
+  displayName: "Download App"
+  pool:
+    vmImage: ubuntu-latest
+  
+  workspace:
+    clean: all
+
+  #############################################################################
+  # Steps
+  #############################################################################
+  steps:
+
+    ###########################################################################
+    # Download App
+    ###########################################################################
+    - bash: |
+        set -euo pipefail
+
+        echo ">> Downloading app: ${{ parameters.repo }}"
+        echo ">> Branch: ${{ parameters.branch }}"
+        echo ""
+
+        mkdir app
+        cd app
+
+        git clone --branch "${{ parameters.branch }}" "https://${GITHUB_PAT}@github.com/pgetech/${{ parameters.repo }}.git" .
+
+        echo ""
+        echo ">> App downloaded"
+
+      displayName: "Clone app from Github"
+      env:
+        GITHUB_PAT: $(GITHUB_PAT)
+
+
+    ###########################################################################
+    # Publish App Artifact
+    ###########################################################################
+    - task: PublishPipelineArtifact@1
+      displayName: "Publish app artifact"
+      inputs:
+        targetPath: "$(System.DefaultWorkingDirectory)/app"
+        artifact: "epic-app"
+        publishLocation: "pipeline"

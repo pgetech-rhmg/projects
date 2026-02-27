@@ -1,0 +1,74 @@
+jobs:
+- job: ScanJob
+  displayName: "Scan App"
+  pool:
+    ${{ if eq(parameters.scanTool, 'sonarqube') }}:
+      name: EPIC - Self-hosted
+    ${{ if ne(parameters.scanTool, 'sonarqube') }}:
+      vmImage: ubuntu-latest
+
+  workspace:
+    clean: all
+
+  #############################################################################
+  # Steps
+  #############################################################################
+  steps:
+
+    ###########################################################################
+    # Download App Artifact
+    ###########################################################################
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download app artifact"
+      inputs:
+        artifactName: epic-app
+        targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.appName}}
+
+
+    ###########################################################################
+    # Download Test Artifact
+    ###########################################################################
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download test artifact"
+      inputs:
+        artifactName: epic-unit-tests
+        targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports
+
+
+    ###########################################################################
+    # SonarQube
+    ###########################################################################
+    - ${{ if eq(parameters.scanTool, 'sonarqube') }}:
+    
+      - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_framework')) }}:
+        #######################################################################
+        # Normalize Coverage File
+        #######################################################################
+        - template: sonarqube/normalize.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+
+
+      #######################################################################
+      # Prepare
+      #######################################################################
+      - template: sonarqube/prepare.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
+
+
+      - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_framework')) }}:
+        #######################################################################
+        # Download Scan Artifact
+        #######################################################################
+        - task: DownloadPipelineArtifact@2
+          displayName: "Download scan artifact"
+          inputs:
+            artifactName: epic-scan
+            targetPath: $(Pipeline.Workspace)/.sonarqube
+
+
+      #########################################################################
+      # Scan
+      #########################################################################
+      - template: sonarqube/scan.yml

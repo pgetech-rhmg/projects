@@ -1,0 +1,105 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Set Properties
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      scannerMode='CLI'
+      testFiles=''
+      exclusions=''
+      coverageProperty=''
+      testExecutionProperty=''
+
+      case "${{ parameters.unitTestTool }}" in
+
+        jest)
+          testFiles='**/*.spec.ts'
+          exclusions='**/polyfills.ts,**/main.ts,**/*.spec.ts,**/environments/**,**/setup-jest.ts'
+
+          coverageProperty="sonar.javascript.lcov.reportPaths=.reports/coverage/lcov.info"
+          testExecutionProperty="sonar.testExecutionReportPaths=.reports/sonar-test-report.xml"
+          ;;
+
+        pytest)
+          testFiles='**/test_*.py,**/*_test.py'
+          exclusions='**/__pycache__/**,**/*.pyc'
+
+          coverageProperty="sonar.python.coverage.reportPaths=.reports/coverage.xml"
+          testExecutionProperty=""
+          ;;
+
+        xunit)
+          scannerMode='dotnet'
+          testFiles='**/*Tests.cs'
+          exclusions='**/*Tests.cs,**/*.g.cs,**/*.generated.cs'
+
+          coverageProperty="sonar.cs.opencover.reportsPaths=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/coverage.xml"
+          testExecutionProperty="sonar.cs.vstest.reportsPaths=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/tests.trx"
+          ;;
+
+      esac
+
+      echo "##vso[task.setvariable variable=scannerMode]$scannerMode"
+      echo "##vso[task.setvariable variable=testFiles]$testFiles"
+      echo "##vso[task.setvariable variable=exclusions]$exclusions"
+      echo "##vso[task.setvariable variable=coverageProperty]$coverageProperty"
+      echo "##vso[task.setvariable variable=testExecutionProperty]$testExecutionProperty"
+
+    displayName: "Set properties"
+
+
+  #############################################################################
+  # SonarQube Prepare (non-dotnet)
+  #############################################################################
+  - ${{ if and(ne(parameters.appType, 'dotnet_core'), ne(parameters.appType, 'dotnet_frame')) }}:
+    - task: SonarQubePrepare@8
+      displayName: "Prepare SonarQube"
+      inputs:
+        SonarQube: 'SonarQube'
+        scannerMode: 'CLI'
+        cliProjectKey: '${{ parameters.repo }}'
+        cliProjectName: '${{ parameters.repo }}'
+        cliProjectVersion: '$(Build.BuildNumber)'
+        cliSources: '.'
+        extraProperties: |
+          sonar.projectBaseDir=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}
+          sonar.branch.name=${{ parameters.branch }}
+          sonar.sourceEncoding=UTF-8
+          sonar.tests=.
+          sonar.test.inclusions=$(testFiles)
+          sonar.coverage.exclusions=$(testFiles)
+
+          $(coverageProperty)
+          $(testExecutionProperty)
+
+          sonar.exclusions=**/node_modules/**,**/dist/**,**/bin/**,**/obj/**,**/wwwroot/lib/**,**/jquery*/**,**/*.scss,packages/**/*,Web/**/*.js,**/*.sh,**/*.bash,**/*.ps1,**/*.cmd,**/*.config.js,$(exclusions)
+
+          sonar.python.version=${{ parameters.pythonVersion }}
+
+  #############################################################################
+  # SonarQube Prepare (dotnet)
+  #############################################################################
+  - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_frame')) }}:
+    - task: SonarQubePrepare@8
+      displayName: "Prepare SonarQube"
+      inputs:
+        SonarQube: 'SonarQube'
+        scannerMode: '$(scannerMode)'
+        configMode: 'manual'
+        projectKey: '${{ parameters.repo }}'
+        projectName: '${{ parameters.repo }}'
+        projectVersion: '$(Build.BuildNumber)'
+        extraProperties: |
+          sonar.branch.name=${{ parameters.branch }}
+          sonar.sourceEncoding=UTF-8
+          sonar.coverage.exclusions=$(testFiles)
+
+          $(coverageProperty)
+          $(testExecutionProperty)
+
+          sonar.exclusions=**/node_modules/**,**/dist/**,**/bin/**,**/obj/**,**/wwwroot/lib/**,**/jquery*/**,**/*.scss,packages/**/*,Web/**/*.js,**/*.sh,**/*.bash,**/*.ps1,**/*.cmd,**/*.config.js,$(exclusions)

@@ -1,0 +1,334 @@
+###############################################################################
+# EPIC — Orchestrator Pipeline
+#
+# Purpose:
+#   This pipeline acts as the entry point and control plane for EPIC
+#   (Enterprise Pipeline for Infrastructure & Cloud). It provides a simple,
+#   standardized interface for users or systems to trigger application
+#   deployments without interacting directly with the underlying deployment
+#   logic.
+#
+#   The Orchestrator collects runtime parameters (application repository,
+#   branch, and target environment), performs basic validation, and then
+#   programmatically triggers the EPIC Engine pipeline using the Azure DevOps
+#   REST API.
+#
+#   This pipeline is intentionally lightweight and contains no infrastructure
+#   or Terraform logic. Its responsibilities are limited to:
+#
+#     • Accepting user- or system-supplied deployment inputs
+#     • Normalizing and passing parameters to the Deployment Engine
+#     • Initiating a single, auditable pipeline run via REST
+#     • Returning a clean, clickable URL to the triggered deployment
+#
+#   By separating orchestration from execution, EPIC enables:
+#     • A clean separation of concerns
+#     • Reusable, centrally managed deployment logic
+#     • Safe, controlled access for developers and automation tools
+#     • Future extensibility (UI, self-service portals, API-based triggers)
+#
+#   All environment-specific behavior, application builds, and deployments
+#   are owned entirely by the EPIC Engine pipeline.
+###############################################################################
+
+trigger: none
+pr: none
+
+###############################################################################
+# Pipeline Parameters (provided at runtime)
+###############################################################################
+parameters:
+  - name: repo
+    displayName: "GitHub Repo"
+    type: string
+    default: ""
+
+  - name: branch
+    displayName: "GitHub Branch"
+    type: string
+    default: ""
+
+  - name: environment
+    displayName: "Deployment Environment"
+    type: string
+    default: dev
+    values:
+      - dev
+      - test
+      - qa
+      - prod
+
+  - name: build
+    displayName: "Build App"
+    type: boolean
+    default: true
+
+  - name: tests
+    displayName: "Run Unit Tests"
+    type: boolean
+    default: false
+
+  - name: scan
+    displayName: "Scan App"
+    type: boolean
+    default: false
+
+  - name: deploy
+    displayName: "Deploy App"
+    type: boolean
+    default: false
+
+  - name: integrations
+    displayName: "Run Integration Tests"
+    type: boolean
+    default: false
+
+
+###############################################################################
+# Global Variables (pipeline IDs, org, project)
+###############################################################################
+variables:
+  - group: GV-account-access
+
+  - name: PIPELINE_ID
+    value: "194"
+  - name: ORG
+    value: "pgetech"
+  - name: PROJECT
+    value: "EPIC-Pipeline"
+
+
+###############################################################################
+# Stages
+###############################################################################
+stages:
+
+  #############################################################################
+  # Download Config File (.pipeline/epic.json) - Generate Engine Payload
+  #############################################################################
+  - stage: DownloadGenerate
+    displayName: "Download Config File - Generate Payload"
+
+    jobs:
+      - job: ConfigJob
+        displayName: "Process Config"
+        pool:
+          vmImage: ubuntu-latest
+        
+        steps:
+          - bash: |
+              set -euo pipefail
+
+              echo ">> Verifying parameters..."
+
+              REPO="${{ parameters.repo }}"
+              BRANCH="${{ parameters.branch }}"
+              ENVIRONMENT="${{ parameters.environment }}"
+
+              if [[ -z "$REPO" || -z "$BRANCH" || -z "$ENVIRONMENT" ]]; then
+                echo "!! repo, branch, and environment parameters are required"
+                exit 1
+              fi
+
+              echo ">> VALID!"
+            displayName: "Validate parameters"
+
+          - bash: |
+              set -euo pipefail
+
+              echo ">> Downloading config file..."
+
+              mkdir -p .pipeline
+
+              curl -sSL \
+                -H "Authorization: token $GITHUB_PAT" \
+                -o .pipeline/epic.json \
+                "https://raw.githubusercontent.com/${ORG}/${{ parameters.repo }}/${{ parameters.branch }}/.pipeline/epic.json"
+
+              echo ">> File downloaded:"
+              echo "-------------------------------------------------"
+              jq . .pipeline/epic.json
+              echo "-------------------------------------------------"
+            displayName: "Download config file"
+            env:
+              GITHUB_PAT: $(GITHUB_PAT)
+
+          - bash: |
+              set -euo pipefail
+
+              echo ">> Building payload..."
+
+              CONFIG_FILE=".pipeline/epic.json"
+
+              REPO="${{ parameters.repo }}"
+              BRANCH="${{ parameters.branch }}"
+              ENVIRONMENT="${{ parameters.environment }}"
+              BUILD="${{ parameters.build }}"
+              TESTS="${{ parameters.tests }}"
+              SCAN="${{ parameters.scan }}"
+              DEPLOY="${{ parameters.deploy }}"
+              INTEGRATIONS="${{ parameters.integrations }}"
+
+              # Normalize ADO boolean strings -> JSON booleans
+              BUILD=$(echo "$BUILD" | tr '[:upper:]' '[:lower:]')
+              TESTS=$(echo "$TESTS" | tr '[:upper:]' '[:lower:]')
+              SCAN=$(echo "$SCAN" | tr '[:upper:]' '[:lower:]')
+              DEPLOY=$(echo "$DEPLOY" | tr '[:upper:]' '[:lower:]')
+              INTEGRATIONS=$(echo "$INTEGRATIONS" | tr '[:upper:]' '[:lower:]')
+
+              PAYLOAD=$(jq -n \
+                --arg repo "$REPO" \
+                --arg branch "$BRANCH" \
+                --arg environment "$ENVIRONMENT" \
+                --argjson build "$BUILD" \
+                --argjson tests "$TESTS" \
+                --argjson scan "$SCAN" \
+                --argjson deploy "$DEPLOY" \
+                --argjson integrations "$INTEGRATIONS" \
+                --slurpfile config "$CONFIG_FILE" \
+                '{
+                  templateParameters: (
+                    (
+                      $config[0]
+                      | with_entries(select(.value != null and (.value | type != "string" or length > 0)))
+                    )
+                    + {
+                        repo: $repo,
+                        branch: $branch,
+                        environment: $environment,
+                        build: $build,
+                        tests: $tests,
+                        scan: $scan,
+                        deploy: $deploy,
+                        integrations: $integrations
+                      }
+                    | with_entries(
+                        {
+                          key: .key,
+                          value: .value
+                        }
+                      )
+                  )
+                }')
+
+              echo ">> Payload created:"
+              echo "-------------------------------------------------"
+              echo "$PAYLOAD"
+              echo "-------------------------------------------------"
+
+              echo "$PAYLOAD" > payload.json
+            displayName: "Generate payload"
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish payload artifact"
+            inputs:
+              targetPath: "$(System.DefaultWorkingDirectory)/payload.json"
+              artifact: "epic-payload"
+              publishLocation: "pipeline"
+
+
+  #############################################################################
+  # Stage: Orchestrate
+  # Purpose:
+  #   • Invoke EPIC Engine Pipeline via REST call
+  #############################################################################
+  - stage: InvokeEngine
+    displayName: "Invoke EPIC Engine Pipeline"
+    dependsOn: 
+      - DownloadGenerate
+
+    jobs:
+      - job: APIJob
+        displayName: "Call API"
+        pool:
+          vmImage: ubuntu-latest
+
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download payload artifact"
+            inputs:
+              artifactName: epic-payload
+              targetPath: $(System.DefaultWorkingDirectory)
+
+          - bash: |
+              set -euo pipefail
+
+              echo ">> Invoking EPIC Engine for: ${{ parameters.repo }}"
+
+              PAYLOAD_FILE="$(System.DefaultWorkingDirectory)/payload.json"
+
+              echo ">> Payload:"
+              echo "-------------------------------------------------"
+              jq . $PAYLOAD_FILE
+              echo "-------------------------------------------------"
+
+              org="${ORG}"
+              project="${PROJECT}"
+              pipeline_id="${PIPELINE_ID}"
+
+              repo="${{ parameters.repo }}"
+              branch="${{ parameters.branch }}"
+              env="${{ parameters.environment }}"
+
+              # API endpoint for pipeline runs
+              url="https://dev.azure.com/$org/$project/_apis/pipelines/$pipeline_id/runs?api-version=7.1-preview.1"
+
+              # ---------------------------------------------------------------
+              # Execute REST call
+              # ---------------------------------------------------------------
+              response=$(curl -sS -X POST \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                --data-binary @"$PAYLOAD_FILE" \
+                "$url")
+
+              curl_exit=$?
+
+              echo ">> Raw response:"
+              echo "-------------------------------------------------"
+              echo "$response"
+              echo "-------------------------------------------------"
+
+              # ---------------------------------------------------------------
+              # Check for curl-level failure (network, DNS, etc)
+              # ---------------------------------------------------------------
+              if [ $curl_exit -ne 0 ]; then
+                echo "!! ERROR: curl failed with exit code $curl_exit"
+                exit 1
+              fi
+
+              # ---------------------------------------------------------------
+              # Check that JSON is valid
+              # ---------------------------------------------------------------
+              if ! echo "$response" | jq . >/dev/null 2>&1; then
+                echo "!! ERROR: Response from Azure DevOps was not valid JSON:"
+                echo "$response"
+                exit 1
+              fi
+
+              # ---------------------------------------------------------------
+              # Extract runId from response
+              # ---------------------------------------------------------------
+              runId=$(echo "$response" | jq -r '.id')
+
+              if [ "$runId" = "null" ] || [ -z "$runId" ]; then
+                echo "!! ERROR: Unable to extract runId!"
+                exit 1
+              fi
+
+              # ---------------------------------------------------------------
+              # Build clean clickable URL
+              # ---------------------------------------------------------------
+              runUrl="https://dev.azure.com/$org/$project/_build/results?buildId=$runId&view=results"
+
+              echo ""
+              echo "====================================================="
+              echo "EPIC Deployment Pipeline has been triggered for: $repo"
+              echo "$runUrl"
+              echo "====================================================="
+              echo ""
+            displayName: "Run EPIC Engine via REST API"
+
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+

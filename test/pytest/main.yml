@@ -1,0 +1,79 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Use Python Version
+  #############################################################################
+  - task: UsePythonVersion@0
+    displayName: "Use Python ${{ parameters.pythonVersion }}"
+    inputs:
+      versionSpec: "${{ parameters.pythonVersion }}"
+      addToPath: true
+
+
+  #############################################################################
+  # Verify Python
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      python --version
+      which python
+    displayName: "Verify Python"
+
+
+  #############################################################################
+  # Install Dependencies
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Creating virtual environment"
+      python -m venv .venv
+
+      echo ">> Activating venv"
+      source .venv/bin/activate
+
+      echo ">> Upgrading pip"
+      python -m pip install --upgrade pip
+
+      echo ">> Installing runtime dependencies"
+      python -m pip install -r requirements.txt
+
+      echo ">> Installing dev dependencies"
+      python -m pip install -r requirements-dev.txt
+
+      echo ">> Installing project"
+      python -m pip install -e .
+    displayName: "Install dependencies"
+
+
+  #############################################################################
+  # Test
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      source .venv/bin/activate
+
+      echo ">> Installing coverage tools"
+      python -m pip install coverage pytest
+
+      mkdir -p .reports
+
+      echo ">> Running tests with coverage"
+
+      coverage run --source=${{ parameters.codePath }} -m pytest -v \
+        --junitxml=.reports/junit.xml
+
+      echo ">> Generating XML coverage report"
+      coverage xml -o .reports/coverage.xml
+    displayName: "Execute tests with coverage"
+
+
