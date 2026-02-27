@@ -73,6 +73,9 @@ parameters:
   - name: ec2InstanceId
     type: string
     default: ""
+  - name: appExecutable
+    type: string
+    default: ""
 
   # Azure
   - name: azureSubscription
