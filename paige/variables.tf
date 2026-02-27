@@ -1,5 +1,5 @@
 ###############################################################################
-# Variables
+# Organization & Account
 ###############################################################################
 
 variable "principal_orgid" {
@@ -12,6 +12,16 @@ variable "aws_account_id" {
   type        = string
 }
 
+variable "aws_region" {
+  description = "Deployment region."
+  type        = string
+}
+
+
+###############################################################################
+# Application
+###############################################################################
+
 variable "app_name" {
   description = "Application name used for naming CloudFront resources."
   type        = string
@@ -22,13 +32,30 @@ variable "environment" {
   type        = string
 }
 
-variable "aws_region" {
-  description = "Deployment region."
+variable "app_path" {
+  description = "Relative path under the app folder containing static site files"
   type        = string
+  default     = "/"
 }
 
+variable "health_check_path" {
+  type        = string
+  description = "API health_check path."
+}
+
+variable "instance_type" {
+  description = "Type of AMI instance"
+  type        = string
+  default     = "t3.micro"
+}
+
+
+###############################################################################
+# Tagging & Compliance
+###############################################################################
+
 variable "appid" {
-  description = "Identify the application this asset belongs to by its AMPS APP ID.Format = APP-####"
+  description = "Identify the application this asset belongs to by its AMPS APP ID. Format = APP-####"
   type        = number
 }
 
@@ -98,6 +125,44 @@ variable "cris" {
     error_message = "Valid values for Cyber Risk Impact Score are High, Medium, Low (only one). Please select one these CRIS values."
   }
 }
+
+
+###############################################################################
+# Networking
+###############################################################################
+
+variable "network" {
+  type = object({
+    vpc_id              = string
+    subnet_ids          = list(string)
+    main_route_table_id = string
+  })
+}
+
+variable "domain_name" {
+  description = "Domain name for the ACM certificate and Route53 record"
+  type        = string
+}
+
+variable "api_domain_name" {
+  description = "Domain name for the API ALB and Route53 record"
+  type        = string
+}
+
+variable "private_hosted_zone_id" {
+  description = "Route53 hosted zone ID"
+  type        = string
+}
+
+variable "public_hosted_zone_id" {
+  description = "Route53 hosted zone ID"
+  type        = string
+}
+
+
+###############################################################################
+# S3
+###############################################################################
 
 variable "custom_bucket_name" {
   description = "Globally-unique S3 custom bucket name."
@@ -195,6 +260,24 @@ variable "bucket_policy_json" {
   nullable    = true
 }
 
+variable "cache_control" {
+  description = "Optional Cache-Control header for uploaded objects"
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "content_type_overrides" {
+  description = "Optional override map for file extensions to MIME types"
+  type        = map(string)
+  default     = {}
+}
+
+
+###############################################################################
+# CloudFront
+###############################################################################
+
 variable "price_class" {
   description = "CloudFront price class."
   type        = string
@@ -212,29 +295,10 @@ variable "custom_domain_aliases" {
   default     = []
 }
 
-variable "app_path" {
-  description = "Relative path under the app folder containing static site files"
-  type        = string
-  default     = "/"
-}
 
-variable "cache_control" {
-  description = "Optional Cache-Control header for uploaded objects"
-  type        = string
-  default     = null
-  nullable    = true
-}
-
-variable "content_type_overrides" {
-  description = "Optional override map for file extensions to MIME types"
-  type        = map(string)
-  default     = {}
-}
-
-variable "health_check_path" {
-  type        = string
-  description = "API health_check path."
-}
+###############################################################################
+# Secrets
+###############################################################################
 
 variable "secrets" {
   type        = map(string)
@@ -244,38 +308,4 @@ variable "secrets" {
 variable "secrets_description" {
   type        = string
   description = "Secret description"
-}
-
-variable "network" {
-  type = object({
-    vpc_id              = string
-    subnet_ids          = list(string)
-    main_route_table_id = string
-  })
-}
-
-variable "instance_type" {
-  description = "Type of AMI instance"
-  type        = string
-  default     = "t3.micro"
-}
-
-variable "domain_name" {
-  description = "Domain name for the ACM certificate and Route53 record"
-  type        = string
-}
-
-variable "api_domain_name" {
-  description = "Domain name for the API ALB and Route53 record"
-  type        = string
-}
-
-variable "private_hosted_zone_id" {
-  description = "Route53 hosted zone ID"
-  type        = string
-}
-
-variable "public_hosted_zone_id" {
-  description = "Route53 hosted zone ID"
-  type        = string
 }
