@@ -60,16 +60,24 @@ custom_domain_aliases = ["paige-dev.nonprod.pge.com"]
 
 
 ###############################################################################
+# EC2
+###############################################################################
+
+ec2_ami               = "al2023-ami-2023*-x86_64"
+app_executable        = "Paige.Api"
+
+
+###############################################################################
 # Secrets
 ###############################################################################
 
 secrets_description = "Appsettings for Paige.API"
 
 secrets = {
-  "GITHUB_BASE_URL"         = "https://github.com/pgetech"
-  "GITHUB_TOKEN"            = "CHANGE_ME"
-  "PORTKEY_BASE_URL"        = "https://aws-ai-gateway.nonprod.pge.com/v1"
-  "PORTKEY_MODEL"           = "@bedrock-dev/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+  "GITHUB_BASE_URL"          = "https://github.com/pgetech"
+  "GITHUB_TOKEN"             = "CHANGE_ME"
+  "PORTKEY_BASE_URL"         = "https://aws-ai-gateway.nonprod.pge.com/v1"
+  "PORTKEY_MODEL"            = "@bedrock-dev/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
   "PORTKEY_MODEL_CLASSIFIER" = "@bedrock-dev/us.anthropic.claude-3-haiku-20240307-v1:0"
-  "PORTKEY_API_KEY"         = "CHANGE_ME"
+  "PORTKEY_API_KEY"          = "CHANGE_ME"
 }
