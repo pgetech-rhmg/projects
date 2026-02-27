@@ -71,7 +71,7 @@ jobs:
 
 
       ###########################################################################
-      # Upload to S3 (EB requires S3 version)
+      # Upload to S3
       ###########################################################################
       - bash: |
           set -euo pipefail
@@ -89,36 +89,77 @@ jobs:
 
 
       ###########################################################################
-      # Deploy to EC2 via SSM
+      # Deploy to EC2 via SSM (.NET)
       ###########################################################################
-      - bash: |
-          set -euo pipefail
+      - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_framework')) }}:
+        - bash: |
+            set -euo pipefail
 
-          INSTANCE_ID="${{ parameters.ec2InstanceId }}"
-          S3_BUCKET="${{ parameters.s3 }}"
-          APP_NAME="${{ parameters.appName }}"
+            INSTANCE_ID="${{ parameters.ec2InstanceId }}"
+            S3_BUCKET="${{ parameters.s3 }}"
+            APP_NAME="${{ parameters.appName }}"
 
-          echo "Deploying to EC2: $INSTANCE_ID"
+            echo "Deploying to EC2: $INSTANCE_ID"
 
-          aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name "AWS-RunShellScript" \
-            --comment "Deploy $APP_NAME" \
-            --parameters commands="[
-              \"set -e\",
-              \"cd /opt/${{ parameters.appName }}\",
-              \"sudo rm -rf api\",
-              \"sudo mkdir -p api\",
-              \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
-              \"sudo unzip -o $APP_NAME.zip -d api\",
-              \"sudo chmod +x /opt/${{ parameters.appName }}/api/${{ parameters.ec2Command }}\",
-              \"sudo systemctl daemon-reload\",
-              \"sudo systemctl stop ${{ parameters.appName }}-api || true\",
-              \"sudo systemctl start ${{ parameters.appName }}-api\"
-            ]"
+            aws ssm send-command \
+              --instance-ids "$INSTANCE_ID" \
+              --document-name "AWS-RunShellScript" \
+              --comment "Deploy $APP_NAME" \
+              --parameters commands="[
+                \"set -e\",
+                \"cd /opt/${{ parameters.appName }}\",
+                \"sudo rm -rf api\",
+                \"sudo mkdir -p api\",
+                \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
+                \"sudo unzip -o $APP_NAME.zip -d api\",
+                \"sudo chmod +x /opt/${{ parameters.appName }}/api/${{ parameters.ec2Command }}\",
+                \"sudo systemctl daemon-reload\",
+                \"sudo systemctl stop ${{ parameters.appName }}-api || true\",
+                \"sudo systemctl start ${{ parameters.appName }}-api\"
+              ]"
 
-        displayName: "Deploy to EC2 via SSM"
-        env:
-          AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
-          AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
-          AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
+          displayName: "Deploy to EC2 via SSM"
+          env:
+            AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+            AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+            AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
+
+
+      ###########################################################################
+      # Deploy to EC2 via SSM (Python)
+      ###########################################################################
+      - ${{ if eq(parameters.appType, 'python') }}:
+        - bash: |
+            set -euo pipefail
+
+            INSTANCE_ID="${{ parameters.ec2InstanceId }}"
+            S3_BUCKET="${{ parameters.s3 }}"
+            APP_NAME="${{ parameters.appName }}"
+
+            echo "Deploying to EC2: $INSTANCE_ID"
+
+            aws ssm send-command \
+              --instance-ids "$INSTANCE_ID" \
+              --document-name "AWS-RunShellScript" \
+              --comment "Deploy $APP_NAME" \
+              --parameters commands="[
+                \"set -e\",
+                \"sudo mkdir -p /opt/${{ parameters.appName }}\",
+                \"cd /opt/${{ parameters.appName }}\",
+                \"sudo rm -rf app\",
+                \"sudo mkdir -p app\",
+                \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
+                \"sudo unzip -o $APP_NAME.zip -d app\",
+                \"cd app\",
+                \"sudo python3 -m venv venv\",
+                \"sudo venv/bin/pip install -r requirements.txt\",
+                \"sudo systemctl daemon-reload\",
+                \"sudo systemctl stop ${{ parameters.appName }} || true\",
+                \"sudo systemctl start ${{ parameters.appName }}\"
+              ]"
+
+          displayName: "Deploy to EC2 via SSM"
+          env:
+            AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+            AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+            AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
