@@ -61,12 +61,13 @@ jobs:
       - bash: |
           set -euo pipefail
 
+          echo "Zipping build files..."
+
           BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
 
           cd "$BUILD_PATH"
 
           zip -r ../deploy.zip .
-
         displayName: "Create Deployment ZIP"
 
 
@@ -76,11 +77,12 @@ jobs:
       - bash: |
           set -euo pipefail
 
+          echo "Deploying zip file..."
+
           ZIP_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/deploy.zip"
           S3_BUCKET="${{ parameters.s3 }}"
 
           aws s3 cp "$ZIP_PATH" "s3://$S3_BUCKET/${{ parameters.appName }}.zip"
-
         displayName: "Upload ZIP to S3"
         env:
           AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
@@ -94,6 +96,8 @@ jobs:
       - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_framework')) }}:
         - bash: |
             set -euo pipefail
+
+            echo "Deploying ${{ parameters.appType }}..."
 
             INSTANCE_ID="${{ parameters.ec2InstanceId }}"
             S3_BUCKET="${{ parameters.s3 }}"
@@ -118,7 +122,8 @@ jobs:
                 \"sudo systemctl start ${{ parameters.appName }}-api\"
               ]"
 
-          displayName: "Deploy to EC2 via SSM"
+            echo "Deployment complete."
+          displayName: "Deploy to EC2 via SSM (.NET)"
           env:
             AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
             AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
@@ -131,6 +136,8 @@ jobs:
       - ${{ if eq(parameters.appType, 'python') }}:
         - bash: |
             set -euo pipefail
+
+            echo "Deploying ${{ parameters.appType }}..."
 
             INSTANCE_ID="${{ parameters.ec2InstanceId }}"
             S3_BUCKET="${{ parameters.s3 }}"
@@ -158,7 +165,8 @@ jobs:
                 \"sudo systemctl start ${{ parameters.appName }}\"
               ]"
 
-          displayName: "Deploy to EC2 via SSM"
+            echo "Deployment complete."
+          displayName: "Deploy to EC2 via SSM (Python)"
           env:
             AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
             AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
