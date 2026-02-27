@@ -1,1 +1,224 @@
-**/.DS_Store
+# ================================
+# PAIGE - .gitignore
+# ================================
+# .NET / ASP.NET Core
+# VS Code / macOS
+# Azure-hosted Enterprise API
+# ================================
+
+
+##################################
+# .NET build artifacts
+##################################
+bin/
+obj/
+out/
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+
+##################################
+# User-specific files
+##################################
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+
+##################################
+# Visual Studio / VS Code
+##################################
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+
+##################################
+# Rider / JetBrains
+##################################
+.idea/
+*.sln.iml
+
+
+##################################
+# OS-specific
+##################################
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+
+##################################
+# Logs
+##################################
+*.log
+logs/
+app-logs/
+
+
+##################################
+# Secrets & sensitive config
+##################################
+.env
+.env.*
+secrets.json
+appsettings.Local.json
+appsettings.Development.Local.json
+appsettings.*.Local.json
+launchSettings.json
+
+
+##################################
+# Azure / Cloud
+##################################
+.azure/
+azds.yaml
+serviceDependencies.json
+serviceDependencies.local.json
+
+
+##################################
+# Authentication artifacts
+##################################
+*.pfx
+*.cer
+*.key
+*.pem
+
+
+##################################
+# AI / PortKey
+##################################
+.portkey/
+portkey.config.json
+portkey.local.json
+
+
+##################################
+# Swagger / OpenAPI generated files
+##################################
+swagger.json
+openapi.json
+
+
+##################################
+# Temporary / scratch files
+##################################
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+
+
+##################################
+# Test output
+##################################
+*.trx
+*.testlog
+
+
+##################################
+# Package management
+##################################
+packages/
+*.nupkg
+*.snupkg
+.nuget/
+.nuget/packages/
+.npmrc
+
+
+##################################
+# Docker (if added later)
+##################################
+docker-compose.override.yml
+Dockerfile.local
+.dockerignore
+
+
+##################################
+# Misc
+##################################
+*.pid
+*.seed
+*.orig
+
+# =========================
+# Dependencies
+# =========================
+node_modules/
+
+# =========================
+# Angular build output
+# =========================
+dist/
+out-tsc/
+
+# =========================
+# Angular cache
+# =========================
+.angular/
+.angular/cache/
+*/package-lock.json
+
+# =========================
+# Logs
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Environment files
+# =========================
+.env
+.env.*
+!*.example.env
+
+# =========================
+# Coverage / test output
+# =========================
+coverage/
+reports/
+
+# =========================
+# Editor / IDE
+# =========================
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+.idea/
+*.iml
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Temporary files
+# =========================
+tmp/
+temp/
+
+# =========================
+# TypeScript
+# =========================
+*.tsbuildinfo
+
+# =========================
+# Angular CLI misc
+# =========================
+.angular-cache/

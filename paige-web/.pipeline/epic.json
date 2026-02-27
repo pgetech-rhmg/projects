@@ -1,0 +1,11 @@
+{
+  "appName": "Paige_Web",
+  "appType": "angular",
+  "codePath": "/",
+  "scanTool": "sonarqube",
+  "unitTestTool": "jest",
+  "nodeVersion": "20",
+
+  "s3": "pge-epic-paige-web-dev",
+  "cloudfront": "E3P8DOGZX0L1A1"
+}

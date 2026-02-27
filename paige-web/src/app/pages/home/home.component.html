@@ -1,0 +1,29 @@
+<main class="content">
+    <div #scroller class="scroll-bottom hide">
+        <button class="icon" (click)="scrollToBottom()">arrow_circle_down</button>
+    </div>
+
+    <div #messagearea class="messages" (scroll)="scrolling($event)">
+        <div *ngFor="let msg of messages" [class]="msg.type" [innerHTML]="msg.text"></div>
+    </div>
+
+    <div *ngIf="messages.length === 0" class="messages">
+        <div class="initial">
+            <div class="statement">Talk to me!</div>
+        </div>
+    </div>
+
+    <div class="prompts">
+        <div *ngIf="!isStreaming" class="question">
+            <textarea #textarea class="textarea" rows="1" (input)="autoResize(textarea)" (keydown.enter)="onEnter($event, textarea)"></textarea>
+
+            <div #send class="send-bottom hide">
+                <button class="icon" (click)="onEnter($event, textarea)">arrow_circle_right</button>
+            </div>
+        </div>
+
+        <div *ngIf="isStreaming" class="cancel">
+            <button (click)="cancelStream()">Cancel Response</button>
+        </div>
+    </div>
+</main>

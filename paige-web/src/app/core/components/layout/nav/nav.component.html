@@ -1,0 +1,30 @@
+<div class="menu">
+	<button class="icon" (click)="toggleMenu(true)">{{ expand ? 'close' : 'menu' }}</button>
+</div>
+<div class="items" [ngClass]="{ expand: expand }">
+	<ng-container *ngFor="let item of navItems">
+		<div class="item" [ngClass]="{ active: activeItem && item.title === activeItem.title, expand: expand }">
+			<button class="bg" [ngClass]="{ active: activeItem && item.title === activeItem.title }" (click)="navigateTo(item)">
+				<div class="icon" [ngClass]="{ active: activeItem && item.title === activeItem.title }">{{ item.icon }}</div>
+				<div class="title" [ngClass]="{ active: activeItem && item.title === activeItem.title, expand: expand }">{{ item.title }}</div>
+			</button>
+
+			<ng-container *ngFor="let subItem of navSubItems">
+				<div class="sub" [ngClass]="{ expand: expand }" *ngIf="subItem.parent === item.title">
+					<div class="arrow" [ngClass]="{ active: activeItem && subItem.title === activeItem.title }">►</div>
+					<div class="line"></div>
+					<button class="icon" [ngClass]="{ active: activeItem && subItem.title === activeItem.title }" [title]="subItem.title" (click)="navigateTo(subItem)">{{ subItem.icon }}</button>
+					<button class="text title" [ngClass]="{ active: activeItem && subItem.title === activeItem.title }" (click)="navigateTo(subItem)">{{ subItem.title }}</button>
+				</div>
+			</ng-container>
+		</div>
+	</ng-container>
+
+	<div class="toggle" [ngClass]="{ expand: expand }">
+		<button [title]="appTitle" class="icon" (click)="toggleFullscreen()">{{ appIcon }}</button>
+		<br />
+		<button class="icon" (click)="toggleMenu()">{{ expand ? 'keyboard_double_arrow_left' : 'keyboard_double_arrow_right' }}</button>
+	</div>
+</div>
+
+<footer [ngClass]="{ expand: expand }"></footer>

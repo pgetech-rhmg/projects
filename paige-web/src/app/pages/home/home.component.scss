@@ -1,0 +1,193 @@
+@use "/src/styles/page";
+
+$prompt: rgb(250, 171, 24);
+$prompt-light: rgb(255, 250, 241);
+
+$system: rgb(130, 130, 130);
+$system-light: rgb(245, 245, 245);
+
+$user: rgb(0, 102, 178);
+$user-light: rgb(203, 240, 255);
+
+.content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    overflow: hidden;
+
+    .scroll-bottom {
+        position: absolute;
+        left: 50%;
+        right: 50%;
+        bottom: 70px;
+
+        width: 45px;
+
+        transform: translate(-50%, -50%);
+
+        z-index: 5;
+
+        .icon {
+            font-size: 3.0em;
+            color: var(--gray);
+        }
+
+        .hide {
+            display: none;
+        }
+    }
+
+    pre {
+        max-width: 100%;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        word-break: break-word;
+        box-sizing: border-box;
+    }
+
+    code {
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        word-break: break-word;
+    }
+
+    .messages {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        bottom: 120px;
+
+        z-index: 1;
+
+        display: flex;
+        flex-direction: column;
+
+        overflow: auto;
+
+        .initial {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            height: 100%;
+
+            .statement {
+                font-size: 2.0em;
+                font-weight: 600;
+            }
+        }
+
+        .system,
+        .user {
+            font-size: 1.2em;
+            padding-bottom: 10px;
+
+            margin: 10px;
+            padding: 10px;
+            border-radius: 5px;
+
+            min-width: 0;
+            max-width: 60%;
+            white-space: normal;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+
+        .system {
+            color: $system;
+            align-self: flex-start;
+            border: 1px solid $system;
+            background-color: $system-light;
+        }
+
+        .user {
+            color: $user;
+            align-self: flex-end;
+            border: 1px solid $user;
+            background-color: $user-light;
+        }
+    }
+
+    .prompts {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+
+        height: 100px;
+
+        z-index: 2;
+
+        border-top: 1px solid $prompt;
+        background-color: $prompt-light;
+
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        .question {
+            position: relative;
+            width: 50%;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            .textarea {
+                width: 100%;
+                font-size: 1.2em;
+                resize: none;
+                line-height: 25px;
+                padding: 6px 8px;
+                padding-right: 50px;
+                box-sizing: border-box;
+                border-color: $prompt;
+                overflow-y: hidden;
+            }
+
+            .send-bottom {
+                position: absolute;
+                right: 10px;
+                padding-top: 8px;
+
+                z-index: 1;
+
+                .icon {
+                    font-size: 2.0em;
+                    color: var(--gray);
+                }
+
+                .hide {
+                    display: none;
+                }
+            }
+        }
+    }
+}
+
+:host ::ng-deep .table-scroll-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+:host ::ng-deep .table-scroll-wrapper table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+:host ::ng-deep .table-scroll-wrapper th,
+:host ::ng-deep .table-scroll-wrapper td {
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+

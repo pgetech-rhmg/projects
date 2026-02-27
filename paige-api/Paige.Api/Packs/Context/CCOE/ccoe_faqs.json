@@ -1,0 +1,51 @@
+{
+  "metadata": {
+    "packId": "pge-ccoe-faqs",
+    "name": "PG&E Cloud COE FAQs",
+    "version": "1.0.0",
+    "description": "Frequently asked questions from the PG&E Cloud Center of Excellence. Used to orient users and route them to the canonical Cloud COE FAQ page.",
+    "domains": [
+      "cloud",
+      "governance",
+      "onboarding"
+    ],
+    "topics": [
+      "ccoe",
+      "basics",
+      "intake",
+      "cost",
+      "onboarding",
+      "operations",
+      "shared-responsibility",
+      "security",
+      "platforms"
+    ],
+    "audience": [
+      "new-user",
+      "developer",
+      "engineer",
+      "manager"
+    ],
+    "riskLevel": "low",
+    "priority": 3,
+    "keywords": [
+      "what is",
+      "how does",
+      "do i need",
+      "who owns",
+      "who supports",
+      "how much does it cost",
+      "cloud intake",
+      "onboarding",
+      "shared responsibility",
+      "onecloud",
+      "commercial cloud",
+      "aws vs on prem",
+      "is data secure"
+    ],
+    "alwaysInject": false,
+    "safetyCritical": true
+  },
+  "prompt": "[System: PG&E Context Pack — Cloud COE FAQs]\n\nPurpose\n- This pack provides frequently asked questions curated by the PG&E Cloud Center of Excellence.\n- Use it to orient users and route them to the canonical Cloud COE FAQ page.\n- Do NOT attempt to replace or fully restate the FAQ content.\n- Summarize at a high level and provide the official link for authoritative answers.\n\nCanonical Source\n- PG&E Wiki (Confluence)\n- Space: Cloud COE\n- Page: Cloud COE FAQs\n- URL: https://wiki.comp.pge.com/display/CCE/Cloud+COE+FAQs\n\nFAQ Topics Covered\n\nBasics & Benefits\n- What is AWS and commercial cloud?\n- Benefits of using commercial cloud platforms\n- Available cloud services and product offerings\n- Using non-standard or third-party services\n\nIntake & Onboarding\n- How to engage the Cloud COE intake process\n- Choosing between OneCloud and Commercial Cloud\n- Cost considerations and tracking intake requests\n\nApplication Onboarding & Operations\n- What application onboarding entails\n- AWS account creation and access\n- Operational support and shared responsibility\n- Third-Party Security Review (TSR)\n- Authorization and platform enablement\n\nPeople Onboarding\n- Contractor and access onboarding considerations\n\nSecurity, Data & Platform\n- Data security in external cloud providers\n- Differences between OneCloud, AWS, and on-prem\n- Performance expectations\n- Cloud suitability for enterprise systems\n- Data and workloads that are not candidates for cloud\n\nProduct-Specific FAQs\n- Where to find FAQs for specific Cloud COE products (API Platform, CI/CD, Datastores)\n\nBehavioral Guidance\n- When a question aligns with these topics, provide a concise summary.\n- Always include a link to the canonical FAQ page for authoritative detail.\n- If the question moves into procedural or technical execution, defer to:\n  - Cloud COE Articles\n  - Domain-specific guidance packs"
+}
+

@@ -1,0 +1,68 @@
+<div class="content">
+    <div class="header">
+        <span class="title">Usage Report</span>
+        <button title="Close" class="icon close" (click)="close()">close</button>
+    </div>
+
+    <div class="graph">
+        <div class="label">
+            <div>
+                <span style="font-family: var(--font-header); padding-right: 5px">Type:</span> <span>{{ filterType }}</span>
+            </div>
+            <div>
+                <span style="font-family: var(--font-header); padding-right: 5px">Start Date:</span> <span>{{ filterStartDate | date:"MM/dd/yyyy" }}</span>
+            </div>
+            <div>
+                <span style="font-family: var(--font-header); padding-right: 5px">End Date:</span> <span>{{ filterEndDate | date:"MM/dd/yyyy" }}</span>
+            </div>
+            <div>
+                <button title="Filters" class="icon" (click)="showFilters = true">filter_alt</button>
+            </div>
+            <div *ngIf="total" class="total">
+                <div><strong>Total Unique {{ filterType }}:</strong> {{ total }}</div>
+            </div>
+        </div>
+        <div class="data">
+            <canvas #chartCanvas></canvas>
+        </div>
+    </div>
+
+    <div *ngIf="showFilters" class="locked"></div>
+
+    <div class="filters" [ngClass]="{ show: showFilters }">
+        <div class="filters-header">
+            <span class="title">Filters</span>
+            <button title="Close" class="icon close" (click)="closeFilters()">close</button>
+        </div>
+
+        <div class="filters-content">
+            <div>
+                <sdk-select [options]="types" [selectedOptions]="[selectedType]" optionStyle="height: 35px; width: 100%" optionValuesStyle="max-height: 250px; text-align: left" label="Type" labelStyle="font-family: var(--font-header); color: var(--blue); white-space: nowrap; width: 125px;" (selectChangeEvent)="selectedType = $event"></sdk-select>
+            </div>
+            <div>
+                <sdk-select [options]="timeframes" [selectedOptions]="[selectedTimeframe]" optionStyle="height: 35px; width: 100%" optionValuesStyle="max-height: 250px; text-align: left" label="Timeframe" labelStyle="font-family: var(--font-header); color: var(--blue); white-space: nowrap; width: 125px;" (selectChangeEvent)="setTimeframe($event)"></sdk-select>
+            </div>
+            <div *ngIf="showDates">
+                <div style="display: inline-block; white-space: nowrap; width: 100px;">
+                    <span style="font-family: var(--font-header); color: var(--blue);">Start</span>
+                </div>
+                <div style="display: inline-block;">
+                    <sdk-textbox validCharacters="calendar" pattern="MM/DD/YYYY" height="35px" [value]="startDate" (blurCallBackEvent)="startDate = $event; validateDates('start')"></sdk-textbox>
+                </div>
+                <br />
+                <div style="display: inline-block; white-space: nowrap; width: 100px;">
+                    <span style="font-family: var(--font-header); color: var(--blue);">End</span>
+                </div>
+                <div style="display: inline-block;">
+                    <sdk-textbox validCharacters="calendar" pattern="MM/DD/YYYY" height="35px" [value]="endDate" (blurCallBackEvent)="endDate = $event; validateDates('end')"></sdk-textbox>
+                </div>
+            </div>
+        </div>
+
+        <div class="filters-footer">
+            <button (click)="closeFilters(); loadData()">Apply</button>
+        </div>
+    </div>
+</div>
+
+<sdk-loading [isLoading]="isLoading"></sdk-loading>

@@ -1,0 +1,43 @@
+@use "/src/fonts/Gotham_Definitions.css";
+
+/******************************************************************************
+    Brand Standards
+******************************************************************************/
+:root {
+    /**************************************************************************
+        Colors
+    **************************************************************************/
+    --blue: rgb(0, 102, 178);
+    --blue-dark: rgb(11, 45, 113);
+    --blue-light: rgb(0, 157, 217);
+
+    --teal: rgb(0, 112, 140);
+    --teal-dark: rgb(0, 54, 83);
+    --teal-light: rgb(0, 178, 189);
+
+    --green: rgb(118, 146, 49);
+    --green-dark: rgb(68, 75, 13);
+    --green-light: rgb(178, 204, 52);
+
+    --red: rgb(151, 0, 46);
+    --red-dark: rgb(88, 0, 28);
+    --red-light: rgb(226, 24, 54);
+
+    --orange: rgb(229, 96, 31);
+    --orange-dark: rgb(113, 27, 0);
+    --orange-light: rgb(250, 171, 24);
+
+    --purple: rgb(117, 21, 105);
+    --purple-dark: rgb(58, 13, 54);
+    --purple-light: rgb(186, 48, 147);
+
+    --gray: rgb(140, 143, 147);
+    --gray-dark: rgb(107, 109, 111);
+    --gray-light: rgb(219, 220, 221);
+
+    /**************************************************************************
+        Fonts
+    **************************************************************************/
+    --font-header: 'GothamBold', sans-serif, 'Helvetica Neue', Arial;
+    --font-text: 'GothamNarrowBook', sans-serif, 'Helvetica Neue', Arial;
+}

@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "packId": "pge-ccoe-articles",
+    "name": "PG&E Cloud COE How-To Articles",
+    "version": "1.0.0",
+    "description": "Curated Cloud COE how-to and procedural articles from the PG&E Wiki. Used to route users to authoritative internal documentation.",
+    "domains": [
+      "cloud",
+      "aws",
+      "azure",
+      "operations"
+    ],
+    "topics": [
+      "ccoe",
+      "how-to",
+      "developer-workstations",
+      "identity-access",
+      "account-lifecycle",
+      "networking",
+      "apis",
+      "security",
+      "cicd",
+      "monitoring",
+      "support"
+    ],
+    "audience": [
+      "developer",
+      "engineer",
+      "operator",
+      "platform"
+    ],
+    "riskLevel": "low",
+    "priority": 5,
+    "keywords": [
+      "how do i",
+      "how to",
+      "setup",
+      "install",
+      "configure",
+      "aws cli",
+      "assume role",
+      "create account",
+      "deploy api",
+      "waf",
+      "load balancer",
+      "terraform pipeline",
+      "sonarqube",
+      "logging",
+      "support escalation"
+    ],
+    "alwaysInject": false,
+    "safetyCritical": true
+  },
+  "prompt": "[System: PG&E Context Pack — Cloud COE How-To Articles]\n\nPurpose\n- This pack provides authoritative Cloud COE how-to articles from the PG&E Wiki.\n- Use these links to guide users to official procedures when their question aligns with an established process.\n- Do NOT restate full procedures; link to the source and summarize intent when helpful.\n\nSource\n- System: PG&E Wiki (Confluence)\n- Space: Cloud COE\n- Base URL: https://wiki.comp.pge.com\n\nArticles\n\nDeveloper Workstations & Tooling\n- How to Setup Your MacBook When You First Get It\n  https://wiki.comp.pge.com/display/CCE/How+to+Setup+Your+MacBook+When+you+First+Get+It\n- Installing AWS CLI\n  https://wiki.comp.pge.com/display/CCE/Installing+AWS+CLI\n- Using AWS CLI on PG&E Network\n  https://wiki.comp.pge.com/pages/viewpage.action?pageId=49953343\n- AWS CLI for Windows 10 VDI\n  https://wiki.comp.pge.com/display/CCE/AWS+CLI+for+Windows+10+VDI\n\nIdentity, Access & Authentication\n- How to Assume Role into an AWS Account\n  https://wiki.comp.pge.com/display/CCE/How+to+Assume+Role+into+an+AWS+Account\n- Create Admin, Ops, Audit, BreakGlass Roles for Partner Accounts\n  https://wiki.comp.pge.com/display/CCE/How+to+Create+Admin%2C+Ops%2C+Audit%2C+BreakGlass+Role+for+Partner+Accounts\n- Create AWS Role in MEA Role Manager\n  https://wiki.comp.pge.com/display/CCE/Create+AWS+Role+in+MEA+Role+Manager\n- Auth Code Flow + PKCE (Angular SPA)\n  https://wiki.comp.pge.com/pages/viewpage.action?pageId=90119982\n\nAWS Account Lifecycle & Networking\n- Create and Access a New AWS Account\n  https://wiki.comp.pge.com/display/CCE/How+to+Create+and+Access+a+new+AWS+Account\n- Initiate Account Creation Step Function\n  https://wiki.comp.pge.com/display/CCE/How+to+Initiate+Account+Creation+Step+Function\n- Initiate Account Deprovisioning Step Function\n  https://wiki.comp.pge.com/display/CCE/How+to+Initiate+Account+Deprovisioning+Step+Function\n- Assign Additional CIDR Block and Subnets\n  https://wiki.comp.pge.com/display/CCE/Assign+Additional+CIDR+Block+and+Subnets+to+Existing+VPC\n- Modify Workload Account Transit Routing\n  https://wiki.comp.pge.com/display/CCE/How+to+Modify+Workload+Account+Transit+Routing\n\nAPIs, Load Balancers & Networking\n- Deploy Public Facing API\n  https://wiki.comp.pge.com/display/CCE/How+to+Deploy+Public+Facing+API\n- Deploy Private API (PGE AWS Accounts)\n  https://wiki.comp.pge.com/display/CCE/How+to+Deploy+Private+API+-+Accessible+from+PGE+AWS+Accounts\n- Deploy Private API (AWS + On-Prem)\n  https://wiki.comp.pge.com/display/CCE/How+to+Deploy+Private+API+-+Accessible+from+PGE+AWS+Accounts+and+On+Prem\n- Deploy Public Facing ALB/NLB (Transit.Next)\n  https://wiki.comp.pge.com/pages/viewpage.action?pageId=189563576\n\nSecurity, WAF & Compliance\n- Update S3 Web WAF V1 to WAF V2\n  https://wiki.comp.pge.com/display/CCE/How+to+Update+Existing+S3+Web+WAF+V1+to+WAF+V2\n- Update Allow List for Public LB and WAF\n  https://wiki.comp.pge.com/display/CCE/How+to+Update+Allow+List+for+Public+Facing+Load+Balancer+and+WAF\n- Request Certificate for IIS on Windows EC2\n  https://wiki.comp.pge.com/pages/viewpage.action?pageId=350688708\n- Enable Application Load Balancer Logging\n  https://wiki.comp.pge.com/display/CCE/How+to+Enable+Application+Load+Balancer+Logging\n\nCI/CD, Git & Code Quality\n- GitHub - Create Personal Access Token\n  https://wiki.comp.pge.com/display/CCE/GitHub+-+Create+Personal+Access+Token\n- Frequently Used Git CLI Commands\n  https://wiki.comp.pge.com/display/CCE/Frequently+used+GIT+CLI+Commands\n- Terraform-CodePipeline\n  https://wiki.comp.pge.com/display/CCE/Terraform-CodePipeline\n- SonarQube Scan from Local Machines\n  https://wiki.comp.pge.com/display/CCE/Developer+Guide%3A+SonarQube+scan+from+local+machines\n\nMonitoring, Logging & Operations\n- Querying WAF Logs\n  https://wiki.comp.pge.com/display/CCE/Querying+WAF+Logs\n- Deploy Health Events Dashboard\n  https://wiki.comp.pge.com/display/CCE/How+to+Deploy+Health+Events+Dashboard\n- Gateway Benchmark\n  https://wiki.comp.pge.com/display/CCE/Gateway+Benchmark\n\nSupport & Escalation\n- AWS Support Engagement & Escalation Guide\n  https://wiki.comp.pge.com/pages/viewpage.action?pageId=61081474\n- Azure Support Engagement & Escalation Guide\n  https://wiki.comp.pge.com/pages/viewpage.action?pageId=354855903\n- Azure Provisioning Request Form\n  https://wiki.comp.pge.com/display/CCE/Azure+Provisioning+Request+Form"
+}
+

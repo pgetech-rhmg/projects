@@ -1,0 +1,6 @@
+ <div *ngIf="data" [innerHTML]="data"></div>
+
+ <div *ngIf="isAnalyzing" class="loading">
+    <div class="message">Running AI analysis...</div>
+    <sdk-loading [isLoading]="true"></sdk-loading>
+ </div>

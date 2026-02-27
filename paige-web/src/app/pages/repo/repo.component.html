@@ -1,0 +1,49 @@
+<main class="content">
+    <div class="sections">
+        <div class="title">Scan your repo.</div>
+
+        <div class="section">
+            <div class="title">Repo</div>
+            <div class="description">
+                <div class="icon">counter_1</div>
+                <div class="label">Repository Name</div>
+            </div>
+            <div class="types">
+                <div class="text">Enter the repository name for your project.</div>
+            </div>
+            <div class="types">
+                <input [(ngModel)]="repository" placeholder="pge-website-example" />
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="title">Branch</div>
+            <div class="description">
+                <div class="icon">counter_2</div>
+                <div class="label">Branch Name</div>
+            </div>
+            <div class="types">
+                <div class="text">Enter the branch name that contains your code.</div>
+            </div>
+            <div class="types">
+                <input [(ngModel)]="branch" placeholder="main" />
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="title">Scan</div>
+            <div class="description">
+                <div class="icon">counter_3</div>
+                <div class="label">Scan</div>
+            </div>
+            <div class="types">
+                <div class="text">Scan the repo/branch.</div>
+            </div>
+            <div class="types">
+                <button [ngClass]="{ 'disabled': repository === '' || branch === ''}" (click)="scan()">Scan Repo</button>
+            </div>
+        </div>
+    </div>
+
+    <sdk-loading [isLoading]="isLoading"></sdk-loading>
+</main>

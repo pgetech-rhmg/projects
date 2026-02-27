@@ -1,0 +1,58 @@
+<div>
+    <table>
+        <thead>
+            <tr>
+                <th>Frameworks</th>
+                <th>Languages</th>
+                <th>Key Files</th>
+                <th>Files by Category</th>
+                <th>Files by Extension</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <div *ngIf="repoData" class="list">
+                        <div *ngFor="let item of repoData.summary.structure.frameworks">
+                            {{ item }}
+                            <button *ngIf="item === 'CloudFormation'" (click)="convert()">Convert to Terraform</button>
+                        </div>
+                        <label *ngIf="repoData.summary.structure.frameworks.length === 0" style="padding-left: 5px;">Unknown</label>
+                    </div>
+                </td>
+                <td>
+                    <div class="list">
+                        <div *ngFor="let item of repoData.summary.structure.languages">{{ item }}</div>
+                        <label *ngIf="repoData.summary.structure.languages.length === 0" style="padding-left: 5px;">Unknown</label>
+                    </div>
+                </td>
+                <td>
+                    <div class="list">
+                        <div *ngFor="let item of repoData.summary.structure.keyFiles">
+                            <div><strong>Category:</strong> {{ item.category }}</div>
+                            <div><strong>Name:</strong> {{ item.name }}</div>
+                            <div><strong>File:</strong> {{ item.match }}</div>
+                            <br />
+                        </div>
+                        <label *ngIf="repoData.summary.structure.keyFiles.length === 0" style="padding-left: 5px;">Unknown</label>
+                    </div>
+                </td>
+                <td>
+                    <div class="list">
+                        <div *ngFor="let item of repoData.summary.structure.fileStats.byCategory | keyvalue"><strong>{{ item.key }}:</strong> {{ item.value }}</div>
+                    </div>
+                </td>
+                <td>
+                    <div class="list">
+                        <div *ngFor="let item of repoData.summary.structure.fileStats.byExtension | keyvalue"><strong>{{ item.key }}:</strong> {{ item.value }}</div>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+ <div *ngIf="isAnalyzing" class="loading">
+    <div class="message">Running analysis...</div>
+    <sdk-loading [isLoading]="true"></sdk-loading>
+ </div>

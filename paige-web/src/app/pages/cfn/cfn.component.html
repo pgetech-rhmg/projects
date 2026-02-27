@@ -1,0 +1,69 @@
+<main class="component">
+    <div *ngIf="response" class="header">
+        <div class="labels">
+            <div class="top">
+                <button class="text back" (click)="back()">
+                    <div class="icon">arrow_back</div>
+                    <div>Back to Repo Analysis</div>
+                </button>
+                <div class="title">CloudFormation Analysis</div>
+            </div>
+
+            <div><strong>Repository:</strong> {{ repoData.summary.structure.repoName }}</div>
+            <div><strong>Branch:</strong> {{ repoData.summary.structure.branch }}</div>
+            <div><strong>CFN Files:</strong> {{ data.length }}</div>
+        </div>
+    </div>
+
+    <div *ngIf="showGrid" class="data">
+        <sdk-datagrid
+            fontFamily="'GothamNarrowBook', sans-serif, 'Helvetica Neue', Arial"
+            columnHeaderStyle="font-family: var(--font-text), sans-serif; color: var(--blue-dark); font-size: 0.9em;"
+            [(updateGrid)]="updateGrid"
+            [(columns)]="columns"
+            [options]="options"
+            [data]="data"
+            [rows]="rows"
+            [page]="page"
+            [total]="total"
+            [error]="error"
+            [isDebug]="false"
+            (loadDataEvent)="loadData($event)">
+        </sdk-datagrid>
+
+        <sdk-loading [isLoading]="isLoading"></sdk-loading>
+    </div>
+
+    <div *ngIf="!isProcessing && response" class="actions">
+        <button (click)="generateTerraform()">Generate Terraform</button>
+    </div>
+
+    <div *ngIf="isProcessing" class="actions">
+        <div>{{ processingMessage }}</div>
+        <button (click)="cancel()">Cancel Processing</button>
+    </div>
+
+    <ng-template #default let-value="value">
+        {{ value }}
+    </ng-template>
+
+    <ng-template #processing let-record="record" let-value="value">
+        <div id="status.{{ getModuleNameFromPath(record.path) }}" class="center">
+            <div *ngIf="value === 'fin'" class="icon green">check</div>
+            <div *ngIf="value === 'processing'" class="spinner"></div>
+            <div *ngIf="value === ''" class="icon">remove</div>
+        </div>
+    </ng-template>
+
+    <ng-template #resources let-value="value">
+        <div>
+            <div *ngFor="let item of value">- {{ item }}</div>
+        </div>
+    </ng-template>
+
+    <ng-template #values let-value="value">
+        <div>
+            <div *ngFor="let item of value | keyvalue">- <strong>{{ item.key }}</strong>: {{ item.value }}</div>
+        </div>
+    </ng-template>
+</main>

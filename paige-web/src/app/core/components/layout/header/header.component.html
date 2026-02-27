@@ -1,0 +1,15 @@
+<div [ngClass]="env !== 'PROD' ? 'component' : ''">
+	<div class="logo" [ngClass]="{ 'no-menu': !appSettings.showNav }">
+		<img [title]="title" [alt]="title" src="assets/images/logo.png" height="100%">
+	</div>
+	<div class="app" [ngClass]="{ 'no-menu': !appSettings.showNav }">
+		<h2 class="title">{{ title }} <span *ngIf="env !== 'PROD'">[{{ env }}]</span></h2>
+	</div>
+	<div *ngIf="appSettings.user" class="user">
+		<div class="welcome">Welcome<br /><span>{{ appSettings.user.name }}</span></div>
+		<div class="profile">
+			<img *ngIf="showPhoto" [src]="appSettings.user.photo" (error)="showPhoto = false" height="100%" [alt]="appSettings.user.name">
+			<div class="initials">{{ appSettings.user.initials }}</div>
+		</div>
+	</div>
+</div>

@@ -1,0 +1,68 @@
+/******************************************************************************
+    This file is imported by pages (.scss) for the basic layout.
+******************************************************************************/
+.content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    z-index: 1;
+
+    margin: 0;
+    padding: 0;
+
+    .header {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+
+        height: 50px;
+
+        text-align: center;
+        background-color: var(--background);
+        border-bottom: 1px solid var(--border-blue);
+
+        &.adjust {
+            height: 70px;
+        }
+
+        .title {
+            position: relative;
+            top: 50%;
+            transform: translateY(-50%);
+
+            margin: 0 10px;
+
+            font-family: var(--font-header);
+            text-align: center;
+            font-size: 1.5em;
+            color: var(--blue-dark);
+
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+
+            &.adjust {
+                padding: 30px 10px 10px 10px;
+            }
+        }
+    }
+
+    .data {
+        position: absolute;
+        top: 50px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+
+        overflow: auto;
+
+        &.adjust {
+            top: 70px;
+        }
+    }
+}

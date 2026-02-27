@@ -1,0 +1,57 @@
+.content {
+    position: absolute;
+    top: 100px;
+    left: 100px;
+    right: 100px;
+    bottom: 100px;
+
+    background-color: var(--gray-light);
+    border: 1px solid var(--border-blue);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    text-align: center;
+
+    .header {
+        padding: 10px;
+        text-align: center;
+        font-size: 1.2rem;
+        color: var(--red);
+    }
+
+    .back {
+        display: inline;
+
+        color: var(--blue);
+        font-size: 14pt;
+        cursor: pointer;
+
+        * {
+            cursor: pointer;
+        }
+
+        .arrow {
+            margin-right: 5px;
+        }
+
+        &:hover {
+            .highlight {
+                text-decoration: underline;
+            }
+        }
+}
+}
+
+/******************************************************************************
+*	Mobile/Tablet
+******************************************************************************/
+@media screen and (max-width: 750px) {
+    .content {
+        top: 100px;
+        left: 25px;
+        right: 25px;
+        bottom: 100px;
+    }
+}

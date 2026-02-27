@@ -1,0 +1,72 @@
+<div>
+    <table>
+        <thead>
+            <tr>
+                <th>Architecture</th>
+                <th>Dependencies</th>
+                <th>Technologies</th>
+                <th>Metrics</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <div *ngIf="repoData" class="list">
+                        <div>
+                            <div><strong>API Project Count:</strong> {{ repoData.repositoryGraph.architectureSignals.apiProjectCount }}</div>
+                            <div><strong>Library Project Count:</strong> {{ repoData.repositoryGraph.architectureSignals.libraryProjectCount }}</div>
+                            <div><strong>Projects with Tests:</strong> {{ repoData.repositoryGraph.architectureSignals.projectsWithTestsCount }}</div>
+                            <div>
+                                <strong>Test Frameworks:</strong>
+                                <div *ngFor="let item of repoData.repositoryGraph.architectureSignals.distinctTestFrameworks">
+                                    <div style="padding-left: 20px;">- {{ item }}</div>
+                                </div>
+                                <label *ngIf="repoData.repositoryGraph.architectureSignals.distinctTestFrameworks.length === 0" style="padding-left: 5px;">[None]</label>
+                            </div>
+                            <div><strong>CI/CD:</strong> {{ repoData.repositoryGraph.architectureSignals.hasCICD }}</div>
+                            <div><strong>Docker:</strong> {{ repoData.repositoryGraph.architectureSignals.hasDocker }}</div>
+                            <div><strong>Infrastructure Layer:</strong> {{ repoData.repositoryGraph.architectureSignals.hasInfrastructureLayer }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div *ngIf="repoData" class="list">
+                        <div>
+                            <div><strong>Dependency Count:</strong> {{ repoData.repositoryGraph.dependencySummary.prodDependencyCount }}</div>
+                            <div><strong>Dependency Count (dev):</strong> {{ repoData.repositoryGraph.dependencySummary.devDependencyCount }}</div>
+                            <div><strong>Dependency Count (peer):</strong> {{ repoData.repositoryGraph.dependencySummary.peerDependencyCount }}</div>
+                            <div><strong>Dependency Count (test):</strong> {{ repoData.repositoryGraph.dependencySummary.testDependencyCount }}</div>
+                            <div><strong>Dependency Count (optional):</strong> {{ repoData.repositoryGraph.dependencySummary.optionalDependencyCount }}</div>
+                            <div><strong>Dependency Count (other):</strong> {{ repoData.repositoryGraph.dependencySummary.otherDependencyCount }}</div>
+                            <hr />
+                            <div><strong>Total Dependency Count:</strong> {{ repoData.repositoryGraph.dependencySummary.totalDependencyCount }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="list">
+                        <div *ngFor="let item of repoData.repositoryGraph.detectedTechnologies">
+                            <div><strong>{{ item.name }}</strong> ({{ item.category }})</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="list">
+                        <div>
+                            <div><strong>Total Files:</strong> {{ repoData.repositoryGraph.metrics.totalFiles }}</div>
+                            <div><strong>Binary Files:</strong> {{ repoData.repositoryGraph.metrics.binaryFiles }}</div>
+                            <div><strong>Text Files:</strong> {{ repoData.repositoryGraph.metrics.textFiles }}</div>
+                            <div><strong>Total Bytes (size):</strong> {{ repoData.repositoryGraph.metrics.totalSizeBytes }}</div>
+                            <div><strong>Total Text Bytes (size):</strong> {{ repoData.repositoryGraph.metrics.totalTextSizeBytes }}</div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+ <div *ngIf="isAnalyzing" class="loading">
+    <div class="message">Running analysis...</div>
+    <sdk-loading [isLoading]="true"></sdk-loading>
+ </div>

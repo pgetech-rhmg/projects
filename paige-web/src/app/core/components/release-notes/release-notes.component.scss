@@ -1,0 +1,108 @@
+.content {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+
+    transform: translate(-50%, -50%);
+
+    height: 80%;
+    width: 80%;
+
+    z-index: 99;
+
+    overflow: hidden;
+
+    margin: 0;
+    padding: 0;
+
+    background-color: white;
+    border: 1px solid var(--blue-dark);
+    border-radius: 10px;
+
+    box-shadow: 5px 5px 10px 0 rgb(96, 96, 96);
+
+    .header {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+
+        height: 40px;
+        background-color: rgb(228, 246, 253);
+        border-bottom: 1px solid var(--border);
+        border-top-right-radius: 10px;
+        border-top-left-radius: 10px;
+
+        .title {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+
+            padding-right: 40px;
+
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: wrap;
+            max-width: 100%;
+
+            font-family: var(--font-header);
+            font-size: 1.4em;
+            color: var(--blue-dark);
+        }
+
+        .close {
+            position: absolute;
+            top: 50%;
+            right: 5px;
+
+            transform: translateY(-50%);
+
+            &.icon {
+                cursor: pointer;
+                font-size: 2.0em;
+
+                &:hover {
+                    color: var(--blue);
+                }
+            }
+        }
+    }
+
+    .data {
+        position: absolute;
+        top: 40px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+
+        overflow: auto;
+
+        .text {
+            padding: 20px;
+            font-size: 1.2em;
+        }
+    }
+}
+
+/******************************************************************************
+*	Mobile/Tablet
+******************************************************************************/
+@media screen and (max-width: 750px) {
+    .content {
+        height: 80%;
+        width: 90%;
+
+        .header {
+            height: 100px;
+
+            .title {
+                font-size: 1.2em;
+            }
+        }
+
+        .data {
+            top: 100px;
+        }
+    }
+}

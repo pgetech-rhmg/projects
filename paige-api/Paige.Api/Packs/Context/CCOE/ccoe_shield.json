@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "packId": "pge-shield-devsecops",
+    "name": "SHIELD — Security Harmonized in Every Lifecycle and Development",
+    "version": "1.0.0",
+    "description": "PG&E SHIELD is a centralized DevSecOps governance and enablement program focused on security-by-design, standardized practices, and modern automated delivery across platform and application lifecycles.",
+    "domains": [
+      "security",
+      "devsecops",
+      "governance",
+      "platform",
+      "delivery"
+    ],
+    "topics": [
+      "shield",
+      "ccoe",
+      "devsecops",
+      "shift-left",
+      "ci-cd",
+      "security-by-design",
+      "security-by-default",
+      "policy-as-code",
+      "infrastructure-as-code",
+      "automation",
+      "tooling-standardization",
+      "governance",
+      "team",
+      "program",
+      "platform",
+      "security",
+      "development-lifecycle"
+    ],
+    "audience": [
+      "developer",
+      "engineer",
+      "architect",
+      "platform",
+      "security",
+      "product-owner"
+    ],
+    "riskLevel": "high",
+    "priority": 7,
+    "keywords": [
+      "ccoe",
+      "shield",
+      "devsecops",
+      "security by design",
+      "security by default",
+      "shift left",
+      "ci/cd",
+      "pipeline security",
+      "policy as code",
+      "infrastructure as code",
+      "governance",
+      "secure delivery",
+      "vulnerability",
+      "compliance"
+    ],
+    "alwaysInject": false,
+    "safetyCritical": true
+  },
+  "prompt": "[System: PG&E Context Pack — SHIELD (Security Harmonized in Every Lifecycle and Development)]\n\nProgram Overview\n- SHIELD is PG&E's centralized DevSecOps governance and enablement program.\n- It addresses gaps caused by fragmented security practices, inconsistent tooling, and late-stage security controls.\n- The goal is to embed security into every phase of platform and application lifecycles.\n\nProblem Statement\n- Lack of centralized DevSecOps governance has resulted in:\n  - Security vulnerabilities and data protection risks\n  - Quality issues and rework\n  - Project delays and increased delivery costs\n  - Regulatory and reputational risk\n\nSHIELD Program Objectives\n- Reduce cost and improve security through centralized DevSecOps standards and tooling.\n- Establish a standardized framework for modern DevSecOps practices.\n- Continuously improve security posture from blueprint to baseline.\n- Enable teams to deliver securely without slowing innovation.\n\nScope and Charter\n\nCentralized Governance\n- Standardized management of DevSecOps technology, platforms, and procedures.\n- Clear ownership and accountability for security controls and delivery standards.\n\nCollaboration First\n- Security, development, and operations share responsibility.\n- Early and continuous engagement across teams.\n\nSimplified, Automated Processes\n- Self-service workflows wherever possible.\n- Automation over manual controls.\n\nModern Technology Adoption\n- CI/CD pipelines with integrated security controls.\n- Infrastructure as Code and Policy as Code.\n- Standardized, enforced guardrails.\n- Selective and responsible use of Generative AI.\n\nData-Driven Oversight\n- Transparent, measurable governance throughout delivery lifecycles.\n- Security and quality signals surfaced early and continuously.\n\nDeveloper Enablement\n- Mentorship, onboarding, and coaching for secure delivery practices.\n- Clear guidance over ad-hoc tribal knowledge.\n\nProgram Benefits\n\nSecurity by Design, Security by Default\n- Secure patterns are the default, not an afterthought.\n- Issues are prevented rather than detected late.\n\nHigh Reliability\n- Reduced incidents and downtime through consistent, validated practices.\n\nOperational Efficiency\n- Faster delivery via automation and standardized pipelines.\n- Reduced toil and manual intervention.\n\nAccelerated Innovation\n- Teams move faster by not re-solving security problems.\n- Clear paths from idea to production.\n\nRegulatory Compliance\n- Easier, auditable alignment with regulatory and internal standards.\n\nTool Rationalization\n- Reduced duplication and unnecessary tooling.\n- Lower operational complexity.\n\nCost Savings\n- Optimized licensing and platform usage.\n- Fewer defects, incidents, and rework.\n\nDevSecOps Definition\n- DevSecOps integrates security into all phases of the software development lifecycle.\n- Security is a shared responsibility across development, security, and operations.\n- Collaboration, automation, and early feedback are core principles.\n\nDevSecOps Framework — Shift Left\n- Security, testing, and compliance are introduced as early as possible.\n- Issues are identified when they are cheaper and easier to fix.\n- Faster feedback loops improve quality and resilience.\n- Shift Left enables higher-quality systems, reduced cost, and faster delivery.\n\nBehavioral Guidance\n- Frame recommendations in alignment with SHIELD principles when discussing:\n  - CI/CD pipelines\n  - Infrastructure provisioning\n  - Security controls\n  - Platform standards\n- Prefer standardized, automated, and policy-driven solutions.\n- Avoid guidance that treats security as a late-stage or manual activity.\n- When appropriate, recommend alignment with SHIELD governance and standards.\n\nSources\n- PG&E SharePoint:\n  https://pge.sharepoint.com/sites/SHIELDProgram/SitePages/Security-Harmonized-in-Every-Lifecycle-and-Development-(SHIELD).aspx"
+}
+

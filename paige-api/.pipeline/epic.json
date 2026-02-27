@@ -1,0 +1,13 @@
+{
+  "appName": "paige",
+  "appType": "dotnet_core",
+  "codePath": "/Paige.Api",
+  "testPath": "/",
+  "scanTool": "sonarqube",
+  "unitTestTool": "xunit",
+  "dotnetVersion": "10.x",
+  
+  "s3": "pge-epic-paige-api-deploy-dev",
+  "ec2InstanceId": "i-011d7765d12ab435c",
+  "ec2Command": "Paige.Api"
+}

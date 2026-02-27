@@ -1,0 +1,43 @@
+.content {
+    position: absolute;
+    top: 100px;
+    left: 100px;
+    right: 100px;
+    bottom: 100px;
+
+    background-color: var(--gray-light);
+    border: 1px solid var(--border-blue);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    .header {
+        text-align: center;
+        font-size: 1.2rem;
+        color: var(--red);
+    }
+
+    .detail {
+        margin-top: 15px;
+        text-align: center;
+
+        .support {
+            text-decoration: underline;
+            font-weight: 600;
+            font-size: 1.5rem;
+        }
+
+        .instructions {
+            margin-top: 25px;
+            text-align: left;
+        }
+
+        .retry {
+            color: var(--blue);
+            font-weight: normal;
+            font-size: 1.0rem;
+            cursor: pointer;
+        }
+    }
+}

@@ -1,0 +1,133 @@
+* {
+    color: var(--primary);
+    margin: 0;
+}
+
+.component {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.logo {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    height: 40px;
+    width: 40px;
+
+    margin: 5px;
+}
+
+.app {
+    position: absolute;
+    top: 0;
+    left: 55px;
+    right: 300px;
+    bottom: 0;
+
+    .title {
+        font-family: var(--font-header);
+        font-size: 1.6em;
+        color: var(--secondary);
+        margin: 0;
+        position: absolute;
+        top: 50%;
+        -ms-transform: translateY(-50%);
+        transform: translateY(-50%);
+
+        span {
+            color: rgb(226, 24, 54);
+            font-size: 0.6em;
+            padding: 0;
+            margin: 0;
+        }
+    }
+}
+
+.user {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+
+    align-items: center;
+    vertical-align: middle;
+
+    display: flex;
+
+    .welcome {
+        span {
+            font-family: 'GothamBold', sans-serif;
+            font-size: 1.3em;
+            line-height: 1.0em;
+        }
+    }
+
+    .profile {
+        position: relative;
+        border-radius: 80px;
+        border: 1px solid var(--gray-dark);
+        background-color: var(--gray);
+        height: 40px;
+        width: 40px;
+        overflow: hidden;
+        margin: 0 20px;
+
+        .icon {
+            font-size: 40px;
+            color: var(--gray);
+            border: 1px solid var(--gray-dark);
+        }
+
+        .initials {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            height: 100%;
+            width: 100%;
+
+            padding-top: 2px;
+
+            font-size: 1.6em;
+            font-weight: 600;
+            color: white;
+        }
+    }
+}
+
+/******************************************************************************
+*	Mobile/Tablet
+******************************************************************************/
+@media screen and (max-width: 750px) {
+    .logo {
+        display: none;
+
+        &.no-menu {
+            display: block;
+
+            height: 35px;
+            width: 35px;
+        }
+    }
+
+    .app {
+        right: 10px;
+
+        &.no-menu {
+            left: 45px;
+        }
+
+        .title {
+            font-size: 1.2em;
+        }
+    }
+
+    .user {
+        display: none;
+    }
+}

@@ -1,0 +1,11 @@
+<div class="window">
+    <div class="header" [innerHTML]="title"></div> 
+    <div class="content">
+        <div class="message" [innerHTML]="message"></div>
+        <div *ngIf="list !== ''" class="list" [innerHTML]="list"></div>
+    </div>
+    <div class="footer">
+        <button *ngIf="continueText !== ''" type="button" class="continue" (click)="continue()">{{ continueText }}</button>
+        <button *ngIf="cancelText !== ''" type="button" class="cancel" (click)="cancel()">{{ cancelText }}</button>
+    </div>           
+</div>

@@ -1,0 +1,8 @@
+{
+    "environment": "dev",
+    "tenantId": "7368c58b-56d6-4f71-a56a-87ff447b4352",
+    "clientId": "f082badc-dfb8-4768-9bc0-7105bcee1d2f",
+    "baseUrl": "https://paige-dev.nonprod.pge.com",
+    "apiUrl": "https://paige-api-dev.nonprod.pge.com",
+    "apiUrlx": "http://localhost:7072"
+}

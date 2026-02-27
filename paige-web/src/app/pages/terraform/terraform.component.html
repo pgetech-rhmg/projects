@@ -1,0 +1,57 @@
+<main class="component">
+    <div class="header">
+        <div class="labels">
+            <div class="top">
+                <button class="text back" (click)="back()">
+                    <div class="icon">arrow_back</div>
+                    <div>Back to CloudFormation Analysis</div>
+                </button>
+                <div class="title">Terraform Project</div>
+            </div>
+
+            <div><strong>Repository:</strong> {{ repoData.summary.structure.repoName }}</div>
+            <div><strong>Branch:</strong> {{ repoData.summary.structure.branch }}</div>
+        </div>
+    </div>
+
+    <div class="sections">
+        <div class="section">
+
+            <div class="terraform-files" *ngIf="parsedFiles.length">
+
+                <!-- ROOT FILES -->
+                <section
+                    class="terraform-module"
+                    *ngFor="let module of parsedFiles">
+
+                    <h2 class="module-name" *ngIf="module.module === null">
+                        terraform/
+                    </h2>
+
+                    <h2 class="module-name" *ngIf="module.module !== null">
+                        modules/{{ module.module }}
+                    </h2>
+
+                    <!-- FILE LOOP -->
+                    <section
+                        class="terraform-file"
+                        *ngFor="let file of module.files">
+
+                        <h3>{{ file.name }}</h3>
+
+                        <pre>
+<code>{{ file.content }}</code>
+                        </pre>
+
+                    </section>
+
+                </section>
+
+            </div>
+
+        </div>
+    </div>
+
+    <sdk-loading [isLoading]="isLoading"></sdk-loading>
+</main>
+

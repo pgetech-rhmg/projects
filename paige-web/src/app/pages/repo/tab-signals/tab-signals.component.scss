@@ -1,0 +1,47 @@
+table {
+    thead {
+        tr {
+            th {
+                vertical-align: middle;
+                text-align: left;
+            }
+        }
+    }
+
+    tbody {
+        tr {
+            td {
+                vertical-align: top;
+                text-align: left;
+
+                &:hover {
+                    background-color: rgb(228, 246, 253);
+                }
+            }
+
+            &:hover {
+                background-color: unset;
+            }
+        }
+    }
+}
+
+.loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    background-color: white;
+
+    .message {
+        margin-bottom: 120px;
+        font-size: 1.1em;
+        font-weight: 600;
+    }
+}

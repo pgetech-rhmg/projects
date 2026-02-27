@@ -1,0 +1,12 @@
+<div class="content">
+    <div class="header">
+        <span class="title">Release Notes</span>
+        <button title="Close" class="icon close" (click)="close()">close</button>
+    </div>
+
+    <div #data class="data">
+        <div class="text" [innerHTML]="file"></div>
+    </div>
+
+    <sdk-loading [isLoading]="isLoading"></sdk-loading>
+</div>

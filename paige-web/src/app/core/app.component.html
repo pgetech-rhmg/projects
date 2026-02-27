@@ -1,0 +1,37 @@
+<div *ngIf="isLoggedIn">
+	<header [title]="title" (reloadPage)="reloadPage()"></header>
+
+	<nav *ngIf="showNav" [class]="layoutCssClass" [ngClass]="{ 'no-footer': !showFooter }" [expand]="expand" (setLayoutClass)="setLayoutClass()" (reloadPage)="reloadPage()"></nav>
+
+	<content [class]="layoutCssClass" [ngClass]="{ 'no-nav': !showNav, 'no-footer': !showFooter }">
+		<router-outlet></router-outlet>
+	</content>
+
+	<footer *ngIf="showFooter" [version]="version" [expand]="expand"></footer>
+</div>
+
+<div *ngIf="modal" class="modal-window">
+	<div class="locked"></div>
+	<ng-container [ngComponentOutlet]="modal.type" [ndcDynamicInputs]="modal.inputs" [ndcDynamicOutputs]="modal.outputs"></ng-container>
+</div>
+
+<div *ngIf="!isLoggedIn && layoutCssClass !== 'noaccess'">
+    <div class="auth">Authenticating...</div>
+</div>
+
+<access *ngIf="layoutCssClass === 'noaccess'"></access>
+<error *ngIf="error !== ''" [message]="error"></error>
+
+<div *ngIf="showAlert" class="modal-window">
+	<div class="locked"></div>
+	<alert
+		[title]="alertTitle"
+		[message]="alertMessage"
+		[list]="alertList"
+		[continueText]="alertContinueText"
+		[cancelText]="alertCancelText"
+		(continueEvent)="alertContinue()"
+		(cancelEvent)="alertCancel()"></alert>
+</div>
+
+<sdk-loading [isLoading]="isLoading"></sdk-loading>

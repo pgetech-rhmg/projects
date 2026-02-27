@@ -1,0 +1,179 @@
+/******************************************************************************
+    Header
+******************************************************************************/
+header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+
+    height: 50px;
+
+    z-index: 1;
+    border-bottom: 1px solid var(--primary);
+    background-color: var(--white);
+}
+
+
+/******************************************************************************
+    Menu
+******************************************************************************/
+nav {
+    position: fixed;
+    top: 50px;
+    left: 0;
+    bottom: 50px;
+
+    width: 50px;
+
+    z-index: 3;
+
+    background-color: var(--primary);
+
+    transition: 0.25s;
+    -webkit-transition: 0.25s;
+    -moz-transition: 0.25s;
+
+    &.no-footer {
+        bottom: 0;
+    }
+
+    &.expand {
+        width: 250px;
+    }
+}
+
+
+/******************************************************************************
+    Content
+******************************************************************************/
+content {
+    position: fixed;
+    top: 50px;
+    left: 50px;
+    right: 0;
+    bottom: 50px;
+
+    z-index: 2;
+
+    overflow: auto;
+    background-color: var(--white);
+
+    transition: 0.25s;
+    -webkit-transition: 0.25s;
+    -moz-transition: 0.25s;
+
+    &.no-nav {
+        left: 0;
+    }
+
+    &.no-footer {
+        bottom: 0;
+    }
+    
+    &.expand {
+        left: 250px;
+    }
+
+    &.noaccess {
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+}
+
+
+/******************************************************************************
+    Footer
+******************************************************************************/
+footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    height: 50px;
+
+    z-index: 1;
+
+    display: flex;
+    border-top: 1px solid var(--primary);
+    background-color: var(--white);
+}
+
+
+/******************************************************************************
+    Auth Message
+******************************************************************************/
+.auth {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    margin: 0;
+    padding: 10px;
+    text-align: center;
+    align-items: center;
+
+    z-index: 999;
+}
+
+/******************************************************************************
+    Modals
+******************************************************************************/
+.modal-window {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    overflow: hidden;
+
+    z-index: 9;
+}
+
+/******************************************************************************
+    Lock Screen
+******************************************************************************/
+.locked {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-color: black;
+    opacity: 0.33;
+}
+
+
+/******************************************************************************
+*	Mobile/Tablet
+******************************************************************************/
+@media screen and (max-width: 750px) {
+    nav {
+        top: 0;
+        bottom: unset;
+        height: 50px;
+
+        &.expand {
+            bottom: 0;
+            height: unset;
+            width: 250px;
+        }
+    }
+
+    content {
+        left: 0;
+        bottom: 0;
+
+        &.expand {
+            left: 0;
+        }
+    }
+    
+    footer {
+        display: none;
+    }
+}

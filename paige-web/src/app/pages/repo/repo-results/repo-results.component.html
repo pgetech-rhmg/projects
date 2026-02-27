@@ -1,0 +1,26 @@
+<main class="component">
+    <div class="header">
+        <div class="labels">
+            <div class="top">
+                <button class="text back" (click)="back()">
+                    <div class="icon">arrow_back</div>
+                    <div>Back to Repo Scan</div>
+                </button>
+                <div class="title">Repo Analysis</div>
+            </div>
+
+            <div><strong>Repository:</strong> {{ response.repo.repoName }}</div>
+            <div><strong>Branch:</strong> {{ response.repo.branch }}</div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <sdk-tabs
+            [activeTab]="activeTab"
+            [tabs]="tabs"
+            (tabChangedEvent)="setActiveTab($event)">
+        </sdk-tabs>
+    </div>
+
+    <sdk-loading [isLoading]="isLoading"></sdk-loading>
+</main>
