@@ -3,7 +3,7 @@
 ############################################
 
 variable "app_name" {
-  description = "Application name used for naming CloudFront resources."
+  description = "Application name used for naming ALB resources."
   type        = string
 }
 
@@ -12,76 +12,51 @@ variable "environment" {
   type        = string
 }
 
-variable "label" {
-  description = "Additional naming label"
-  type        = string
-}
-
-variable "description" {
-  description = "Security Group description"
-  type        = string
-}
-
 variable "vpc_id" {
-  description = "The ID of the VPC that the instance security group belongs to."
+  description = "The ID of the VPC that the ALB and target group belong to."
+  type        = string
+}
+
+variable "subnet_ids" {
+  description = "List of subnet IDs to attach to the ALB."
+  type        = list(string)
+}
+
+variable "security_group_id" {
+  description = "Security group ID to attach to the ALB."
   type        = string
 }
 
 
 ############################################
-# Rules
+# Listener / TLS
 ############################################
 
-variable "cidr_ingress_rules" {
-  description = "Configuration block for ingress rules. Can be specified multiple times for each ingress rule."
-  type = list(object({
-    from             = number
-    to               = number
-    protocol         = string
-    cidr_blocks      = list(string)
-    ipv6_cidr_blocks = list(string)
-    prefix_list_ids  = list(string)
-    description      = string
-  }))
-  default     = []
+variable "certificate_arn" {
+  description = "ARN of the ACM certificate to attach to the HTTPS listener."
+  type        = string
 }
 
-variable "cidr_egress_rules" {
-  description = "Configuration block for egress rules. Can be specified multiple times for each egress rule."
-  type = list(object({
-    from             = number
-    to               = number
-    protocol         = string
-    cidr_blocks      = list(string)
-    ipv6_cidr_blocks = list(string)
-    prefix_list_ids  = list(string)
-    description      = string
-  }))
-  default     = []
+
+############################################
+# Target Group / EC2
+############################################
+
+variable "instance_id" {
+  description = "EC2 instance ID to register with the target group."
+  type        = string
 }
 
-variable "security_group_ingress_rules" {
-  description = "Configuration block for nested security groups ingress rules. Can be specified multiple times for each ingress rule."
-  type = list(object({
-    from                     = number
-    to                       = number
-    protocol                 = string
-    source_security_group_id = string
-    description              = string
-  }))
-  default     = []
+variable "target_port" {
+  description = "Port the target EC2 instance listens on."
+  type        = number
+  default     = 5000
 }
 
-variable "security_group_egress_rules" {
-  description = "Configuration block for for nested security groups egress rules. Can be specified multiple times for each egress rule."
-  type = list(object({
-    from                     = number
-    to                       = number
-    protocol                 = string
-    source_security_group_id = string
-    description              = string
-  }))
-  default     = []
+variable "health_check_path" {
+  description = "HTTP path used for target group health checks."
+  type        = string
+  default     = "/health"
 }
 
 
