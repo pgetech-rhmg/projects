@@ -292,23 +292,14 @@ dnf install -y libicu unzip jq awscli git
 
 mkdir -p /opt/${var.app_name}/app
 
-# Wrapper script that finds and runs the executable
-cat <<SCRIPT > /opt/${var.app_name}/start.sh
-#!/bin/bash
-EXEC=$(find /opt/${var.app_name}/app -maxdepth 1 -type f ! -name '*.*' | head -1)
-exec "$EXEC"
-SCRIPT
-
-chmod +x /opt/${var.app_name}/start.sh
-
-cat <<SERVICE > /etc/systemd/system/${var.app_name}.service
+cat > /etc/systemd/system/${var.app_name}.service <<SERVICE
 [Unit]
 Description=${var.app_name}
 After=network.target
 
 [Service]
 WorkingDirectory=/opt/${var.app_name}/app
-ExecStart=/opt/${var.app_name}/start.sh
+ExecStart=/opt/${var.app_name}/app/${var.app_executable}
 Restart=always
 RestartSec=5
 User=ec2-user
