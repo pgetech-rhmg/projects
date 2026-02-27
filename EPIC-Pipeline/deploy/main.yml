@@ -23,7 +23,7 @@ jobs:
 
 
     ###########################################################################
-    # Deploy - HTML (static) and Angular (node)
+    # Deploy - HTML (static), Angular (node)
     ###########################################################################
     - ${{ if or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular')) }}:
       - bash: |
@@ -112,7 +112,7 @@ jobs:
                 \"sudo mkdir -p api\",
                 \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
                 \"sudo unzip -o $APP_NAME.zip -d api\",
-                \"sudo chmod +x /opt/${{ parameters.appName }}/api/${{ parameters.ec2Command }}\",
+                \"sudo find /opt/${{ parameters.appName }}/api -maxdepth 1 -type f ! -name '*.*' -exec chmod +x {} \\;\",
                 \"sudo systemctl daemon-reload\",
                 \"sudo systemctl stop ${{ parameters.appName }}-api || true\",
                 \"sudo systemctl start ${{ parameters.appName }}-api\"

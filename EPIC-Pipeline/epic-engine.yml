@@ -73,9 +73,6 @@ parameters:
   - name: ec2InstanceId
     type: string
     default: ""
-  - name: ec2Command
-    type: string
-    default: ""
 
   # Azure
   - name: azureSubscription

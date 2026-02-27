@@ -8,6 +8,5 @@
   "dotnetVersion": "10.x",
   
   "s3": "pge-epic-paige-api-deploy-dev",
-  "ec2InstanceId": "i-011d7765d12ab435c",
-  "ec2Command": "Paige.Api"
+  "ec2InstanceId": "i-011d7765d12ab435c"
 }
