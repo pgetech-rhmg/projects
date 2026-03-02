@@ -22,17 +22,20 @@ from mcp.server.fastmcp import FastMCP, Context
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from .chunker import estimate_tokens
+from .config import get_config, parse_verify_ssl
 from .knowledge_base import build_knowledge_base, load_knowledge_base, DEFAULT_KB_PATH
 from .models import ContentChunk, KnowledgeBase
 
 logger = logging.getLogger(__name__)
 
-# ── Config from environment ──────────────────────────────────────────────────
+# ── Config ───────────────────────────────────────────────────────────────────
 
-CONFLUENCE_BASE_URL = os.environ.get("CONFLUENCE_BASE_URL", "https://wiki.comp.pge.com")
-CONFLUENCE_PAT_TOKEN = os.environ.get("CONFLUENCE_PAT_TOKEN", "")
-CONFLUENCE_ROOT_PAGE_ID = os.environ.get("CONFLUENCE_ROOT_PAGE_ID", "")
-KB_PATH = Path(os.environ.get("KB_PATH", str(DEFAULT_KB_PATH)))
+_config = get_config()
+CONFLUENCE_BASE_URL = _config["confluence_base_url"]
+CONFLUENCE_PAT_TOKEN = _config["confluence_pat_token"]
+CONFLUENCE_ROOT_PAGE_ID = _config["confluence_root_page_id"]
+KB_PATH = Path(_config["kb_path"])
+VERIFY_SSL = parse_verify_ssl(_config["verify_ssl"])
 
 
 # ── Lifespan: load knowledge base at startup ─────────────────────────────────
@@ -59,6 +62,7 @@ async def server_lifespan():
 				pat_token=CONFLUENCE_PAT_TOKEN,
 				root_page_id=CONFLUENCE_ROOT_PAGE_ID,
 				output_path=KB_PATH,
+				verify_ssl=VERIFY_SSL,
 			)
 		else:
 			logger.warning(
@@ -503,6 +507,7 @@ async def confluence_crawl(params: CrawlInput, ctx: Context) -> str:
 			root_page_id=params.root_page_id,
 			max_chunk_tokens=params.max_chunk_tokens,
 			output_path=KB_PATH,
+			verify_ssl=VERIFY_SSL,
 		)
 	except Exception as e:
 		return f"Error during crawl: {type(e).__name__}: {e}"

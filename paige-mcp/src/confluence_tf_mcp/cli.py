@@ -20,7 +20,7 @@ import os
 import sys
 from pathlib import Path
 
-from .config import get_config
+from .config import get_config, parse_verify_ssl
 from .knowledge_base import build_knowledge_base, load_knowledge_base, DEFAULT_KB_PATH
 
 
@@ -29,6 +29,7 @@ async def cmd_crawl(args: argparse.Namespace) -> None:
 	base_url = args.base_url or config["confluence_base_url"]
 	pat_token = args.pat_token or config["confluence_pat_token"]
 	root_page_id = args.root_page_id or config["confluence_root_page_id"]
+	verify_ssl = parse_verify_ssl(config["verify_ssl"])
 
 	if not pat_token:
 		print("Error: No PAT token found. Set CONFLUENCE_PAT_TOKEN in .env or pass --pat-token.", file=sys.stderr)
@@ -45,6 +46,7 @@ async def cmd_crawl(args: argparse.Namespace) -> None:
 		max_chunk_tokens=args.max_chunk_tokens,
 		overlap_tokens=args.overlap_tokens,
 		output_path=output,
+		verify_ssl=verify_ssl,
 	)
 
 	print(f"\nDone: {kb.total_pages} pages, {kb.total_chunks} chunks, ~{kb.estimated_tokens} tokens")

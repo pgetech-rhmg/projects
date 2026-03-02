@@ -36,12 +36,14 @@ class ConfluenceCrawler:
 		pat_token: str,
 		max_concurrency: int = 3,
 		delay_ms: int = 200,
+		verify_ssl: bool | str = True,
 	) -> None:
 		self._base_url = base_url.rstrip("/")
 		self._api_url = f"{self._base_url}/rest/api"
 		self._pat_token = pat_token
 		self._max_concurrency = max_concurrency
 		self._delay_ms = delay_ms
+		self._verify_ssl = verify_ssl
 		self._pages: dict[str, ConfluencePage] = {}
 		self._visited: set[str] = set()
 		self._semaphore = asyncio.Semaphore(max_concurrency)
@@ -58,6 +60,7 @@ class ConfluenceCrawler:
 			},
 			timeout=30.0,
 			follow_redirects=True,
+			verify=self._verify_ssl,
 		)
 
 	async def crawl_from_page(self, root_page_id: str) -> dict[str, ConfluencePage]:

@@ -26,6 +26,7 @@ _DEFAULTS = {
 	"confluence_pat_token": "",
 	"confluence_root_page_id": "",
 	"kb_path": "./knowledge_base.json",
+	"verify_ssl": "true",
 }
 
 # Map config keys to env var names
@@ -34,6 +35,7 @@ _ENV_MAP = {
 	"confluence_pat_token": "CONFLUENCE_PAT_TOKEN",
 	"confluence_root_page_id": "CONFLUENCE_ROOT_PAGE_ID",
 	"kb_path": "KB_PATH",
+	"verify_ssl": "VERIFY_SSL",
 }
 
 
@@ -68,6 +70,21 @@ def get_config() -> dict[str, str]:
 			config[key] = value
 
 	return config
+
+
+def parse_verify_ssl(value: str) -> bool | str:
+	"""Parse VERIFY_SSL config value.
+
+	Returns:
+		False if disabled, True if default, or a file path to a CA bundle.
+	"""
+	lower = value.lower().strip()
+	if lower in ("false", "0", "no", "off"):
+		return False
+	if lower in ("true", "1", "yes", "on", ""):
+		return True
+	# Treat as path to CA bundle
+	return value
 
 
 def _load_dotenv() -> None:

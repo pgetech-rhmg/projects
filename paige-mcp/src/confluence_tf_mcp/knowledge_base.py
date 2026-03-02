@@ -28,6 +28,7 @@ async def build_knowledge_base(
 	max_chunk_tokens: int = 1500,
 	overlap_tokens: int = 150,
 	output_path: Optional[Path] = None,
+	verify_ssl: bool | str = True,
 ) -> KnowledgeBase:
 	"""Crawl Confluence and build the full knowledge base.
 
@@ -38,6 +39,7 @@ async def build_knowledge_base(
 		max_chunk_tokens: Max tokens per chunk
 		overlap_tokens: Token overlap between adjacent chunks
 		output_path: Where to save the JSON KB file
+		verify_ssl: True, False, or path to CA bundle
 
 	Returns:
 		The built KnowledgeBase
@@ -47,7 +49,7 @@ async def build_knowledge_base(
 
 	# Crawl
 	logger.info(f"Starting crawl from page {root_page_id} at {base_url}")
-	crawler = ConfluenceCrawler(base_url, pat_token)
+	crawler = ConfluenceCrawler(base_url, pat_token, verify_ssl=verify_ssl)
 	pages = await crawler.crawl_from_page(root_page_id)
 
 	if not pages:
