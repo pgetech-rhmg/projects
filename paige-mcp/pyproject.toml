@@ -23,8 +23,8 @@ dev = [
 confluence-tf-mcp = "confluence_tf_mcp.server:main"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/confluence_tf_mcp"]
+[tool.setuptools.packages.find]
+where = ["src"]
