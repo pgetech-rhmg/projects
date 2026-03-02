@@ -20,21 +20,22 @@ import os
 import sys
 from pathlib import Path
 
+from .config import get_config
 from .knowledge_base import build_knowledge_base, load_knowledge_base, DEFAULT_KB_PATH
 
 
-def _get_env_or_die(name: str, flag_value: str = "") -> str:
-	value = flag_value or os.environ.get(name, "")
-	if not value:
-		print(f"Error: {name} is required. Set via env var or CLI flag.", file=sys.stderr)
-		sys.exit(1)
-	return value
-
-
 async def cmd_crawl(args: argparse.Namespace) -> None:
-	base_url = args.base_url or os.environ.get("CONFLUENCE_BASE_URL", "https://wiki.comp.pge.com")
-	pat_token = _get_env_or_die("CONFLUENCE_PAT_TOKEN", args.pat_token)
-	root_page_id = _get_env_or_die("CONFLUENCE_ROOT_PAGE_ID", args.root_page_id)
+	config = get_config()
+	base_url = args.base_url or config["confluence_base_url"]
+	pat_token = args.pat_token or config["confluence_pat_token"]
+	root_page_id = args.root_page_id or config["confluence_root_page_id"]
+
+	if not pat_token:
+		print("Error: No PAT token found. Set CONFLUENCE_PAT_TOKEN in .env or pass --pat-token.", file=sys.stderr)
+		sys.exit(1)
+	if not root_page_id:
+		print("Error: No root page ID found. Set CONFLUENCE_ROOT_PAGE_ID in .env or pass --root-page-id.", file=sys.stderr)
+		sys.exit(1)
 	output = Path(args.output)
 
 	kb = await build_knowledge_base(
