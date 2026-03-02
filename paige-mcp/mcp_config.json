@@ -1,0 +1,15 @@
+{
+	"mcpServers": {
+		"confluence_tf_mcp": {
+			"command": "python",
+			"args": ["-m", "confluence_tf_mcp.server"],
+			"env": {
+				"CONFLUENCE_BASE_URL": "https://wiki.comp.pge.com",
+				"CONFLUENCE_PAT_TOKEN": "your-pat-token-here",
+				"CONFLUENCE_ROOT_PAGE_ID": "your-root-page-id-here",
+				"KB_PATH": "./knowledge_base.json"
+			},
+			"cwd": "/path/to/confluence-tf-mcp/src"
+		}
+	}
+}

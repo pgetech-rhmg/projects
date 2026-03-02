@@ -52,7 +52,7 @@ describe('ScanService', () => {
 
       expect(mockHttpService.Post).toHaveBeenCalledTimes(1);
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         mockRequest
       );
     });
@@ -96,7 +96,7 @@ describe('ScanService', () => {
       service.scan(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         {}
       );
     });
@@ -109,7 +109,7 @@ describe('ScanService', () => {
       service.scan(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         null
       );
     });
@@ -122,7 +122,7 @@ describe('ScanService', () => {
       service.scan(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         undefined
       );
     });
@@ -147,7 +147,7 @@ describe('ScanService', () => {
       service.scan(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         mockRequest
       );
     });
@@ -260,7 +260,7 @@ describe('ScanService', () => {
       service.scan(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         mockRequest
       );
     });
@@ -277,7 +277,7 @@ describe('ScanService', () => {
       service.scan(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         mockRequest
       );
     });
@@ -294,7 +294,7 @@ describe('ScanService', () => {
 
       // Verify the exact same object reference is passed
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         mockRequest
       );
     });
@@ -311,7 +311,7 @@ describe('ScanService', () => {
       service.scan(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         mockRequest
       );
     });
@@ -329,7 +329,7 @@ describe('ScanService', () => {
       service.scan(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/scan/repo',
+        '/api/scan/repo',
         mockRequest
       );
     });
@@ -349,7 +349,7 @@ describe('ScanService', () => {
       // Verify all calls used the same endpoint
       expect(mockHttpService.Post).toHaveBeenCalledTimes(3);
       mockHttpService.Post.mock.calls.forEach(call => {
-        expect(call[0]).toBe('api/scan/repo');
+        expect(call[0]).toBe('/api/scan/repo');
       });
     });
 

@@ -56,7 +56,7 @@ steps:
   #############################################################################
   # SonarQube Prepare (non-dotnet)
   #############################################################################
-  - ${{ if and(ne(parameters.appType, 'dotnet_core'), ne(parameters.appType, 'dotnet_frame')) }}:
+  - ${{ if and(ne(parameters.appType, 'dotnet'), ne(parameters.appType, 'dotnet_frame')) }}:
     - task: SonarQubePrepare@8
       displayName: "Prepare SonarQube"
       inputs:
@@ -84,7 +84,7 @@ steps:
   #############################################################################
   # SonarQube Prepare (dotnet)
   #############################################################################
-  - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_frame')) }}:
+  - ${{ if or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_frame')) }}:
     - task: SonarQubePrepare@8
       displayName: "Prepare SonarQube"
       inputs:

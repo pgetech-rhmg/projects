@@ -71,7 +71,7 @@ describe('CfnService', () => {
 
       expect(mockHttpService.Post).toHaveBeenCalledTimes(1);
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/generate',
+        '/api/cfn/generate',
         { Cfns: mockRequest }
       );
     });
@@ -117,7 +117,7 @@ describe('CfnService', () => {
       service.generate(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/generate',
+        '/api/cfn/generate',
         { Cfns: {} }
       );
     });
@@ -129,7 +129,7 @@ describe('CfnService', () => {
       service.generate(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/generate',
+        '/api/cfn/generate',
         { Cfns: null }
       );
     });
@@ -141,7 +141,7 @@ describe('CfnService', () => {
       service.generate(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/generate',
+        '/api/cfn/generate',
         { Cfns: undefined }
       );
     });
@@ -153,7 +153,7 @@ describe('CfnService', () => {
       service.generate(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/generate',
+        '/api/cfn/generate',
         { Cfns: mockRequest }
       );
     });
@@ -171,7 +171,7 @@ describe('CfnService', () => {
       service.generate(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/generate',
+        '/api/cfn/generate',
         { Cfns: mockRequest }
       );
     });
@@ -199,7 +199,7 @@ describe('CfnService', () => {
 
       expect(mockHttpService.Post).toHaveBeenCalledTimes(3);
       mockHttpService.Post.mock.calls.forEach((call: any) => {
-        expect(call[0]).toBe('api/cfn/generate');
+        expect(call[0]).toBe('/api/cfn/generate');
       });
     });
   });
@@ -211,7 +211,7 @@ describe('CfnService', () => {
       service.generateStream(jobId);
 
       expect(mockHttpService.SSE).toHaveBeenCalledTimes(1);
-      expect(mockHttpService.SSE).toHaveBeenCalledWith('api/cfn/generate-stream/job-stream-123');
+      expect(mockHttpService.SSE).toHaveBeenCalledWith('/api/cfn/generate-stream/job-stream-123');
     });
 
     it('should return EventSource from httpService.SSE', () => {
@@ -230,7 +230,7 @@ describe('CfnService', () => {
 
         service.generateStream(jobId);
 
-        expect(mockHttpService.SSE).toHaveBeenCalledWith(`api/cfn/generate-stream/${jobId}`);
+        expect(mockHttpService.SSE).toHaveBeenCalledWith(`/api/cfn/generate-stream/${jobId}`);
       });
     });
 
@@ -239,7 +239,7 @@ describe('CfnService', () => {
 
       service.generateStream(jobId);
 
-      expect(mockHttpService.SSE).toHaveBeenCalledWith('api/cfn/generate-stream/');
+      expect(mockHttpService.SSE).toHaveBeenCalledWith('/api/cfn/generate-stream/');
     });
 
     it('should create new EventSource for each call', () => {
@@ -250,8 +250,8 @@ describe('CfnService', () => {
       service.generateStream(jobId2);
 
       expect(mockHttpService.SSE).toHaveBeenCalledTimes(2);
-      expect(mockHttpService.SSE).toHaveBeenNthCalledWith(1, 'api/cfn/generate-stream/job-1');
-      expect(mockHttpService.SSE).toHaveBeenNthCalledWith(2, 'api/cfn/generate-stream/job-2');
+      expect(mockHttpService.SSE).toHaveBeenNthCalledWith(1, '/api/cfn/generate-stream/job-1');
+      expect(mockHttpService.SSE).toHaveBeenNthCalledWith(2, '/api/cfn/generate-stream/job-2');
     });
   });
 
@@ -265,7 +265,7 @@ describe('CfnService', () => {
 
       expect(mockHttpService.Post).toHaveBeenCalledTimes(1);
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/create-project',
+        '/api/cfn/create-project',
         { CfnResults: mockRequest }
       );
     });
@@ -312,7 +312,7 @@ describe('CfnService', () => {
       service.createProject(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/create-project',
+        '/api/cfn/create-project',
         { CfnResults: {} }
       );
     });
@@ -324,7 +324,7 @@ describe('CfnService', () => {
       service.createProject(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/create-project',
+        '/api/cfn/create-project',
         { CfnResults: null }
       );
     });
@@ -336,7 +336,7 @@ describe('CfnService', () => {
       service.createProject(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/create-project',
+        '/api/cfn/create-project',
         { CfnResults: undefined }
       );
     });
@@ -348,7 +348,7 @@ describe('CfnService', () => {
       service.createProject(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/create-project',
+        '/api/cfn/create-project',
         { CfnResults: mockRequest }
       );
     });
@@ -369,7 +369,7 @@ describe('CfnService', () => {
       service.createProject(mockRequest);
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/create-project',
+        '/api/cfn/create-project',
         { CfnResults: mockRequest }
       );
     });
@@ -397,7 +397,7 @@ describe('CfnService', () => {
 
       expect(mockHttpService.Post).toHaveBeenCalledTimes(3);
       mockHttpService.Post.mock.calls.forEach((call: any) => {
-        expect(call[0]).toBe('api/cfn/create-project');
+        expect(call[0]).toBe('/api/cfn/create-project');
       });
     });
   });
@@ -462,7 +462,7 @@ describe('CfnService', () => {
 
       expect(mockHttpService.Post).toHaveBeenCalledTimes(1);
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        `api/cfn/cancel/${jobId}`,
+        `/api/cfn/cancel/${jobId}`,
         {}
       );
     });
@@ -474,7 +474,7 @@ describe('CfnService', () => {
       service.cancel();
 
       expect(mockHttpService.Post).toHaveBeenCalledWith(
-        'api/cfn/cancel/job-cancel-123',
+        '/api/cfn/cancel/job-cancel-123',
         {}
       );
     });
@@ -527,7 +527,7 @@ describe('CfnService', () => {
         service.cancel();
 
         expect(mockHttpService.Post).toHaveBeenCalledWith(
-          `api/cfn/cancel/${jobId}`,
+          `/api/cfn/cancel/${jobId}`,
           {}
         );
       });

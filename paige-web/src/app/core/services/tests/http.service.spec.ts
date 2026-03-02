@@ -94,13 +94,13 @@ describe('HttpService', () => {
         });
 
         it('should call http.get with correct URL', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             const mockResponse = [{ id: 1, name: 'User1' }];
             mockHttpClient.get = jest.fn(() => of(mockResponse));
 
             service.Get(endpoint).subscribe(() => {
                 expect(mockHttpClient.get).toHaveBeenCalledWith(
-                    `${mockAppConfig.apiUrl}/${endpoint}`,
+                    `${mockAppConfig.apiUrl}${endpoint}`,
                     expect.objectContaining({ withCredentials: true })
                 );
                 done();
@@ -108,7 +108,7 @@ describe('HttpService', () => {
         });
 
         it('should return data from API', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             const mockResponse = [{ id: 1, name: 'User1' }];
             mockHttpClient.get = jest.fn(() => of(mockResponse));
 
@@ -119,7 +119,7 @@ describe('HttpService', () => {
         });
 
         it('should use default timeout of 300000', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             mockHttpClient.get = jest.fn(() => of({}));
 
             service.Get(endpoint).subscribe(() => {
@@ -128,7 +128,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom timeout when provided', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             const customTimeout = 5000;
             mockHttpClient.get = jest.fn(() => of({}));
 
@@ -138,7 +138,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom headers when provided', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             const customHeaders = new HttpHeaders({ 'Custom-Header': 'value' });
             mockHttpClient.get = jest.fn(() => of({}));
 
@@ -148,7 +148,7 @@ describe('HttpService', () => {
         });
 
         it('should load config from sessionStorage', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             mockHttpClient.get = jest.fn(() => of({}));
 
             service.Get(endpoint).subscribe(() => {
@@ -165,14 +165,14 @@ describe('HttpService', () => {
         });
 
         it('should call http.post with correct URL and body', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             const body = { name: 'New User', email: 'user@example.com' };
             const mockResponse = { id: 1, ...body };
             mockHttpClient.post = jest.fn(() => of(mockResponse));
 
             service.Post(endpoint, body).subscribe(() => {
                 expect(mockHttpClient.post).toHaveBeenCalledWith(
-                    `${mockAppConfig.apiUrl}/${endpoint}`,
+                    `${mockAppConfig.apiUrl}${endpoint}`,
                     body,
                     expect.objectContaining({ withCredentials: true })
                 );
@@ -181,7 +181,7 @@ describe('HttpService', () => {
         });
 
         it('should return response from API', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             const body = { name: 'New User' };
             const mockResponse = { id: 1, ...body };
             mockHttpClient.post = jest.fn(() => of(mockResponse));
@@ -193,12 +193,12 @@ describe('HttpService', () => {
         });
 
         it('should handle empty body', (done) => {
-            const endpoint = 'users/action';
+            const endpoint = '/users/action';
             mockHttpClient.post = jest.fn(() => of({ success: true }));
 
             service.Post(endpoint).subscribe(() => {
                 expect(mockHttpClient.post).toHaveBeenCalledWith(
-                    `${mockAppConfig.apiUrl}/${endpoint}`,
+                    `${mockAppConfig.apiUrl}${endpoint}`,
                     undefined,
                     expect.any(Object)
                 );
@@ -207,7 +207,7 @@ describe('HttpService', () => {
         });
 
         it('should use default timeout', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             mockHttpClient.post = jest.fn(() => of({}));
 
             service.Post(endpoint, {}).subscribe(() => {
@@ -216,7 +216,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom timeout when provided', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             const customTimeout = 5000;
             mockHttpClient.post = jest.fn(() => of({}));
 
@@ -226,7 +226,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom headers when provided', (done) => {
-            const endpoint = 'users';
+            const endpoint = '/users';
             const customHeaders = new HttpHeaders({ 'Custom-Header': 'value' });
             mockHttpClient.post = jest.fn(() => of({}));
 
@@ -247,14 +247,14 @@ describe('HttpService', () => {
         });
 
         it('should call http.put with correct URL and body', (done) => {
-            const endpoint = 'users/1';
+            const endpoint = '/users/1';
             const body = { name: 'Updated User' };
             const mockResponse = { id: 1, ...body };
             mockHttpClient.put = jest.fn(() => of(mockResponse));
 
             service.Put(endpoint, body).subscribe(() => {
                 expect(mockHttpClient.put).toHaveBeenCalledWith(
-                    `${mockAppConfig.apiUrl}/${endpoint}`,
+                    `${mockAppConfig.apiUrl}${endpoint}`,
                     body,
                     expect.objectContaining({ withCredentials: true })
                 );
@@ -263,7 +263,7 @@ describe('HttpService', () => {
         });
 
         it('should return response from API', (done) => {
-            const endpoint = 'users/1';
+            const endpoint = '/users/1';
             const body = { name: 'Updated User' };
             const mockResponse = { id: 1, ...body };
             mockHttpClient.put = jest.fn(() => of(mockResponse));
@@ -275,7 +275,7 @@ describe('HttpService', () => {
         });
 
         it('should handle empty body', (done) => {
-            const endpoint = 'users/1';
+            const endpoint = '/users/1';
             mockHttpClient.put = jest.fn(() => of({ success: true }));
 
             service.Put(endpoint).subscribe(() => {
@@ -284,7 +284,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom timeout when provided', (done) => {
-            const endpoint = 'users/1';
+            const endpoint = '/users/1';
             const customTimeout = 5000;
             mockHttpClient.put = jest.fn(() => of({}));
 
@@ -300,13 +300,13 @@ describe('HttpService', () => {
         });
 
         it('should call http.delete with correct URL', (done) => {
-            const endpoint = 'users/1';
+            const endpoint = '/users/1';
             const mockResponse = { success: true };
             mockHttpClient.delete = jest.fn(() => of(mockResponse));
 
             service.Delete(endpoint).subscribe(() => {
                 expect(mockHttpClient.delete).toHaveBeenCalledWith(
-                    `${mockAppConfig.apiUrl}/${endpoint}`,
+                    `${mockAppConfig.apiUrl}${endpoint}`,
                     expect.objectContaining({ withCredentials: true })
                 );
                 done();
@@ -314,7 +314,7 @@ describe('HttpService', () => {
         });
 
         it('should return response from API', (done) => {
-            const endpoint = 'users/1';
+            const endpoint = '/users/1';
             const mockResponse = { success: true };
             mockHttpClient.delete = jest.fn(() => of(mockResponse));
 
@@ -325,7 +325,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom headers when provided', (done) => {
-            const endpoint = 'users/1';
+            const endpoint = '/users/1';
             const customHeaders = new HttpHeaders({ 'Custom-Header': 'value' });
             mockHttpClient.delete = jest.fn(() => of({}));
 
@@ -339,7 +339,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom timeout when provided', (done) => {
-            const endpoint = 'users/1';
+            const endpoint = '/users/1';
             const customTimeout = 5000;
             mockHttpClient.delete = jest.fn(() => of({}));
 
@@ -355,14 +355,14 @@ describe('HttpService', () => {
         });
 
         it('should call http.get with blob response type', (done) => {
-            const endpoint = 'export/data';
+            const endpoint = '/export/data';
             const mockBlob = new Blob(['test'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const mockResponse = new HttpResponse({ body: mockBlob });
             mockHttpClient.get = jest.fn(() => of(mockResponse));
 
             service.GetDownload(endpoint).subscribe(() => {
                 expect(mockHttpClient.get).toHaveBeenCalledWith(
-                    `${mockAppConfig.apiUrl}/${endpoint}`,
+                    `${mockAppConfig.apiUrl}${endpoint}`,
                     expect.objectContaining({
                         withCredentials: true,
                         observe: 'response',
@@ -374,7 +374,7 @@ describe('HttpService', () => {
         });
 
         it('should return HttpResponse with Blob', (done) => {
-            const endpoint = 'export/data';
+            const endpoint = '/export/data';
             const mockBlob = new Blob(['test'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const mockResponse = new HttpResponse({ body: mockBlob });
             mockHttpClient.get = jest.fn(() => of(mockResponse));
@@ -386,7 +386,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom timeout when provided', (done) => {
-            const endpoint = 'export/data';
+            const endpoint = '/export/data';
             const customTimeout = 5000;
             const mockResponse = new HttpResponse({ body: new Blob() });
             mockHttpClient.get = jest.fn(() => of(mockResponse));
@@ -403,7 +403,7 @@ describe('HttpService', () => {
         });
 
         it('should call http.post with blob response type', (done) => {
-            const endpoint = 'export/custom';
+            const endpoint = '/export/custom';
             const body = { filter: 'active', limit: 100 };
             const mockBlob = new Blob(['test'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const mockResponse = new HttpResponse({ body: mockBlob });
@@ -411,7 +411,7 @@ describe('HttpService', () => {
 
             service.GetDownloadFile(endpoint, body).subscribe(() => {
                 expect(mockHttpClient.post).toHaveBeenCalledWith(
-                    `${mockAppConfig.apiUrl}/${endpoint}`,
+                    `${mockAppConfig.apiUrl}${endpoint}`,
                     body,
                     expect.objectContaining({
                         withCredentials: true,
@@ -424,7 +424,7 @@ describe('HttpService', () => {
         });
 
         it('should return HttpResponse with Blob', (done) => {
-            const endpoint = 'export/custom';
+            const endpoint = '/export/custom';
             const body = { filter: 'active' };
             const mockBlob = new Blob(['test']);
             const mockResponse = new HttpResponse({ body: mockBlob });
@@ -437,7 +437,7 @@ describe('HttpService', () => {
         });
 
         it('should handle empty body', (done) => {
-            const endpoint = 'export/all';
+            const endpoint = '/export/all';
             const mockResponse = new HttpResponse({ body: new Blob() });
             mockHttpClient.post = jest.fn(() => of(mockResponse));
 
@@ -448,7 +448,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom timeout when provided', (done) => {
-            const endpoint = 'export/custom';
+            const endpoint = '/export/custom';
             const customTimeout = 5000;
             const mockResponse = new HttpResponse({ body: new Blob() });
             mockHttpClient.post = jest.fn(() => of(mockResponse));
@@ -465,13 +465,13 @@ describe('HttpService', () => {
         });
 
         it('should call http.get with blob response type', (done) => {
-            const endpoint = 'reports/pdf/123';
+            const endpoint = '/reports/pdf/123';
             const mockBlob = new Blob(['pdf content'], { type: 'application/pdf' });
             mockHttpClient.get = jest.fn(() => of(mockBlob));
 
             service.GetPdf(endpoint).subscribe(() => {
                 expect(mockHttpClient.get).toHaveBeenCalledWith(
-                    `${mockAppConfig.apiUrl}/${endpoint}`,
+                    `${mockAppConfig.apiUrl}${endpoint}`,
                     expect.objectContaining({
                         withCredentials: true,
                         responseType: 'blob'
@@ -482,7 +482,7 @@ describe('HttpService', () => {
         });
 
         it('should return Blob', (done) => {
-            const endpoint = 'reports/pdf/123';
+            const endpoint = '/reports/pdf/123';
             const mockBlob = new Blob(['pdf content'], { type: 'application/pdf' });
             mockHttpClient.get = jest.fn(() => of(mockBlob));
 
@@ -493,7 +493,7 @@ describe('HttpService', () => {
         });
 
         it('should use custom timeout when provided', (done) => {
-            const endpoint = 'reports/pdf/123';
+            const endpoint = '/reports/pdf/123';
             const customTimeout = 5000;
             const mockBlob = new Blob();
             mockHttpClient.get = jest.fn(() => of(mockBlob));
@@ -512,15 +512,15 @@ describe('HttpService', () => {
         });
 
         it('should create EventSource with correct URL', () => {
-            const endpoint = 'events/stream';
+            const endpoint = '/events/stream';
             
             service.SSE(endpoint);
 
-            expect(EventSource).toHaveBeenCalledWith(`${mockAppConfig.apiUrl}/${endpoint}`);
+            expect(EventSource).toHaveBeenCalledWith(`${mockAppConfig.apiUrl}${endpoint}`);
         });
 
         it('should return EventSource instance', () => {
-            const endpoint = 'events/stream';
+            const endpoint = '/events/stream';
             const mockEventSource = {} as EventSource;
             (global.EventSource as unknown as jest.Mock).mockReturnValue(mockEventSource);
 
@@ -530,7 +530,7 @@ describe('HttpService', () => {
         });
 
         it('should load config from sessionStorage', () => {
-            const endpoint = 'events/stream';
+            const endpoint = '/events/stream';
             
             service.SSE(endpoint);
 

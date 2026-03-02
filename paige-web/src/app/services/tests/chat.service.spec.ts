@@ -75,7 +75,7 @@ describe('ChatStreamService', () => {
 
             expect(mockHttpService.Post).toHaveBeenCalledTimes(1);
             expect(mockHttpService.Post).toHaveBeenCalledWith(
-                'api/chat/start',
+                '/api/chat/start',
                 mockRequest
             );
         });
@@ -120,7 +120,7 @@ describe('ChatStreamService', () => {
             service.startChat(mockRequest);
 
             expect(mockHttpService.Post).toHaveBeenCalledWith(
-                'api/chat/start',
+                '/api/chat/start',
                 {}
             );
             expect(console.log).toHaveBeenCalledWith({});
@@ -133,7 +133,7 @@ describe('ChatStreamService', () => {
             service.startChat(mockRequest);
 
             expect(mockHttpService.Post).toHaveBeenCalledWith(
-                'api/chat/start',
+                '/api/chat/start',
                 null
             );
             expect(console.log).toHaveBeenCalledWith(null);
@@ -146,7 +146,7 @@ describe('ChatStreamService', () => {
             service.startChat(mockRequest);
 
             expect(mockHttpService.Post).toHaveBeenCalledWith(
-                'api/chat/start',
+                '/api/chat/start',
                 undefined
             );
             expect(console.log).toHaveBeenCalledWith(undefined);
@@ -165,7 +165,7 @@ describe('ChatStreamService', () => {
             service.startChat(mockRequest);
 
             expect(mockHttpService.Post).toHaveBeenCalledWith(
-                'api/chat/start',
+                '/api/chat/start',
                 mockRequest
             );
             expect(console.log).toHaveBeenCalledWith(mockRequest);
@@ -198,7 +198,7 @@ describe('ChatStreamService', () => {
 
             expect(mockHttpService.Post).toHaveBeenCalledTimes(3);
             mockHttpService.Post.mock.calls.forEach((call: any) => {
-                expect(call[0]).toBe('api/chat/start');
+                expect(call[0]).toBe('/api/chat/start');
             });
         });
     });
@@ -210,7 +210,7 @@ describe('ChatStreamService', () => {
             service.chatStream(jobId);
 
             expect(mockHttpService.SSE).toHaveBeenCalledTimes(1);
-            expect(mockHttpService.SSE).toHaveBeenCalledWith('api/chat/stream/job-stream-123');
+            expect(mockHttpService.SSE).toHaveBeenCalledWith('/api/chat/stream/job-stream-123');
         });
 
         it('should return EventSource from httpService.SSE', () => {
@@ -229,7 +229,7 @@ describe('ChatStreamService', () => {
                 
                 service.chatStream(jobId);
 
-                expect(mockHttpService.SSE).toHaveBeenCalledWith(`api/chat/stream/${jobId}`);
+                expect(mockHttpService.SSE).toHaveBeenCalledWith(`/api/chat/stream/${jobId}`);
             });
         });
 
@@ -238,7 +238,7 @@ describe('ChatStreamService', () => {
 
             service.chatStream(jobId);
 
-            expect(mockHttpService.SSE).toHaveBeenCalledWith('api/chat/stream/');
+            expect(mockHttpService.SSE).toHaveBeenCalledWith('/api/chat/stream/');
         });
 
         it('should create new EventSource for each call', () => {
@@ -249,8 +249,8 @@ describe('ChatStreamService', () => {
             service.chatStream(jobId2);
 
             expect(mockHttpService.SSE).toHaveBeenCalledTimes(2);
-            expect(mockHttpService.SSE).toHaveBeenNthCalledWith(1, 'api/chat/stream/job-1');
-            expect(mockHttpService.SSE).toHaveBeenNthCalledWith(2, 'api/chat/stream/job-2');
+            expect(mockHttpService.SSE).toHaveBeenNthCalledWith(1, '/api/chat/stream/job-1');
+            expect(mockHttpService.SSE).toHaveBeenNthCalledWith(2, '/api/chat/stream/job-2');
         });
 
         it('should return EventSource with expected properties', () => {
@@ -325,7 +325,7 @@ describe('ChatStreamService', () => {
 
             expect(mockHttpService.Post).toHaveBeenCalledTimes(1);
             expect(mockHttpService.Post).toHaveBeenCalledWith(
-                `api/cfn/cancel/${jobId}`,
+                `/api/cfn/cancel/${jobId}`,
                 {}
             );
         });
@@ -337,7 +337,7 @@ describe('ChatStreamService', () => {
             service.cancel();
 
             expect(mockHttpService.Post).toHaveBeenCalledWith(
-                'api/cfn/cancel/job-cancel-123',
+                '/api/cfn/cancel/job-cancel-123',
                 {}
             );
         });
@@ -390,7 +390,7 @@ describe('ChatStreamService', () => {
                 service.cancel();
 
                 expect(mockHttpService.Post).toHaveBeenCalledWith(
-                    `api/cfn/cancel/${jobId}`,
+                    `/api/cfn/cancel/${jobId}`,
                     {}
                 );
             });
@@ -459,8 +459,8 @@ describe('ChatStreamService', () => {
             service.chatStream(job2);
 
             expect(mockHttpService.SSE).toHaveBeenCalledTimes(2);
-            expect(mockHttpService.SSE).toHaveBeenCalledWith(`api/chat/stream/${job1}`);
-            expect(mockHttpService.SSE).toHaveBeenCalledWith(`api/chat/stream/${job2}`);
+            expect(mockHttpService.SSE).toHaveBeenCalledWith(`/api/chat/stream/${job1}`);
+            expect(mockHttpService.SSE).toHaveBeenCalledWith(`/api/chat/stream/${job2}`);
         });
     });
 });

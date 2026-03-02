@@ -38,7 +38,7 @@ EPIC-Pipeline/
 ├── build/
 │   ├── main.yml                 # Build dispatcher
 │   ├── angular/
-│   ├── dotnet_core/
+│   ├── dotnet/
 │   ├── dotnet_framework/
 │   └── python/
 ├── test/
@@ -268,7 +268,7 @@ string
 | Value              | Description                          |
 |--------------------|--------------------------------------|
 | angular            | Angular frontend application         |
-| dotnet_core        | .NET Core / .NET 6+ application      |
+| dotnet.            | .NET Core / .NET 6+ application      |
 | dotnet_framework   | .NET Framework application           |
 | python             | Python application                   |
 
@@ -293,7 +293,7 @@ string
 | sdist   | Build source distribution |
 | omitted | Validated source |
 
-### dotnet_core / dotnet_framework
+### dotnet / dotnet_framework
 
 | Value   | Description |
 |---------|-------------|

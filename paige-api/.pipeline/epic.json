@@ -1,6 +1,6 @@
 {
   "appName": "paige",
-  "appType": "dotnet_core",
+  "appType": "dotnet",
   "codePath": "/Paige.Api",
   "testPath": "/",
   "scanTool": "sonarqube",

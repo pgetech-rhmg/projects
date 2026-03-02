@@ -1,544 +1,407 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, Navigation } from '@angular/router';
+import { Router, Navigation, ActivatedRoute } from '@angular/router';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { RepoResultsComponent } from './repo-results.component';
 
-// Mock the imports
 jest.mock('~/core/app.component', () => ({
-    AppComponent: jest.fn().mockImplementation(() => ({}))
+	AppComponent: jest.fn().mockImplementation(() => ({}))
 }));
 
-jest.mock('~/services/scan.service', () => ({
-    ScanService: jest.fn().mockImplementation(() => ({
-        scan: jest.fn()
-    }))
+jest.mock('~/services/repo.service', () => ({
+	RepoService: jest.fn().mockImplementation(() => ({
+		analyze: jest.fn()
+	}))
 }));
 
 jest.mock('~/core/services/appconfig.service', () => ({
-    AppConfigService: jest.fn().mockImplementation(() => ({
-        getConfig: jest.fn()
-    }))
+	AppConfigService: jest.fn().mockImplementation(() => ({
+		getConfig: jest.fn()
+	}))
 }));
 
 jest.mock('~/core/services/appsettings.service', () => ({
-    AppSettingsService: jest.fn().mockImplementation(() => ({
-        getSettings: jest.fn()
-    }))
+	AppSettingsService: jest.fn().mockImplementation(() => ({
+		getSettings: jest.fn()
+	}))
 }));
 
 jest.mock('~/core/services/activity.service', () => ({
-    ActivityService: jest.fn().mockImplementation(() => ({
-        SaveActivity: jest.fn()
-    }))
+	ActivityService: jest.fn().mockImplementation(() => ({
+		SaveActivity: jest.fn()
+	}))
 }));
 
 jest.mock('~/pages/base.component', () => ({
-    BaseComponent: class {
-        isLoading = false;
-        async initAsync() { }
-    }
+	BaseComponent: class {
+		isLoading = false;
+		async initAsync() { }
+	}
 }));
 
-// Import the mocked classes
 import { AppComponent } from '~/core/app.component';
-import { ScanService } from '~/services/scan.service';
+import { RepoService } from '~/services/repo.service';
 import { AppConfigService } from '~/core/services/appconfig.service';
 import { AppSettingsService } from '~/core/services/appsettings.service';
 import { ActivityService } from '~/core/services/activity.service';
 
 describe('RepoResultsComponent', () => {
-    let component: RepoResultsComponent;
-    let fixture: ComponentFixture<RepoResultsComponent>;
-    let mockRouter: any;
-    let mockScanService: any;
-    let mockNavigation: Partial<Navigation>;
+	let component: RepoResultsComponent;
+	let fixture: ComponentFixture<RepoResultsComponent>;
+	let mockRouter: any;
+	let mockRepoService: any;
+	let mockActivatedRoute: any;
 
-    const mockResponseData = {
-        summary: {
-            structure: {
-                repoName: 'test-repo',
-                branch: 'main',
-                keyFiles: [
-                    { category: 'Infrastructure', name: 'file1.tf', path: '/path/to/file1.tf' },
-                    { category: 'Infrastructure', name: 'file2.tf', path: '/path/to/file2.tf' },
-                    { category: 'Configuration', name: 'config.yaml', path: '/path/to/config.yaml' },
-                    { category: 'Documentation', name: 'README.md', path: '/README.md' }
-                ]
-            }
-        }
-    };
+	const mockResponseData = {
+		repo: {
+			repoName: 'test-repo',
+			branch: 'main'
+		},
+		analysis: null,
+		aiAssessment: null
+	};
 
-    beforeEach(async () => {
-        // Create mock router
-        mockRouter = {
-            currentNavigation: jest.fn(),
-            navigate: jest.fn().mockResolvedValue(true),
-            url: '/repo-results'
-        };
+	const mockResponseWithAnalysis = {
+		repo: {
+			repoName: 'test-repo',
+			branch: 'main'
+		},
+		analysis: { output: 'existing analysis output' },
+		aiAssessment: null
+	};
 
-        // Create mock ScanService instance
-        mockScanService = {
-            scan: jest.fn()
-        };
+	beforeEach(async () => {
+		mockRouter = {
+			currentNavigation: jest.fn(),
+			navigate: jest.fn().mockResolvedValue(true),
+			url: '/repo-results'
+		};
 
-        await TestBed.configureTestingModule({
-            imports: [RepoResultsComponent],
-            providers: [
-                { provide: Router, useValue: mockRouter },
-                { provide: AppComponent, useValue: {} },
-                { provide: ScanService, useValue: mockScanService },
-                { provide: AppConfigService, useValue: { getConfig: jest.fn() } },
-                { provide: AppSettingsService, useValue: { getSettings: jest.fn() } },
-                { provide: ActivityService, useValue: { SaveActivity: jest.fn() } }
-            ],
-            schemas: [NO_ERRORS_SCHEMA]
-        }).compileComponents();
-    });
+		mockRepoService = {
+			analyze: jest.fn()
+		};
 
-    describe('Constructor', () => {
-        it('should create component and initialize with navigation state data', () => {
-            // Arrange
-            mockNavigation = {
-                extras: {
-                    state: {
-                        data: mockResponseData
-                    }
-                }
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
+		mockActivatedRoute = {
+			snapshot: {},
+			params: of({}),
+			queryParams: of({})
+		};
 
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
+		await TestBed.configureTestingModule({
+			imports: [RepoResultsComponent],
+			providers: [
+				{ provide: Router, useValue: mockRouter },
+				{ provide: ActivatedRoute, useValue: mockActivatedRoute },
+				{ provide: AppComponent, useValue: {} },
+				{ provide: RepoService, useValue: mockRepoService },
+				{ provide: AppConfigService, useValue: { getConfig: jest.fn() } },
+				{ provide: AppSettingsService, useValue: { getSettings: jest.fn() } },
+				{ provide: ActivityService, useValue: { SaveActivity: jest.fn() } }
+			],
+			schemas: [NO_ERRORS_SCHEMA]
+		}).compileComponents();
+	});
 
-            // Assert
-            expect(component).toBeTruthy();
-            expect(component.isLoading).toBe(true);
-            expect(component.response).toEqual(mockResponseData);
-            expect(component.groupedEntries).toBeDefined();
-            expect(component.groupedEntries['Infrastructure']).toHaveLength(2);
-            expect(component.groupedEntries['Configuration']).toHaveLength(1);
-            expect(component.groupedEntries['Documentation']).toHaveLength(1);
-        });
+	function createComponent(navState: any) {
+		mockRouter.currentNavigation.mockReturnValue(navState);
+		fixture = TestBed.createComponent(RepoResultsComponent);
+		component = fixture.componentInstance;
+		(component as any).repoService = mockRepoService;
+	}
 
-        it('should navigate to /repo when no navigation state data', () => {
-            // Arrange
-            mockNavigation = {
-                extras: {
-                    state: {}
-                }
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
+	//*************************************************************************
+	//  Constructor
+	//*************************************************************************
+	describe('Constructor', () => {
+		it('should create with navigation state data and set isLoading true', () => {
+			createComponent({ extras: { state: { data: mockResponseData } } });
 
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
+			expect(component).toBeTruthy();
+			expect(component.isLoading).toBe(true);
+			expect(component.response).toEqual(mockResponseData);
+		});
 
-            // Assert
-            expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], { state: { data: null } });
-        });
+		it('should initialize tabs with summary and signals inputs when data is present', () => {
+			createComponent({ extras: { state: { data: mockResponseData } } });
 
-        it('should navigate to /repo when navigation state is undefined', () => {
-            // Arrange
-            mockNavigation = {
-                extras: {
-                    state: undefined
-                }
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
+			expect(component.tabs[0].inputs).toEqual({ repoData: mockResponseData });
+			expect(component.tabs[1].inputs).toEqual({ repoData: mockResponseData });
+		});
 
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
+		it('should set analysis tab isAnalyzing true when no analysis exists', () => {
+			createComponent({ extras: { state: { data: mockResponseData } } });
 
-            // Assert
-            expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], { state: { data: null } });
-        });
+			expect(component.tabs[2].inputs).toEqual({ isAnalyzing: true, output: null });
+		});
 
-        it('should navigate to /repo when navigation extras is empty', () => {
-            // Arrange
-            mockNavigation = {
-                extras: {}
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
+		it('should set analysis tab isAnalyzing false when analysis exists', () => {
+			createComponent({ extras: { state: { data: mockResponseWithAnalysis } } });
 
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
+			expect(component.tabs[2].inputs).toEqual({
+				isAnalyzing: false,
+				output: mockResponseWithAnalysis.analysis
+			});
+		});
 
-            // Assert
-            expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], { state: { data: null } });
-        });
+		it('should wire setAiAssessment output on analysis tab', () => {
+			createComponent({ extras: { state: { data: mockResponseData } } });
 
-        it('should navigate to /repo when navigation is null', () => {
-            // Arrange
-            mockRouter.currentNavigation.mockReturnValue(null);
+			const aiOutput = { result: 'ai result' };
+			component.tabs[2].outputs['setAiAssessment'](aiOutput);
 
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
+			expect(component.response.aiAssessment).toEqual({ output: aiOutput });
+			expect(component.tabs[0].inputs).toEqual({ repoData: component.response });
+		});
 
-            // Assert
-            expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], { state: { data: null } });
-        });
+		it('should navigate to /repo when no state data', () => {
+			createComponent({ extras: { state: {} } });
 
-        it('should group entries correctly by category', () => {
-            // Arrange
-            mockNavigation = {
-                extras: {
-                    state: {
-                        data: mockResponseData
-                    }
-                }
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
+			expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], { state: { data: null } });
+		});
 
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
+		it('should navigate to /repo when state is undefined', () => {
+			createComponent({ extras: { state: undefined } });
 
-            // Assert
-            expect(Object.keys(component.groupedEntries)).toHaveLength(3);
-            expect(component.groupedEntries['Infrastructure']).toEqual([
-                { category: 'Infrastructure', name: 'file1.tf', path: '/path/to/file1.tf' },
-                { category: 'Infrastructure', name: 'file2.tf', path: '/path/to/file2.tf' }
-            ]);
-            expect(component.groupedEntries['Configuration']).toEqual([
-                { category: 'Configuration', name: 'config.yaml', path: '/path/to/config.yaml' }
-            ]);
-            expect(component.groupedEntries['Documentation']).toEqual([
-                { category: 'Documentation', name: 'README.md', path: '/README.md' }
-            ]);
-        });
-    });
+			expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], { state: { data: null } });
+		});
 
-    describe('ngOnInit', () => {
+		it('should navigate to /repo when extras is empty', () => {
+			createComponent({ extras: {} });
+
+			expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], { state: { data: null } });
+		});
+
+		it('should navigate to /repo when navigation is null', () => {
+			createComponent(null);
+
+			expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], { state: { data: null } });
+		});
+	});
+
+	//*************************************************************************
+	//  Default Property Values
+	//*************************************************************************
+	describe('Default Property Values', () => {
+		beforeEach(() => createComponent(null));
+
+		it('should initialize response as null', () => {
+			expect(component.response).toBeNull();
+		});
+
+		it('should initialize groupedEntries as empty object', () => {
+			expect(component.groupedEntries).toEqual({});
+		});
+
+		it('should initialize messageStyle as empty string', () => {
+			expect(component.messageStyle).toBe('');
+		});
+
+		it('should initialize username as empty string', () => {
+			expect(component.username).toBe('');
+		});
+
+		it('should initialize analysisRan as false', () => {
+			expect(component.analysisRan).toBe(false);
+		});
+
+		it('should initialize activeTab as first tab', () => {
+			expect(component.activeTab).toBe(component.tabs[0]);
+		});
+
+		it('should initialize with 3 tabs', () => {
+			expect(component.tabs).toHaveLength(3);
+			expect(component.tabs[0].title).toBe('Summary');
+			expect(component.tabs[1].title).toBe('Signals');
+			expect(component.tabs[2].title).toBe('Analysis');
+		});
+	});
+
+	//*************************************************************************
+	//  ngOnInit
+	//*************************************************************************
+	describe('ngOnInit', () => {
+		beforeEach(() => {
+			createComponent({ extras: { state: { data: mockResponseData } } });
+		});
+
+		it('should call initAsync and set isLoading to false', async () => {
+			jest.spyOn(component as any, 'initAsync').mockResolvedValue(undefined);
+
+			component.ngOnInit();
+			await fixture.whenStable();
+
+			expect((component as any).initAsync).toHaveBeenCalled();
+			expect(component.isLoading).toBe(false);
+		});
+	});
+
+	//*************************************************************************
+	//  setActiveTab
+	//*************************************************************************
+	describe('setActiveTab', () => {
+		beforeEach(() => {
+			createComponent({ extras: { state: { data: mockResponseData } } });
+		});
+
+		it('should set activeTab to the incoming tab', () => {
+			const event = { to: component.tabs[1] };
+			component.setActiveTab(event);
+
+			expect(component.activeTab).toBe(component.tabs[1]);
+		});
+
+		it('should trigger analyze when switching to Analysis tab for first time with no analysis', () => {
+			const analyzeSpy = jest.spyOn(component as any, 'analyze').mockImplementation(() => { });
+			const event = { to: component.tabs[2] };
+
+			component.setActiveTab(event);
+
+			expect(analyzeSpy).toHaveBeenCalled();
+			expect(component.analysisRan).toBe(true);
+		});
+
+		it('should not trigger analyze when switching to Analysis tab a second time', () => {
+			const analyzeSpy = jest.spyOn(component as any, 'analyze').mockImplementation(() => { });
+			const event = { to: component.tabs[2] };
+
+			component.setActiveTab(event);
+			component.setActiveTab(event);
+
+			expect(analyzeSpy).toHaveBeenCalledTimes(1);
+		});
+
+		it('should not trigger analyze when switching to Analysis tab if analysis already exists', () => {
+			createComponent({ extras: { state: { data: mockResponseWithAnalysis } } });
+			(component as any).repoService = mockRepoService;
+
+			const analyzeSpy = jest.spyOn(component as any, 'analyze').mockImplementation(() => { });
+			const event = { to: component.tabs[2] };
+
+			component.setActiveTab(event);
+
+			expect(analyzeSpy).not.toHaveBeenCalled();
+		});
+
+		it('should update analysis tab inputs when analysis already exists', () => {
+			createComponent({ extras: { state: { data: mockResponseWithAnalysis } } });
+			(component as any).repoService = mockRepoService;
+
+			const event = { to: component.tabs[2] };
+			component.setActiveTab(event);
+
+			expect(component.tabs[2].inputs).toEqual({
+				isAnalyzing: false,
+				output: mockResponseWithAnalysis.analysis
+			});
+		});
+
+		it('should set isAnalyzing true when switching to Analysis with no analysis and already ran', () => {
+			component.analysisRan = true;
+			const event = { to: component.tabs[2] };
+			component.setActiveTab(event);
+
+			expect(component.tabs[2].inputs).toEqual({ isAnalyzing: true, output: null });
+		});
+
+		it('should set activeTab when switching to non-Analysis tab', () => {
+			const event = { to: component.tabs[0] };
+			component.setActiveTab(event);
+
+			expect(component.activeTab).toBe(component.tabs[0]);
+		});
+	});
+
+	//*************************************************************************
+	//  back
+	//*************************************************************************
+	describe('back', () => {
+		beforeEach(() => {
+			createComponent({ extras: { state: { data: mockResponseData } } });
+			mockRouter.navigate.mockClear();
+		});
+
+		it('should navigate to /repo with repoName and branch from response', () => {
+			component.back();
+
+			expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], {
+				state: {
+					data: {
+						repository: 'test-repo',
+						branch: 'main'
+					}
+				}
+			});
+		});
+	});
+
+	//*************************************************************************
+	//  analyze (private)
+	//*************************************************************************
+    describe('analyze (private)', () => {
         beforeEach(() => {
-            mockNavigation = {
-                extras: {
-                    state: {
-                        data: mockResponseData
-                    }
-                }
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
+            createComponent({ extras: { state: { data: mockResponseData } } });
+            // Reset response to a clean deep copy to avoid state pollution from prior tests
+            component.response = JSON.parse(JSON.stringify(mockResponseData));
         });
 
-        it('should call initAsync and set isLoading to false', async () => {
-            // Arrange
-            jest.spyOn(component as any, 'initAsync').mockResolvedValue(undefined);
+		it('should return early when repoName is empty', () => {
+			component.response.repo.repoName = '';
+			component.isLoading = true;
 
-            // Act
-            component.ngOnInit();
-            await fixture.whenStable();
+			(component as any).analyze();
 
-            // Assert
-            expect((component as any).initAsync).toHaveBeenCalled();
-            expect(component.isLoading).toBe(false);
-        });
-    });
+			expect(mockRepoService.analyze).not.toHaveBeenCalled();
+			expect(component.isLoading).toBe(false);
+		});
 
-    describe('convert', () => {
-        beforeEach(() => {
-            mockNavigation = {
-                extras: {
-                    state: {
-                        data: mockResponseData
-                    }
-                }
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
-            mockRouter.navigate.mockClear();
-        });
+		it('should return early when branch is empty', () => {
+			component.response.repo.branch = '';
+			component.isLoading = true;
 
-        it('should set isLoading to true and call scanService.scan with correct request', (done) => {
-            // Arrange
-            const mockScanResponse = { result: 'success' };
-            
-            let subscriptionCallback: any;
-            const delayedObservable = new Observable((subscriber) => {
-                subscriptionCallback = () => {
-                    subscriber.next(mockScanResponse);
-                    subscriber.complete();
-                };
-            });
-            
-            mockScanService.scan.mockReturnValue(delayedObservable);
+			(component as any).analyze();
 
-            // Act
-            component.convert();
+			expect(mockRepoService.analyze).not.toHaveBeenCalled();
+			expect(component.isLoading).toBe(false);
+		});
 
-            // Assert - check immediately after call, before observable completes
-            expect(component.isLoading).toBe(true);
-            expect(mockScanService.scan).toHaveBeenCalledWith({
-                repoName: 'test-repo',
-                branch: 'main'
-            });
-            
-            // Complete the observable
-            subscriptionCallback();
-            done();
-        });
+		it('should call repoService.analyze with the current response', () => {
+			mockRepoService.analyze.mockReturnValue(of({ output: 'analysis result' }));
 
-        it('should navigate to /cfn with repoData and response data on success', () => {
-            // Arrange
-            const mockScanResponse = { 
-                terraform: 'data',
-                modules: ['module1', 'module2']
-            };
-            mockScanService.scan.mockReturnValue(of(mockScanResponse));
+			(component as any).analyze();
 
-            // Act
-            component.convert();
+			expect(mockRepoService.analyze).toHaveBeenCalledWith(component.response);
+		});
 
-            // Assert
-            expect(component.isLoading).toBe(false);
-            expect(mockRouter.navigate).toHaveBeenCalledWith(['/cfn'], {
-                state: { 
-                    repoData: mockResponseData,
-                    data: mockScanResponse 
-                }
-            });
-        });
+		it('should update response.analysis and tab inputs on success', () => {
+			const analysisOutput = 'analysis result';
+			mockRepoService.analyze.mockReturnValue(of({ output: analysisOutput }));
 
-        it('should set isLoading to false and log error on failure', () => {
-            // Arrange
-            const mockError = new Error('Scan Error');
-            mockScanService.scan.mockReturnValue(throwError(() => mockError));
+			(component as any).analyze();
 
-            // Act
-            component.convert();
+			expect(component.response.analysis).toBe(analysisOutput);
+			expect(component.isLoading).toBe(false);
+			expect(component.tabs[0].inputs).toEqual({ repoData: component.response });
+			expect(component.tabs[1].inputs).toEqual({ repoData: component.response });
+			expect(component.tabs[2].inputs).toEqual({ isAnalyzing: false, output: analysisOutput });
+		});
 
-            // Assert
-            expect(component.isLoading).toBe(false);
-            expect(mockRouter.navigate).not.toHaveBeenCalled();
-        });
-    });
+		it('should not update tabs when response output is falsy', () => {
+			mockRepoService.analyze.mockReturnValue(of({ output: null }));
+			const originalTab0Inputs = { ...component.tabs[0].inputs };
 
-    describe('objectKeys', () => {
-        beforeEach(() => {
-            mockNavigation = {
-                extras: {
-                    state: {
-                        data: mockResponseData
-                    }
-                }
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
-        });
+			(component as any).analyze();
 
-        it('should return array of object keys', () => {
-            // Arrange
-            const testObject = {
-                key1: 'value1',
-                key2: 'value2',
-                key3: 'value3'
-            };
+			expect(component.isLoading).toBe(false);
+			expect(component.tabs[0].inputs).toEqual(originalTab0Inputs);
+		});
 
-            // Act
-            const result = component.objectKeys(testObject);
+		it('should set isLoading false on error', () => {
+			mockRepoService.analyze.mockReturnValue(throwError(() => new Error('API Error')));
+			component.isLoading = true;
 
-            // Assert
-            expect(result).toEqual(['key1', 'key2', 'key3']);
-        });
+			(component as any).analyze();
 
-        it('should return empty array for empty object', () => {
-            // Arrange
-            const testObject = {};
-
-            // Act
-            const result = component.objectKeys(testObject);
-
-            // Assert
-            expect(result).toEqual([]);
-        });
-    });
-
-    describe('back', () => {
-        beforeEach(() => {
-            mockNavigation = {
-                extras: {
-                    state: {
-                        data: mockResponseData
-                    }
-                }
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
-            mockRouter.navigate.mockClear();
-        });
-
-        it('should navigate to /repo with repository and branch data', () => {
-            // Act
-            component.back();
-
-            // Assert
-            expect(mockRouter.navigate).toHaveBeenCalledWith(['/repo'], {
-                state: {
-                    data: {
-                        repository: 'test-repo',
-                        branch: 'main'
-                    }
-                }
-            });
-        });
-    });
-
-    describe('groupKeyEntries (private method)', () => {
-        beforeEach(() => {
-            mockRouter.currentNavigation.mockReturnValue(null);
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
-        });
-
-        it('should group entries by category correctly', () => {
-            // Arrange
-            const entries = [
-                { category: 'TypeA', name: 'item1' },
-                { category: 'TypeA', name: 'item2' },
-                { category: 'TypeB', name: 'item3' },
-                { category: 'TypeC', name: 'item4' },
-                { category: 'TypeA', name: 'item5' }
-            ];
-
-            // Act
-            (component as any).groupKeyEntries(entries);
-
-            // Assert
-            expect(component.groupedEntries['TypeA']).toHaveLength(3);
-            expect(component.groupedEntries['TypeB']).toHaveLength(1);
-            expect(component.groupedEntries['TypeC']).toHaveLength(1);
-            expect(component.groupedEntries['TypeA']).toEqual([
-                { category: 'TypeA', name: 'item1' },
-                { category: 'TypeA', name: 'item2' },
-                { category: 'TypeA', name: 'item5' }
-            ]);
-        });
-
-        it('should handle empty entries array', () => {
-            // Arrange
-            const entries: any[] = [];
-
-            // Act
-            (component as any).groupKeyEntries(entries);
-
-            // Assert
-            expect(component.groupedEntries).toEqual({});
-        });
-
-        it('should handle single entry', () => {
-            // Arrange
-            const entries = [
-                { category: 'SingleType', name: 'single-item' }
-            ];
-
-            // Act
-            (component as any).groupKeyEntries(entries);
-
-            // Assert
-            expect(Object.keys(component.groupedEntries)).toHaveLength(1);
-            expect(component.groupedEntries['SingleType']).toEqual([
-                { category: 'SingleType', name: 'single-item' }
-            ]);
-        });
-    });
-
-    describe('Component Initialization', () => {
-        it('should initialize response as null by default', () => {
-            // Arrange
-            mockRouter.currentNavigation.mockReturnValue(null);
-
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
-
-            // Assert - component navigates away, but initial value is null
-            expect(component.response).toBeNull();
-        });
-
-        it('should initialize groupedEntries as empty object by default', () => {
-            // Arrange
-            mockRouter.currentNavigation.mockReturnValue(null);
-
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
-
-            // Assert
-            expect(component.groupedEntries).toEqual({});
-        });
-
-        it('should initialize messageStyle as empty string by default', () => {
-            // Arrange
-            mockRouter.currentNavigation.mockReturnValue(null);
-
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
-
-            // Assert
-            expect(component.messageStyle).toBe('');
-        });
-
-        it('should initialize username as empty string by default', () => {
-            // Arrange
-            mockRouter.currentNavigation.mockReturnValue(null);
-
-            // Act
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
-
-            // Assert
-            expect(component.username).toBe('');
-        });
-    });
-
-    describe('Integration: Full convert flow', () => {
-        it('should complete full flow from convert through successful response', async () => {
-            // Arrange
-            mockNavigation = {
-                extras: {
-                    state: {
-                        data: mockResponseData
-                    }
-                }
-            };
-            mockRouter.currentNavigation.mockReturnValue(mockNavigation as Navigation);
-            
-            const mockScanResponse = {
-                terraform: { files: ['main.tf', 'variables.tf'] },
-                modules: ['networking', 'compute']
-            };
-            mockScanService.scan.mockReturnValue(of(mockScanResponse));
-            
-            fixture = TestBed.createComponent(RepoResultsComponent);
-            component = fixture.componentInstance;
-            mockRouter.navigate.mockClear();
-            
-            // Act
-            component.convert();
-            await fixture.whenStable();
-
-            // Assert
-            expect(mockScanService.scan).toHaveBeenCalledWith({
-                repoName: 'test-repo',
-                branch: 'main'
-            });
-            expect(component.isLoading).toBe(false);
-            expect(mockRouter.navigate).toHaveBeenCalledWith(['/cfn'], {
-                state: {
-                    repoData: mockResponseData,
-                    data: mockScanResponse
-                }
-            });
-        });
-    });
+			expect(component.isLoading).toBe(false);
+		});
+	});
 });

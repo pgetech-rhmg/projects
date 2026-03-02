@@ -40,7 +40,7 @@ jobs:
     ###########################################################################
     - ${{ if eq(parameters.scanTool, 'sonarqube') }}:
     
-      - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_framework')) }}:
+      - ${{ if or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')) }}:
         #######################################################################
         # Normalize Coverage File
         #######################################################################
@@ -57,7 +57,7 @@ jobs:
           ${{ insert }}: ${{ parameters }}
 
 
-      - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_framework')) }}:
+      - ${{ if or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')) }}:
         #######################################################################
         # Download Scan Artifact
         #######################################################################

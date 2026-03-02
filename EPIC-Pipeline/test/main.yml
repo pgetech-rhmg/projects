@@ -26,28 +26,10 @@ jobs:
 
 
     ###########################################################################
-    # Unit Tests - Jest
+    # Dynamic Unit Tests (unitTestTool)
     ###########################################################################
-    - ${{ if and(eq(lower(parameters.testType), 'unit'), eq(parameters.unitTestTool, 'jest')) }}:
-      - template: jest/main.yml
-        parameters:
-          ${{ insert }}: ${{ parameters }}
-
-
-    ###########################################################################
-    # Unit Tests - Pytest
-    ###########################################################################
-    - ${{ if and(eq(lower(parameters.testType), 'unit'), eq(parameters.unitTestTool, 'pytest')) }}:
-      - template: pytest/main.yml
-        parameters:
-          ${{ insert }}: ${{ parameters }}
-
-
-    ###########################################################################
-    # Unit Tests - xUnit
-    ###########################################################################
-    - ${{ if and(eq(lower(parameters.testType), 'unit'), eq(parameters.unitTestTool, 'xunit')) }}:
-      - template: xunit/main.yml
+    - ${{ if eq(lower(parameters.testType), 'unit') }}:
+      - template: ${{ parameters.unitTestTool }}/main.yml
         parameters:
           ${{ insert }}: ${{ parameters }}
 

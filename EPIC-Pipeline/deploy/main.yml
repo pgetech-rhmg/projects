@@ -54,7 +54,7 @@ jobs:
     ###########################################################################
     # Deploy - .NET, Python
     ###########################################################################
-    - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_framework'), eq(parameters.appType, 'python')) }}:
+    - ${{ if or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework'), eq(parameters.appType, 'python')) }}:
       ###########################################################################
       # Zip Published Output
       ###########################################################################
@@ -93,7 +93,7 @@ jobs:
       ###########################################################################
       # Deploy to EC2 via SSM (.NET)
       ###########################################################################
-      - ${{ if or(eq(parameters.appType, 'dotnet_core'), eq(parameters.appType, 'dotnet_framework')) }}:
+      - ${{ if or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')) }}:
         - bash: |
             set -euo pipefail
 
