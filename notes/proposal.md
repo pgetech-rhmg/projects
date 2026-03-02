@@ -43,7 +43,7 @@
 |---|---|
 | Consultant (Principal Architect / Engineer) — 12 weeks | (hourly rate * 12 weeks * 40 hour/week) |
 | ADO Licensing | (already covered under existing Microsoft EA) |
-| Tooling — SAST/DAST (e.g. Checkmarx, SonarQube) | (already covered under existing licenses) |
+| Tooling — SAST/DAST (e.g. SonarQube) | (already covered under existing licenses) |
 | Internal Team (salaried, redirected) | $0 net new |
 | **Total Pilot Cost** | **1 Consultant** |
 
