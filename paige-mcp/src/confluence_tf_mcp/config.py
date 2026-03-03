@@ -13,7 +13,7 @@ _DEFAULTS = {
 	"confluence_session_id": "",
 	"confluence_seraph": "",
 	"confluence_mrh_session": "",
-	"kb_path": "./knowledge_base.json",
+	"kb_path": str(Path(__file__).parent / "knowledge_base.json"),
 	"verify_ssl": "true",
 }
 

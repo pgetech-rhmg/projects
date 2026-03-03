@@ -7,7 +7,7 @@ from .crawler import ConfluenceCrawler
 from .models import KnowledgeBase
 
 logger = logging.getLogger(__name__)
-DEFAULT_KB_PATH = Path("knowledge_base.json")
+DEFAULT_KB_PATH = Path(__file__).parent / "knowledge_base.json"
 
 
 async def build_knowledge_base(base_url, root_page_ids, pat_token=None, auth_cookies=None, max_chunk_tokens=1500, overlap_tokens=150, output_path=None, verify_ssl=True):

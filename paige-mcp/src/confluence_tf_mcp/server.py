@@ -23,8 +23,7 @@ from .models import ContentChunk, KnowledgeBase
 
 logger = logging.getLogger(__name__)
 
-KB_PATH = Path(os.environ.get("KB_PATH", "./knowledge_base.json"))
-
+KB_PATH = Path(os.environ.get("KB_PATH", Path(__file__).parent / "knowledge_base.json"))
 
 def _load_kb() -> KnowledgeBase:
 	if not KB_PATH.exists():
