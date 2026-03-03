@@ -45,7 +45,7 @@ jobs:
 
           rm -rf .infra
           rm -rf .pipeline
-          rm .gitignore
+          rm -f .gitignore
 
         displayName: "Build app"
 
