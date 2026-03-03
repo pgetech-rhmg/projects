@@ -135,8 +135,8 @@ module "aws_security_group_alb" {
 	security_group_egress_rules  = [
 		{
 			description               = "Allow ALB to reach MCP",
-			from                      = 5000,
-			to                        = 5000,
+			from                      = 8000,
+			to                        = 8000,
 			protocol                  = "tcp",
 			source_security_group_id  = module.aws_security_group_mcp.aws_security_group_id
 		}
@@ -165,8 +165,8 @@ module "aws_security_group_mcp" {
 	security_group_ingress_rules  = [
 		{
 			description               = "Allow ALB to reach MCP",
-			from                      = 5000,
-			to                        = 5000,
+			from                      = 8000,
+			to                        = 8000,
 			protocol                  = "tcp",
 			source_security_group_id  = module.aws_security_group_alb.aws_security_group_id
 		}
@@ -262,7 +262,7 @@ module "load_balancer_mcp" {
 	security_group_id = module.aws_security_group_alb.aws_security_group_id
 	certificate_arn   = module.acm_mcp.certificate_arn
 	instance_id       = module.ec2.instance_id
-	target_port       = 5000
+	target_port       = 8000
 	health_check_path = var.health_check_path
 }
 

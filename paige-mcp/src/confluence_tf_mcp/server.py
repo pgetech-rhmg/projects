@@ -186,7 +186,7 @@ async def get_page_resource(page_id: str) -> str:
 
 def main() -> None:
 	logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s", stream=sys.stderr)
-	mcp.run(transport="streamable_http", host="0.0.0.0", port=8080)
-
+	mcp.run(transport="sse")
+	
 if __name__ == "__main__":
 	main()
