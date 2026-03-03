@@ -64,6 +64,11 @@ def cmd_search(args):
 		print(ch.content[:500] + "...\n")
 
 
+def cmd_serve(args):
+	from .server import main as server_main
+	server_main()
+
+
 def main():
 	logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s", stream=sys.stderr)
 	p = argparse.ArgumentParser()
@@ -81,7 +86,9 @@ def main():
 	q.add_argument("query")
 	q.add_argument("--kb-path", default=str(DEFAULT_KB_PATH))
 	q.add_argument("--limit", type=int, default=5)
+	srv = sub.add_parser("serve")
 	args = p.parse_args()
 	if args.command == "crawl": asyncio.run(cmd_crawl(args))
 	elif args.command == "stats": cmd_stats(args)
 	elif args.command == "search": cmd_search(args)
+	elif args.command == "serve": cmd_serve(args)
