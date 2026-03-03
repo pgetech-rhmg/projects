@@ -198,6 +198,31 @@ module "aws_security_group_mcp" {
 
 
 ###############################################################################
+# S3 (MCP)
+###############################################################################
+
+module "s3_mcp" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-s3.git?ref=main"
+
+  app_name                   = "${var.app_name}-mcp-deploy"
+  environment                = var.environment
+  tags                       = module.tags.tags
+  access_log_bucket          = var.access_log_bucket
+  access_log_prefix          = var.access_log_prefix
+  custom_bucket_name         = var.custom_bucket_name
+  bucket_policy_json         = var.bucket_policy_json
+  enable_access_logging      = var.enable_access_logging
+  enable_public_access_block = var.enable_public_access_block
+  enable_versioning          = var.enable_versioning
+  force_destroy              = var.force_s3_destroy
+  kms_key_arn                = var.kms_key_arn
+  lifecycle_rules            = var.lifecycle_rules
+  object_ownership           = var.object_ownership
+  sse_algorithm              = var.sse_algorithm
+}
+
+
+###############################################################################
 # EC2 (MCP)
 ###############################################################################
 
