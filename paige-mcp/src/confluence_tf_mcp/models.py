@@ -16,7 +16,7 @@ class ConfluencePage(BaseModel):
 	id: str
 	title: str
 	space_key: str
-	html_content: str
+	html_content: str = Field(default="", exclude=True)
 	plain_text: str
 	url: str
 	child_ids: list[str] = Field(default_factory=list)
