@@ -16,7 +16,7 @@ aws_region      = "us-west-2"
 # Application
 ###############################################################################
 
-app_name    = "paige-mcp"
+app_name    = "paige"
 environment = "dev"
 
 health_check_path = "/health"
