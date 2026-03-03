@@ -20,7 +20,7 @@ dev = [
 ]
 
 [project.scripts]
-confluence-tf-mcp = "confluence_tf_mcp.server:main"
+confluence-tf-mcp = "confluence_tf_mcp.cli:main"
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
