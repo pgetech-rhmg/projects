@@ -79,13 +79,20 @@ steps:
       echo ">> Upgrading pip"
       python -m pip install --upgrade pip
 
-      echo ">> Installing runtime dependencies"
-      python -m pip install -r requirements.txt
+      if [ -f requirements.txt ]; then
+        echo ">> Installing runtime dependencies"
+        python -m pip install -r requirements.txt
+      else
+        echo ">> No requirements.txt found, skipping"
+      fi
 
-      echo ">> Installing dev dependencies"
-      python -m pip install -r requirements-dev.txt
+      if [ -f requirements-dev.txt ]; then
+        echo ">> Installing dev dependencies"
+        python -m pip install -r requirements-dev.txt
+      else
+        echo ">> No requirements-dev.txt found, skipping"
+      fi
     displayName: "Install dependencies"
-
 
   #############################################################################
   # Install Project
