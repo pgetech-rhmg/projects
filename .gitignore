@@ -77,7 +77,7 @@ app-logs/
 # Secrets & sensitive config
 ##################################
 .env
-.env.*
+# .env.*
 secrets.json
 appsettings.Local.json
 appsettings.Development.Local.json
@@ -192,8 +192,8 @@ pnpm-debug.log*
 # Environment files
 # =========================
 .env
-.env.*
-!*.example.env
+# .env.*
+# !*.example.env
 
 # =========================
 # Coverage / test output
