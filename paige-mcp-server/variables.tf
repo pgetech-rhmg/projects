@@ -133,8 +133,8 @@ variable "network" {
 	})
 }
 
-variable "api_domain_name" {
-	description = "Domain name for the API ALB and Route53 record"
+variable "mcp_domain_name" {
+	description = "Domain name for the MCP ALB and Route53 record"
 	type        = string
 }
 

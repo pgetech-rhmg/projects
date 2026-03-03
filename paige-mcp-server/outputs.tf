@@ -12,7 +12,7 @@ output "ec2_private_ip" {
 	value       = module.ec2.private_ip
 }
 
-output "api_endpoint" {
-	description = "API endpoint URL"
-	value       = "https://${var.api_domain_name}"
+output "mcp_endpoint" {
+	description = "MCP endpoint URL"
+	value       = "https://${var.mcp_domain_name}"
 }

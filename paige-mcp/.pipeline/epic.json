@@ -1,0 +1,10 @@
+{
+  "appName": "paige",
+  "appType": "python",
+  "codePath": "/",
+  "pythonVersion": "3.12",
+  
+  "s3": "pge-epic-paige-mcp-deploy-dev",
+  "ec2InstanceId": "i-011d7765d12ab435c",
+  "appExecutable": "confluence_tf_mcp"
+}

@@ -21,9 +21,9 @@ module "tags" {
 # Certs
 ###############################################################################
 
-module "acm_api" {
+module "acm_mcp" {
 	source                = "git::https://github.com/pgetech/epic-pipeline-module-aws-certificate.git?ref=main"
-	domain_name           = var.api_domain_name
+	domain_name           = var.mcp_domain_name
 	public_hosted_zone_id = var.public_hosted_zone_id
 	certificate_type      = "default"
 	tags                  = module.tags.tags
@@ -134,20 +134,20 @@ module "aws_security_group_alb" {
 	]
 	security_group_egress_rules  = [
 		{
-			description               = "Allow ALB to reach API",
+			description               = "Allow ALB to reach MCP",
 			from                      = 5000,
 			to                        = 5000,
 			protocol                  = "tcp",
-			source_security_group_id  = module.aws_security_group_api.aws_security_group_id
+			source_security_group_id  = module.aws_security_group_mcp.aws_security_group_id
 		}
 	]
 }
 
-module "aws_security_group_api" {
+module "aws_security_group_mcp" {
 	source                        = "git::https://github.com/pgetech/epic-pipeline-module-aws-security-group.git?ref=main"
 	app_name                      = var.app_name
 	environment                   = var.environment
-	label                         = "api"
+	label                         = "mcp"
 	tags                          = module.tags.tags
 	description                   = "Allow traffic from ALB only"
 	vpc_id                        = var.network.vpc_id
@@ -164,7 +164,7 @@ module "aws_security_group_api" {
 	]
 	security_group_ingress_rules  = [
 		{
-			description               = "Allow ALB to reach API",
+			description               = "Allow ALB to reach MCP",
 			from                      = 5000,
 			to                        = 5000,
 			protocol                  = "tcp",
@@ -175,7 +175,7 @@ module "aws_security_group_api" {
 
 
 ###############################################################################
-# EC2 (API)
+# EC2 (MCP)
 ###############################################################################
 
 data "aws_ami" "amazon_linux" {
@@ -192,14 +192,14 @@ data "aws_ami" "amazon_linux" {
 module "ec2" {
 	source = "git::https://github.com/pgetech/epic-pipeline-module-aws-ec2.git?ref=main"
 
-	app_name      = var.app_name
+	app_name      = "${var.app_name}-mcp"
 	environment   = var.environment
 	ami           = data.aws_ami.amazon_linux.id
 	instance_type = var.instance_type
 
 	network = {
 		subnet_id          = var.network.subnet_ids[0]
-		security_group_ids = [module.aws_security_group_api.aws_security_group_id]
+		security_group_ids = [module.aws_security_group_mcp.aws_security_group_id]
 	}
 
 	iam = {
@@ -251,16 +251,16 @@ EOF
 # Load Balancer
 ###############################################################################
 
-module "load_balancer_api" {
+module "load_balancer_mcp" {
 	source = "git::https://github.com/pgetech/epic-pipeline-module-aws-load-balancer.git?ref=main"
 
-	app_name          = var.app_name
+	app_name          = "${var.app_name}-mcp"
 	environment       = var.environment
 	tags              = module.tags.tags
 	vpc_id            = var.network.vpc_id
 	subnet_ids        = var.network.subnet_ids
 	security_group_id = module.aws_security_group_alb.aws_security_group_id
-	certificate_arn   = module.acm_api.certificate_arn
+	certificate_arn   = module.acm_mcp.certificate_arn
 	instance_id       = module.ec2.instance_id
 	target_port       = 5000
 	health_check_path = var.health_check_path
@@ -271,13 +271,13 @@ module "load_balancer_api" {
 # Route53
 ###############################################################################
 
-module "aws_route53_record_api" {
+module "aws_route53_record_mcp" {
 	source = "git::https://github.com/pgetech/epic-pipeline-module-aws-route53.git?ref=main"
 
 	zone_id                   = var.private_hosted_zone_id
-	domain_name               = var.api_domain_name
+	domain_name               = var.mcp_domain_name
 	record_type               = "A"
-	target_domain_name        = module.load_balancer_api.alb_dns_name
-	target_zone_id            = module.load_balancer_api.alb_dns_zone_id
+	target_domain_name        = module.load_balancer_mcp.alb_dns_name
+	target_zone_id            = module.load_balancer_mcp.alb_dns_zone_id
 	evaluate_target_health    = true
 }

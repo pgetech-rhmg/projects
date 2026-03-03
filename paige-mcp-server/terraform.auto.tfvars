@@ -16,10 +16,10 @@ aws_region      = "us-west-2"
 # Application
 ###############################################################################
 
-app_name    = "paige"
+app_name    = "paige-mcp"
 environment = "dev"
 
-health_check_path = "/api/health"
+health_check_path = "/health"
 
 
 ###############################################################################
@@ -45,7 +45,7 @@ network = {
   main_route_table_id = "rtb-0772a07c"
 }
 
-api_domain_name        = "paige-api-dev.nonprod.pge.com"
+mcp_domain_name        = "paige-mcp-dev.nonprod.pge.com"
 private_hosted_zone_id = "Z1PO7XO596QKJW"
 public_hosted_zone_id  = "Z184J8PCMR81S"
 
