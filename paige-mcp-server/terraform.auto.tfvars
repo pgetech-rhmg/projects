@@ -19,7 +19,9 @@ aws_region      = "us-west-2"
 app_name    = "paige"
 environment = "dev"
 
-health_check_path = "/health"
+target_port       = 8000
+health_check_path = "/sse"
+health_check_port = 8000
 
 
 ###############################################################################

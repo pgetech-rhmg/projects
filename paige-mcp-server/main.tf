@@ -285,8 +285,8 @@ module "load_balancer_mcp" {
 	security_group_id = module.aws_security_group_alb.aws_security_group_id
 	certificate_arn   = module.acm_mcp.certificate_arn
 	instance_id       = module.ec2.instance_id
-	target_port       = 8000
-	health_check_port = 8001
+	target_port       = var.target_port
+	health_check_port = var.health_check_port
 	health_check_path = var.health_check_path
 }
 
