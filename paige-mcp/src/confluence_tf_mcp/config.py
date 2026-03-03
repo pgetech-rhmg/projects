@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 _DEFAULTS = {
 	"confluence_base_url": "https://wiki.comp.pge.com",
 	"confluence_pat_token": "",
-	"confluence_root_page_id": "",
+	"confluence_root_page_ids": "",
 	"confluence_session_id": "",
 	"confluence_seraph": "",
 	"confluence_mrh_session": "",
@@ -20,7 +20,7 @@ _DEFAULTS = {
 _ENV_MAP = {
 	"confluence_base_url": "CONFLUENCE_BASE_URL",
 	"confluence_pat_token": "CONFLUENCE_PAT_TOKEN",
-	"confluence_root_page_id": "CONFLUENCE_ROOT_PAGE_ID",
+	"confluence_root_page_ids": "CONFLUENCE_ROOT_PAGE_IDS",
 	"confluence_session_id": "CONFLUENCE_SESSION_ID",
 	"confluence_seraph": "CONFLUENCE_SERAPH",
 	"confluence_mrh_session": "CONFLUENCE_MRH_SESSION",
@@ -46,6 +46,13 @@ def parse_verify_ssl(value: str) -> bool | str:
 	if lower in ("true", "1", "yes", "on", ""):
 		return True
 	return value
+
+
+def parse_page_ids(value: str) -> list[str]:
+	"""Parse comma-separated page IDs."""
+	if not value.strip():
+		return []
+	return [pid.strip() for pid in value.split(",") if pid.strip()]
 
 
 def build_auth_cookies(config: dict[str, str]) -> Optional[dict[str, str]]:
