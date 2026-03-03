@@ -33,7 +33,7 @@ def _load_kb() -> KnowledgeBase:
 
 
 @asynccontextmanager
-async def server_lifespan(app):  # ← Add 'app' parameter
+async def server_lifespan(app):
 	logger.info(f"Loading knowledge base from {KB_PATH}")
 	kb = _load_kb()
 	logger.info(f"Loaded: {kb.total_pages} pages, {kb.total_chunks} chunks, ~{kb.estimated_tokens} tokens")
