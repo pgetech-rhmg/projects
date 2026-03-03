@@ -34,7 +34,7 @@ def _load_kb() -> KnowledgeBase:
 
 
 @asynccontextmanager
-async def server_lifespan():
+async def server_lifespan(app):  # ← Add 'app' parameter
 	logger.info(f"Loading knowledge base from {KB_PATH}")
 	kb = _load_kb()
 	logger.info(f"Loaded: {kb.total_pages} pages, {kb.total_chunks} chunks, ~{kb.estimated_tokens} tokens")
@@ -187,6 +187,6 @@ async def get_page_resource(page_id: str) -> str:
 def main() -> None:
 	logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s", stream=sys.stderr)
 	mcp.run(transport="sse")
-	
+
 if __name__ == "__main__":
 	main()
