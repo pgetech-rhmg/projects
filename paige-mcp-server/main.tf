@@ -123,6 +123,15 @@ module "aws_security_group_alb" {
 			prefix_list_ids  = []
 		},
 		{
+			description      = "Allow ALB to reach EC2 subnet",
+			from             = 0,
+			to               = 65535,
+			protocol         = "tcp",
+			cidr_blocks      = ["10.90.0.0/21"],
+			ipv6_cidr_blocks = [],
+			prefix_list_ids  = []
+		},
+		{
 			description      = "CCOE egress rules",
 			from             = 0,
 			to               = 443,
