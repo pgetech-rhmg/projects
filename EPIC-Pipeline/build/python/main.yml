@@ -19,8 +19,8 @@ steps:
 
       cd .build
 
-      rm -r .gitignore
-      rm -r requirements-dev.txt
+      rm -f .gitignore
+      rm -f requirements-dev.txt
       rm -rf tests
       rm -rf .pipeline
     displayName: "Pre-load .build"
