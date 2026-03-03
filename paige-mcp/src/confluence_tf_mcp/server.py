@@ -20,6 +20,21 @@ from mcp.server.fastmcp import FastMCP, Context
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from .models import ContentChunk, KnowledgeBase
+import http.server
+import socketserver
+import threading
+
+def _start_health():
+	class H(http.server.BaseHTTPRequestHandler):
+		def do_GET(self):
+			self.send_response(200)
+			self.end_headers()
+			self.wfile.write(b'ok')
+		def log_message(self, *args): pass
+	
+	socketserver.TCPServer(("", 8001), H).serve_forever()
+
+threading.Thread(target=_start_health, daemon=True).start()
 
 logger = logging.getLogger(__name__)
 

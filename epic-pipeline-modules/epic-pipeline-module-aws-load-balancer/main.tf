@@ -15,6 +15,7 @@ resource "aws_lb_target_group" "default" {
 
   health_check {
     path                = var.health_check_path
+    port                = var.health_check_port
     healthy_threshold   = 2
     unhealthy_threshold = 3
     interval            = 30

@@ -59,6 +59,12 @@ variable "health_check_path" {
   default     = "/health"
 }
 
+variable "health_check_port" {
+  description = "Port the target EC2 instance listens on."
+  type        = number
+  default     = 5000
+}
+
 
 ############################################
 # Tags
