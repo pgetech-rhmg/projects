@@ -139,6 +139,13 @@ module "aws_security_group_alb" {
 			to                        = 8000,
 			protocol                  = "tcp",
 			source_security_group_id  = module.aws_security_group_mcp.aws_security_group_id
+		},
+		{
+			description               = "Allow ALB health check to reach MCP health port",
+			from                      = 8001,
+			to                        = 8001,
+			protocol                  = "tcp",
+			source_security_group_id  = module.aws_security_group_mcp.aws_security_group_id
 		}
 	]
 }
@@ -167,6 +174,13 @@ module "aws_security_group_mcp" {
 			description               = "Allow ALB to reach MCP",
 			from                      = 8000,
 			to                        = 8000,
+			protocol                  = "tcp",
+			source_security_group_id  = module.aws_security_group_alb.aws_security_group_id
+		},
+		{
+			description               = "Allow ALB health check",
+			from                      = 8001,
+			to                        = 8001,
 			protocol                  = "tcp",
 			source_security_group_id  = module.aws_security_group_alb.aws_security_group_id
 		}
@@ -263,6 +277,7 @@ module "load_balancer_mcp" {
 	certificate_arn   = module.acm_mcp.certificate_arn
 	instance_id       = module.ec2.instance_id
 	target_port       = 8000
+	health_check_port = 8001
 	health_check_path = var.health_check_path
 }
 
