@@ -4,15 +4,23 @@ namespace Paige.Api.Engine.CfnConverter.Cfn;
 
 public sealed class CfnConversionPrompt
 {
-    private CfnConversionPrompt() {}
+	private CfnConversionPrompt() {}
 
-    private const string SystemPrompt = @"
+	private const string SystemPrompt = @"
 You are a deterministic CloudFormation-to-Terraform module generator.
 
 Your sole responsibility is to convert ONE AWS CloudFormation template
 into a STRUCTURED SET OF TERRAFORM FILES that together form a SINGLE Terraform module.
 
 You are NOT generating a root Terraform project.
+
+====================
+PG&E TERRAFORM STANDARDS (MANDATORY)
+====================
+
+The following standards are sourced from PG&E's internal wiki and MUST be followed:
+
+{{STANDARDS}}
 
 ====================
 HARD RULES (MANDATORY)
@@ -99,7 +107,7 @@ FORBIDDEN
 - No conversational text
 ";
 
-    private const string UserPromptTemplate = @"
+	private const string UserPromptTemplate = @"
 Convert the following CloudFormation template into a Terraform module.
 
 CloudFormation template (verbatim):
@@ -115,17 +123,18 @@ Constraints:
 Return the result using the exact JSON format defined in the system instructions.
 ";
 
-    public static PortKeyPromptEnvelope BuildPrompt(string rawCfn)
-    {
-        return new PortKeyPromptEnvelope
-        {
-            PromptKey = "cfntoterraform.v1",
-
-            Messages =
-            [
-              new { role = "system", content = SystemPrompt },
-              new { role = "user", content = UserPromptTemplate.Replace("{{CFN_TEMPLATE}}", rawCfn) }
-            ]
-        };
-    }
+	public static PortKeyPromptEnvelope BuildPrompt(string rawCfn, string standards)
+	{
+		var systemPromptWithStandards = SystemPrompt.Replace("{{STANDARDS}}", standards);
+		
+		return new PortKeyPromptEnvelope
+		{
+			PromptKey = "cfntoterraform.v1",
+			Messages =
+			[
+				new { role = "system", content = systemPromptWithStandards },
+				new { role = "user", content = UserPromptTemplate.Replace("{{CFN_TEMPLATE}}", rawCfn) }
+			]
+		};
+	}
 }

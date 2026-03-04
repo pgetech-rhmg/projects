@@ -80,4 +80,5 @@ secrets = {
   "PORTKEY_MODEL"            = "@bedrock-dev/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
   "PORTKEY_MODEL_CLASSIFIER" = "@bedrock-dev/us.anthropic.claude-3-haiku-20240307-v1:0"
   "PORTKEY_API_KEY"          = "CHANGE_ME"
+  "MCP_SERVER_BASE_URL"      = "https://paige-mcp-dev.nonprod.pge.com"
 }

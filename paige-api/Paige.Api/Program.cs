@@ -18,6 +18,7 @@ using Paige.Api.Engine.RepoAssessment.Ai;
 using System.Text.Json;
 using Amazon;
 using Amazon.Extensions.NETCore.Setup;
+using Paige.Api.Engine.Mcp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -95,6 +96,10 @@ builder.Services.Configure<Config>(options =>
     options.PortKeyApiKey =
         builder.Configuration["PORTKEY_API_KEY"]
         ?? throw new InvalidOperationException("PortKey:ApiKey is not set.");
+
+    options.McpServerBaseUrl =
+        builder.Configuration["MCP_SERVER_BASE_URL"]
+        ?? throw new InvalidOperationException("MCP:ServerBaseUrl is not set.");
 });
 
 builder.Services.AddCors(options =>
@@ -132,13 +137,13 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 builder.Services.AddHttpClient<IWikiContentService, WikiContentService>();
-builder.Services.AddScoped<IWikiContentService, WikiContentService>();
-
+builder.Services.AddHttpClient<IMcpClientService, McpClientService>();
 builder.Services.AddHttpClient<IPortKeyExecutionService, PortKeyExecutionService>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(5);
 });
 
+builder.Services.AddScoped<IWikiContentService, WikiContentService>();
 builder.Services.AddScoped<IRepoScanService, RepoScanService>();
 builder.Services.AddScoped<IRepoCloner, RepoCloner>();
 builder.Services.AddScoped<IFileScanner, FileScanner>();

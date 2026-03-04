@@ -13,4 +13,6 @@ public sealed class Config
     public string PortKeyClassifierModel { get; set; } = null!;
 
     public string PortKeyApiKey { get; set; } = null!;
+
+    public string McpServerBaseUrl { get; set; } = null!;
 }
