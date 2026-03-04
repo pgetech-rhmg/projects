@@ -1,15 +1,22 @@
-(venv) sh-5.2$ pip show mcp
-Name: mcp
-Version: 1.26.0
-Summary: Model Context Protocol SDK
-Home-page: https://modelcontextprotocol.io
-Author: Anthropic, PBC.
-Author-email:
-License: MIT
-Location: /opt/paige/venv/lib64/python3.11/site-packages
-Requires: anyio, httpx, httpx-sse, jsonschema, pydantic, pydantic-settings, pyjwt, python-multipart, sse-starlette, starlette, typing-extensions, typing-inspection, uvicorn
-Required-by: confluence-tf-mcp
+sh-5.2$ sudo systemctl status paige
+● paige.service - paige
+     Loaded: loaded (/etc/systemd/system/paige.service; enabled; preset: disabled)
+     Active: active (running) since Wed 2026-03-04 15:52:27 UTC; 1min 58s ago
+   Main PID: 7841 (python)
+      Tasks: 1 (limit: 1009)
+     Memory: 71.2M
+        CPU: 1.079s
+     CGroup: /system.slice/paige.service
+             └─7841 /opt/paige/venv/bin/python -m confluence_tf_mcp serve
 
-
-(venv) sh-5.2$ python -c "from mcp.server import fastmcp; print('FastMCP available')"
-FastMCP available
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]:     return await handle_sse(request.scope, request.receive, request._send)  # type: ignore[reportPrivateUsage]
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]:   File "/opt/paige/venv/lib64/python3.11/site-packages/mcp/server/fastmcp/server.py", line 840, in handle_sse
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]:     async with sse.connect_sse(
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]:   File "/usr/lib64/python3.11/contextlib.py", line 210, in __aenter__
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]:     return await anext(self.gen)
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]:            ^^^^^^^^^^^^^^^^^^^^^
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]:   File "/opt/paige/venv/lib64/python3.11/site-packages/mcp/server/sse.py", line 132, in connect_sse
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]:     raise ValueError("Request validation failed")
+Mar 04 15:54:07 ip-10-90-0-33.us-west-2.compute.internal python[7841]: ValueError: Request validation failed
+sh-5.2$
