@@ -57,4 +57,4 @@ public_hosted_zone_id  = "Z184J8PCMR81S"
 ###############################################################################
 
 ec2_ami               = "al2023-ami-2023*-x86_64"
-app_executable        = "confluence_tf_mcp serve"
+app_executable        = "terraform-kb-server"
