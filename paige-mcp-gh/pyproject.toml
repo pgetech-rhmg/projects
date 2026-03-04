@@ -1,0 +1,16 @@
+[project]
+name = "terraform-kb"
+version = "0.1.0"
+description = "Terraform modules knowledge base builder from Github"
+requires-python = ">=3.11"
+dependencies = [
+	"pydantic>=2.0",
+	"httpx>=0.25",
+]
+
+[project.scripts]
+terraform-kb = "terraform_kb.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
