@@ -141,14 +141,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Mount MCP SSE server
-app.mount("/", mcp.get_sse_server())
-
-
 @app.get("/health")
 async def health():
 	return PlainTextResponse("healthy")
 
+# Mount MCP SSE server
+app.mount("/", mcp.sse_app())
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
 
