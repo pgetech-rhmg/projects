@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Confluence-to-Terraform MCP Server.
-
-Read-only MCP server that loads a pre-built knowledge base and exposes
-search/query tools for AI-assisted CloudFormation-to-Terraform conversion.
-"""
+"""Confluence-to-Terraform MCP Server."""
 
 from __future__ import annotations
 
@@ -16,12 +12,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from starlette.routing import Mount
-from mcp.server import Server
-from mcp.server.sse import SseServerTransport
-from mcp.types import Tool, TextContent
+from mcp.server.fastmcp import FastMCP
 
 from .models import ContentChunk, KnowledgeBase
 
@@ -58,13 +52,6 @@ def _search_chunks(chunks: list[ContentChunk], query: str, labels: Optional[list
 	return [c for _, c in scored[:limit]]
 
 
-# ── Models ───────────────────────────────────────────────────────────────────
-
-class ResponseFormat(str, Enum):
-	MARKDOWN = "markdown"
-	JSON = "json"
-
-
 def _fmt_md(chunks: list[ContentChunk]) -> str:
 	return "\n\n".join(c.content for c in chunks) if chunks else "No results found."
 
@@ -75,132 +62,70 @@ def _fmt_json(chunks: list[ContentChunk]) -> str:
 
 # ── MCP Server Setup ─────────────────────────────────────────────────────────
 
-mcp_server = Server("confluence_tf_mcp")
+mcp = FastMCP("confluence_tf_mcp")
 
 
-@mcp_server.list_tools()
-async def list_tools() -> list[Tool]:
-	return [
-		Tool(
-			name="confluence_search",
-			description="Search the knowledge base for CloudFormation/Terraform content.",
-			inputSchema={
-				"type": "object",
-				"properties": {
-					"query": {"type": "string", "description": "Search terms: CF resource types, TF resources, or keywords", "minLength": 2, "maxLength": 500},
-					"labels": {"type": "array", "items": {"type": "string"}, "description": "Filter by page labels"},
-					"limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 50},
-					"response_format": {"type": "string", "enum": ["markdown", "json"], "default": "markdown"}
-				},
-				"required": ["query"]
-			}
-		),
-		Tool(
-			name="confluence_get_page",
-			description="Get the full content of a specific page by ID.",
-			inputSchema={
-				"type": "object",
-				"properties": {
-					"page_id": {"type": "string", "description": "Confluence page ID", "minLength": 1},
-					"response_format": {"type": "string", "enum": ["markdown", "json"], "default": "markdown"}
-				},
-				"required": ["page_id"]
-			}
-		),
-		Tool(
-			name="confluence_list_pages",
-			description="List pages in the knowledge base.",
-			inputSchema={
-				"type": "object",
-				"properties": {
-					"labels": {"type": "array", "items": {"type": "string"}, "description": "Filter by labels"},
-					"limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200},
-					"offset": {"type": "integer", "default": 0, "minimum": 0},
-					"response_format": {"type": "string", "enum": ["markdown", "json"], "default": "markdown"}
-				}
-			}
-		),
-		Tool(
-			name="confluence_kb_stats",
-			description="Get knowledge base statistics.",
-			inputSchema={"type": "object", "properties": {}}
-		)
-	]
+@mcp.tool()
+def confluence_search(query: str, labels: list[str] | None = None, limit: int = 10, response_format: str = "markdown") -> str:
+	"""Search the knowledge base for CloudFormation/Terraform content."""
+	results = _search_chunks(_kb.chunks, query, labels, limit)
+	if not results:
+		return f"No results for '{query}'."
+	elif response_format == "json":
+		return _fmt_json(results)
+	else:
+		return f"## Search: '{query}' ({len(results)} results)\n\n" + _fmt_md(results)
 
 
-@mcp_server.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-	global _kb
+@mcp.tool()
+def confluence_get_page(page_id: str, response_format: str = "markdown") -> str:
+	"""Get the full content of a specific page by ID."""
+	chunks = sorted([c for c in _kb.chunks if c.page_id == page_id], key=lambda c: c.chunk_index)
+	if not chunks:
+		return f"Page '{_kb.pages[page_id].title}' has no content." if page_id in _kb.pages else f"Page '{page_id}' not found."
+	elif response_format == "json":
+		return _fmt_json(chunks)
+	else:
+		return _fmt_md(chunks)
+
+
+@mcp.tool()
+def confluence_list_pages(labels: list[str] | None = None, limit: int = 50, offset: int = 0, response_format: str = "markdown") -> str:
+	"""List pages in the knowledge base."""
+	pages = list(_kb.pages.values())
+	if labels:
+		ls = {l.lower() for l in labels}
+		pages = [p for p in pages if any(l.lower() in ls for l in p.labels)]
+	total = len(pages)
+	pages = pages[offset:offset + limit]
 	
-	if name == "confluence_search":
-		results = _search_chunks(
-			_kb.chunks,
-			arguments["query"],
-			arguments.get("labels"),
-			arguments.get("limit", 10)
-		)
-		if not results:
-			text = f"No results for '{arguments['query']}'."
-		elif arguments.get("response_format") == "json":
-			text = _fmt_json(results)
-		else:
-			text = f"## Search: '{arguments['query']}' ({len(results)} results)\n\n" + _fmt_md(results)
-		return [TextContent(type="text", text=text)]
-	
-	elif name == "confluence_get_page":
-		page_id = arguments["page_id"]
-		chunks = sorted([c for c in _kb.chunks if c.page_id == page_id], key=lambda c: c.chunk_index)
-		if not chunks:
-			text = f"Page '{_kb.pages[page_id].title}' has no content." if page_id in _kb.pages else f"Page '{page_id}' not found."
-		elif arguments.get("response_format") == "json":
-			text = _fmt_json(chunks)
-		else:
-			text = _fmt_md(chunks)
-		return [TextContent(type="text", text=text)]
-	
-	elif name == "confluence_list_pages":
-		pages = list(_kb.pages.values())
-		if arguments.get("labels"):
-			ls = {l.lower() for l in arguments["labels"]}
-			pages = [p for p in pages if any(l.lower() in ls for l in p.labels)]
-		total = len(pages)
-		offset = arguments.get("offset", 0)
-		limit = arguments.get("limit", 50)
-		pages = pages[offset:offset + limit]
-		
-		if arguments.get("response_format") == "json":
-			text = json.dumps({
-				"total": total, "count": len(pages), "offset": offset,
-				"pages": [{"id": p.id, "title": p.title, "url": p.url, "chunks": sum(1 for c in _kb.chunks if c.page_id == p.id)} for p in pages]
-			}, indent=2)
-		else:
-			lines = [f"## {total} pages (showing {len(pages)}, offset {offset})\n"]
-			for p in pages:
-				cc = sum(1 for c in _kb.chunks if c.page_id == p.id)
-				lines.append(f"- **{p.title}** (ID: {p.id}) | Chunks: {cc} | Chars: {len(p.plain_text)}")
-			text = "\n".join(lines)
-		return [TextContent(type="text", text=text)]
-	
-	elif name == "confluence_kb_stats":
-		labels: dict[str, int] = {}
-		for p in _kb.pages.values():
-			for l in p.labels:
-				labels[l] = labels.get(l, 0) + 1
-		text = json.dumps({
-			"source_url": _kb.source_url, "root_page_ids": _kb.root_page_id,
-			"generated_at": _kb.generated_at.isoformat(),
-			"total_pages": _kb.total_pages, "total_chunks": _kb.total_chunks,
-			"estimated_tokens": _kb.estimated_tokens,
-			"labels": dict(sorted(labels.items(), key=lambda x: x[1], reverse=True)),
-		}, indent=2, default=str)
-		return [TextContent(type="text", text=text)]
-	
-	raise ValueError(f"Unknown tool: {name}")
+	if response_format == "json":
+		return json.dumps({
+			"total": total, "count": len(pages), "offset": offset,
+			"pages": [{"id": p.id, "title": p.title, "url": p.url, "chunks": sum(1 for c in _kb.chunks if c.page_id == p.id)} for p in pages]
+		}, indent=2)
+	else:
+		lines = [f"## {total} pages (showing {len(pages)}, offset {offset})\n"]
+		for p in pages:
+			cc = sum(1 for c in _kb.chunks if c.page_id == p.id)
+			lines.append(f"- **{p.title}** (ID: {p.id}) | Chunks: {cc} | Chars: {len(p.plain_text)}")
+		return "\n".join(lines)
 
 
-# ── SSE Transport Setup ──────────────────────────────────────────────────────
-
-sse = SseServerTransport("/messages/")
+@mcp.tool()
+def confluence_kb_stats() -> str:
+	"""Get knowledge base statistics."""
+	labels: dict[str, int] = {}
+	for p in _kb.pages.values():
+		for l in p.labels:
+			labels[l] = labels.get(l, 0) + 1
+	return json.dumps({
+		"source_url": _kb.source_url, "root_page_ids": _kb.root_page_id,
+		"generated_at": _kb.generated_at.isoformat(),
+		"total_pages": _kb.total_pages, "total_chunks": _kb.total_chunks,
+		"estimated_tokens": _kb.estimated_tokens,
+		"labels": dict(sorted(labels.items(), key=lambda x: x[1], reverse=True)),
+	}, indent=2, default=str)
 
 
 # ── FastAPI App ──────────────────────────────────────────────────────────────
@@ -216,23 +141,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Mount the /messages endpoint for POST messages
-app.router.routes.append(Mount("/messages", app=sse.handle_post_message))
+# Mount MCP SSE server
+app.mount("/", mcp.get_sse_server())
 
 
 @app.get("/health")
 async def health():
 	return PlainTextResponse("healthy")
-
-
-@app.get("/sse")
-async def handle_sse(request: Request):
-	async with sse.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
-		await mcp_server.run(
-			read_stream,
-			write_stream,
-			mcp_server.create_initialization_options()
-		)
 
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
