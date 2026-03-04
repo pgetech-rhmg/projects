@@ -23,7 +23,7 @@ async def test_mcp():
 		
 		session_endpoint = None
 		print("=== INITIALIZE ===")
-		async with client.stream("POST", f"{base_url}/sse", json=init_req, headers={"Accept": "text/event-stream"}) as response:
+		async with client.stream("GET", f"{base_url}/sse", headers={"Accept": "text/event-stream"}) as response:
 			async for line in response.aiter_lines():
 				print(f"Raw: {line}")
 				if line.startswith("event: endpoint"):
