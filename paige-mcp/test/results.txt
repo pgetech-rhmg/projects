@@ -1,77 +1,15 @@
-Mar 04 15:32:37 ip-10-90-0-33.us-west-2.compute.internal python[6433]: INFO:     10.90.1.234:59598 - "GET /sse HTTP/1.1" 200 OK
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]: INFO:     10.90.0.186:3050 - "POST /messages/?session_id=a0994a87f05e47b1b012513b0d9e74b0 HTTP/1.1" 202 Accepted
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]: ERROR:    Exception in ASGI application
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]: Traceback (most recent call last):
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/uvicorn/protocols/http/h11_impl.py", line 410, in run_asgi
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     result = await app(  # type: ignore[func-returns-value]
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     return await self.app(scope, receive, send)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/fastapi/applications.py", line 1160, in __call__
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await super().__call__(scope, receive, send)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/applications.py", line 107, in __call__
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.middleware_stack(scope, receive, send)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     raise exc
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.app(scope, receive, _send)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     raise exc
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await app(scope, receive, sender)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.app(scope, receive, send)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/routing.py", line 716, in __call__
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.middleware_stack(scope, receive, send)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/routing.py", line 736, in app
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await route.handle(scope, receive, send)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/routing.py", line 462, in handle
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.app(scope, receive, send)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/mcp/server/sse.py", line 249, in handle_post_message
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await writer.send(session_message)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/anyio/streams/memory.py", line 249, in send
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     self.send_nowait(item)
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/anyio/streams/memory.py", line 218, in send_nowait
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     raise ClosedResourceError
-Mar 04 15:32:38 ip-10-90-0-33.us-west-2.compute.internal python[6433]: anyio.ClosedResourceError
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]: INFO:     10.90.0.186:17846 - "POST /messages/?session_id=a0994a87f05e47b1b012513b0d9e74b0 HTTP/1.1" 202 Accepted
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]: ERROR:    Exception in ASGI application
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]: Traceback (most recent call last):
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/uvicorn/protocols/http/h11_impl.py", line 410, in run_asgi
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     result = await app(  # type: ignore[func-returns-value]
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     return await self.app(scope, receive, send)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/fastapi/applications.py", line 1160, in __call__
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await super().__call__(scope, receive, send)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/applications.py", line 107, in __call__
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.middleware_stack(scope, receive, send)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     raise exc
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.app(scope, receive, _send)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     raise exc
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await app(scope, receive, sender)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.app(scope, receive, send)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/routing.py", line 716, in __call__
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.middleware_stack(scope, receive, send)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/routing.py", line 736, in app
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await route.handle(scope, receive, send)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/starlette/routing.py", line 462, in handle
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await self.app(scope, receive, send)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/mcp/server/sse.py", line 249, in handle_post_message
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     await writer.send(session_message)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/anyio/streams/memory.py", line 249, in send
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     self.send_nowait(item)
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:   File "/opt/paige/venv/lib64/python3.11/site-packages/anyio/streams/memory.py", line 218, in send_nowait
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]:     raise ClosedResourceError
-Mar 04 15:32:40 ip-10-90-0-33.us-west-2.compute.internal python[6433]: anyio.ClosedResourceError
+(venv) sh-5.2$ pip show mcp
+Name: mcp
+Version: 1.26.0
+Summary: Model Context Protocol SDK
+Home-page: https://modelcontextprotocol.io
+Author: Anthropic, PBC.
+Author-email:
+License: MIT
+Location: /opt/paige/venv/lib64/python3.11/site-packages
+Requires: anyio, httpx, httpx-sse, jsonschema, pydantic, pydantic-settings, pyjwt, python-multipart, sse-starlette, starlette, typing-extensions, typing-inspection, uvicorn
+Required-by: confluence-tf-mcp
+
+
+(venv) sh-5.2$ python -c "from mcp.server import fastmcp; print('FastMCP available')"
+FastMCP available
