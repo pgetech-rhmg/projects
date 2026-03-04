@@ -19,11 +19,11 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.sse import SseServerTransport
 from mcp.server.transport_security import TransportSecuritySettings
 
-from .models import KnowledgeBase, TerraformModule, TerraformExample
+from ..models import KnowledgeBase, TerraformModule, TerraformExample
 
 logger = logging.getLogger(__name__)
 
-KB_PATH = Path(os.environ.get("KB_PATH", Path(__file__).parent / "knowledge_base.json"))
+KB_PATH = Path(os.environ.get("KB_PATH", Path(__file__).parent.parent / "knowledge_base.json"))
 
 _kb: Optional[KnowledgeBase] = None
 

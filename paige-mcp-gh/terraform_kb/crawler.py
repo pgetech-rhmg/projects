@@ -11,17 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class TerraformModuleCrawler:
-	def __init__(self, repo_url: str = "https://github.com/pgetech/pge-terraform-modules.git", 
-	             github_token: str | None = None,
-	             max_concurrency: int = 3):
+	def __init__(self, repo_url: str = "https://github.com/pgetech/pge-terraform-modules.git", max_concurrency: int = 3):
+		self._repo_url = repo_url
 		self._sem = asyncio.Semaphore(max_concurrency)
 		self._modules = {}
-		
-		# Inject token into URL if provided
-		if github_token:
-			self._repo_url = repo_url.replace("https://", f"https://{github_token}@")
-		else:
-			self._repo_url = repo_url
 
 	@property
 	def modules(self):

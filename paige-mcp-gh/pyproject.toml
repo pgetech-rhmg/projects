@@ -12,7 +12,6 @@ dependencies = [
 
 [project.scripts]
 terraform_kb = "terraform_kb.__main__:main"
-terraform_kb_server = "terraform_kb.server:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

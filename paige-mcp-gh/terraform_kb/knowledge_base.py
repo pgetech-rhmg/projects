@@ -7,17 +7,16 @@ from .crawler import TerraformModuleCrawler
 from .models import KnowledgeBase
 
 logger = logging.getLogger(__name__)
-DEFAULT_KB_PATH = Path(__file__).parent / "knowledge_base.json"
+DEFAULT_KB_PATH = Path.cwd() / "knowledge_base.json"
 
 
 async def build_knowledge_base(
 	repo_url: str = "https://github.com/pgetech/pge-terraform-modules.git",
-	github_token: str | None = None,
 	output_path: Path | None = None
 ) -> KnowledgeBase:
 	"""Crawl Terraform modules repo and build KB."""
 	output_path = output_path or DEFAULT_KB_PATH
-	crawler = TerraformModuleCrawler(repo_url, github_token=github_token)
+	crawler = TerraformModuleCrawler(repo_url)
 	
 	modules = await crawler.crawl_repo()
 	
@@ -43,8 +42,7 @@ async def build_knowledge_base(
 	return kb
 
 
-def load_knowledge_base(path: Path | str | None = None) -> KnowledgeBase:
+def load_knowledge_base(path: Path | str) -> KnowledgeBase:
 	"""Load knowledge base from JSON file."""
-	path = path or DEFAULT_KB_PATH
 	with open(path) as f:
 		return KnowledgeBase.model_validate(json.load(f))

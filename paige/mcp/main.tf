@@ -278,7 +278,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=/opt/${var.app_name}/app
-ExecStart=/opt/${var.app_name}/venv/bin/${var.app_executable}
+ExecStart=/opt/${var.app_name}/venv/bin/python -m ${var.app_executable}
 Restart=always
 RestartSec=5
 User=ec2-user
