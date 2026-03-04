@@ -11,21 +11,9 @@ async def test_mcp():
 	async with httpx.AsyncClient(timeout=60.0) as client:
 		print("=== CONNECTING TO SSE ===")
 		
-		async def listen_sse(sse_response):
-			"""Listen for SSE events in background"""
-			async for line in sse_response.aiter_lines():
-				if line.startswith("event: message"):
-					pass
-				elif line.startswith("data: "):
-					data_str = line[6:]
-					try:
-						data = json.loads(data_str)
-						print(f"\n<<< RECEIVED: {json.dumps(data, indent=2)}")
-					except:
-						print(f"\n<<< RAW: {data_str}")
-		
-		# Start SSE connection
-		sse_response = await client.stream("GET", f"{base_url}/sse", headers={"Accept": "text/event-stream"}).__aenter__()
+		# Keep SSE connection open
+		sse_stream = client.stream("GET", f"{base_url}/sse", headers={"Accept": "text/event-stream"})
+		sse_response = await sse_stream.__aenter__()
 		
 		# Get session endpoint
 		session_endpoint = None
@@ -40,8 +28,19 @@ async def test_mcp():
 			print("ERROR: No session endpoint")
 			return
 		
-		# Start listening task
-		listen_task = asyncio.create_task(listen_sse(sse_response))
+		# Create background task to listen for responses
+		async def listen_responses():
+			async for line in sse_response.aiter_lines():
+				if line.startswith("event: message"):
+					pass
+				elif line.startswith("data: "):
+					try:
+						data = json.loads(line[6:])
+						print(f"\n<<< RESPONSE: {json.dumps(data, indent=2)}")
+					except:
+						print(f"\n<<< DATA: {line[6:]}")
+		
+		listener = asyncio.create_task(listen_responses())
 		
 		await asyncio.sleep(1)
 		
@@ -77,7 +76,8 @@ async def test_mcp():
 		# Wait for responses
 		await asyncio.sleep(5)
 		
-		listen_task.cancel()
+		listener.cancel()
+		await sse_stream.__aexit__(None, None, None)
 
 if __name__ == "__main__":
 	asyncio.run(test_mcp())
