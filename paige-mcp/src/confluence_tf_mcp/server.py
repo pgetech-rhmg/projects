@@ -13,7 +13,10 @@ from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
+from starlette.routing import Mount, Route
+from starlette.applications import Starlette
 from mcp.server.fastmcp import FastMCP
+from mcp.server.sse import SseServerTransport
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .models import ContentChunk, KnowledgeBase
@@ -22,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 KB_PATH = Path(os.environ.get("KB_PATH", Path(__file__).parent / "knowledge_base.json"))
 
-# Global KB instance
 _kb: Optional[KnowledgeBase] = None
 
 
@@ -132,6 +134,35 @@ def confluence_kb_stats() -> str:
 	}, indent=2, default=str)
 
 
+# ── SSE Transport Helper ─────────────────────────────────────────────────────
+
+def create_sse_server(mcp_instance: FastMCP) -> Starlette:
+	"""Create a Starlette app that handles SSE connections and message handling"""
+	transport = SseServerTransport(
+		"/messages/",
+		security_settings=TransportSecuritySettings(enable_dns_rebinding_protection=False)
+	)
+	
+	class SSEEndpoint:
+		async def __call__(self, scope, receive, send):
+			if scope["type"] != "http":
+				return
+			async with transport.connect_sse(scope, receive, send) as streams:
+				await mcp_instance._mcp_server.run(
+					streams[0],
+					streams[1],
+					mcp_instance._mcp_server.create_initialization_options()
+				)
+	
+	from starlette.routing import Route, Mount
+	
+	routes = [
+		Route("/sse", endpoint=SSEEndpoint()),
+		Mount("/messages", app=transport.handle_post_message),
+	]
+	
+	return Starlette(routes=routes)
+
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -151,8 +182,8 @@ async def health():
 	return PlainTextResponse("healthy")
 
 
-# Mount MCP SSE server
-app.mount("/", mcp.sse_app())
+# Mount the SSE server
+app.mount("/", create_sse_server(mcp))
 
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
