@@ -18,6 +18,7 @@ from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
+from starlette.routing import Mount
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.types import Tool, TextContent
@@ -199,7 +200,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 # ── SSE Transport Setup ──────────────────────────────────────────────────────
 
-transport = SseServerTransport("/messages")
+sse = SseServerTransport("/messages/")
 
 
 # ── FastAPI App ──────────────────────────────────────────────────────────────
@@ -215,19 +216,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Mount the /messages endpoint for POST messages
+app.router.routes.append(Mount("/messages", app=sse.handle_post_message))
+
 
 @app.get("/health")
 async def health():
 	return PlainTextResponse("healthy")
 
 
-@app.api_route("/sse", methods=["GET", "POST"])
+@app.get("/sse")
 async def handle_sse(request: Request):
-	async with transport.connect_sse(
-		request.scope,
-		request.receive,
-		request._send
-	) as (read_stream, write_stream):
+	async with sse.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
 		await mcp_server.run(
 			read_stream,
 			write_stream,
