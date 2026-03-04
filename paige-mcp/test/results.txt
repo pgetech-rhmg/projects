@@ -1,0 +1,58 @@
+(.venv) MAC-JHFJ4XQLGP:test RHMG$ python test_mcp.py
+=== INITIALIZE ===
+Traceback (most recent call last):
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpx/_transports/default.py", line 394, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpcore/_async/connection_pool.py", line 256, in handle_async_request
+    raise exc from None
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpcore/_async/connection_pool.py", line 236, in handle_async_request
+    response = await connection.handle_async_request(
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpcore/_async/connection.py", line 101, in handle_async_request
+    raise exc
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpcore/_async/connection.py", line 78, in handle_async_request
+    stream = await self._connect(request)
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpcore/_async/connection.py", line 124, in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpcore/_backends/auto.py", line 31, in connect_tcp
+    return await self._backend.connect_tcp(
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpcore/_backends/anyio.py", line 122, in connect_tcp
+    stream._raw_socket.setsockopt(*option)  # type: ignore[attr-defined] # pragma: no cover
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/contextlib.py", line 135, in __exit__
+    self.gen.throw(type, value, traceback)
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectTimeout
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/test_mcp.py", line 52, in <module>
+    asyncio.run(test_mcp())
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/base_events.py", line 642, in run_until_complete
+    return future.result()
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/test_mcp.py", line 25, in test_mcp
+    async with client.stream("POST", url, json=init_req, headers={"Accept": "text/event-stream"}) as response:
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/contextlib.py", line 175, in __aenter__
+    return await self.gen.__anext__()
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1583, in stream
+    response = await self.send(
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1629, in send
+    response = await self._send_handling_auth(
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1657, in _send_handling_auth
+    response = await self._send_handling_redirects(
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1694, in _send_handling_redirects
+    response = await self._send_single_request(request)
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpx/_client.py", line 1730, in _send_single_request
+    response = await transport.handle_async_request(request)
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpx/_transports/default.py", line 394, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/contextlib.py", line 135, in __exit__
+    self.gen.throw(type, value, traceback)
+  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/.venv/lib/python3.9/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectTimeout
+(.venv) MAC-JHFJ4XQLGP:test RHMG$ 
