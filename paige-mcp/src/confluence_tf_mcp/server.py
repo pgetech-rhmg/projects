@@ -181,6 +181,18 @@ app = FastAPI(lifespan=lifespan)
 async def health():
 	return PlainTextResponse("healthy")
 
+@app.post("/api/confluence/search")
+async def search_api(query: str, limit: int = 3):
+	"""Direct HTTP endpoint for .NET clients - bypasses MCP protocol"""
+	if not _kb:
+		return {"error": "Knowledge base not loaded"}
+	
+	results = _search_chunks(_kb.chunks, query, None, limit)
+	return {
+		"query": query,
+		"count": len(results),
+		"content": _fmt_md(results)
+	}
 
 # Mount the SSE server
 app.mount("/", create_sse_server(mcp))
