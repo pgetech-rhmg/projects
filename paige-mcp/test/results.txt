@@ -1,24 +1,24 @@
 (.venv) MAC-JHFJ4XQLGP:test RHMG$ python test_mcp.py
 === INITIALIZE ===
-Raw line: event: endpoint
-Raw line: data: /messages?session_id=5271ded1f6d54cc9af446a16c7086308
-Traceback (most recent call last):
-  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/test_mcp.py", line 52, in <module>
-    asyncio.run(test_mcp())
-  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/runners.py", line 44, in run
-    return loop.run_until_complete(main)
-  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/base_events.py", line 642, in run_until_complete
-    return future.result()
-  File "/Users/RHMG/Documents/Projects/ccoe/gh-projects/paige-mcp/test/test_mcp.py", line 29, in test_mcp
-    data = json.loads(line[6:])
-  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 346, in loads
-    return _default_decoder.decode(s)
-  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 337, in decode
-    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
-  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 355, in raw_decode
-    raise JSONDecodeError("Expecting value", s, err.value) from None
-json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
-(.venv) MAC-JHFJ4XQLGP:test RHMG$ 
+Raw: event: endpoint
+Raw: data: /messages?session_id=46e0a6c7c29948259b69a706806e7ae1
+Session endpoint: /messages?session_id=46e0a6c7c29948259b69a706806e7ae1
+Raw: 
+Raw: : ping - 2026-03-04 15:13:30.932787+00:00
+Raw: 
+Raw: : ping - 2026-03-04 15:13:45.933292+00:00
+Raw: 
+Raw: : ping - 2026-03-04 15:14:00.933764+00:00
+Raw: 
+Raw: : ping - 2026-03-04 15:14:15.934400+00:00
+Raw: 
+
+
+
+
+
+
+
 
 
 
