@@ -17,9 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Request
-from starlette.responses import PlainTextResponse
-from starlette.applications import Starlette
-from starlette.routing import Route, Mount
+from fastapi.responses import PlainTextResponse
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.types import Tool, TextContent
@@ -204,27 +202,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 transport = SseServerTransport("/messages")
 
 
-async def handle_sse(request: Request):
-	async with transport.connect_sse(
-		request.scope,
-		request.receive,
-		request._send
-	) as (read_stream, write_stream):
-		await mcp_server.run(
-			read_stream,
-			write_stream,
-			mcp_server.create_initialization_options()
-		)
-
-
-# Create Starlette app for SSE
-sse_app = Starlette(
-	routes=[
-		Route("/sse", endpoint=handle_sse),
-	]
-)
-
-
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -244,8 +221,18 @@ async def health():
 	return PlainTextResponse("healthy")
 
 
-# Mount SSE app to FastAPI
-app.mount("/", sse_app)
+@app.get("/sse")
+async def handle_sse(request: Request):
+	async with transport.connect_sse(
+		request.scope,
+		request.receive,
+		request._send
+	) as (read_stream, write_stream):
+		await mcp_server.run(
+			read_stream,
+			write_stream,
+			mcp_server.create_initialization_options()
+		)
 
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
