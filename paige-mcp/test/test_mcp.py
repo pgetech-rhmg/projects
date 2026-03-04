@@ -6,7 +6,7 @@ import json
 import httpx
 
 async def test_mcp():
-	url = "https://paige-mcp-dev.nonprod.pge.com:8000/sse"
+	url = "https://paige-mcp-dev.nonprod.pge.com/sse"
 	
 	async with httpx.AsyncClient(timeout=30.0) as client:
 		# Initialize
