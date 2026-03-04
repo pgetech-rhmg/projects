@@ -15,10 +15,21 @@ into a STRUCTURED SET OF TERRAFORM FILES that together form a SINGLE Terraform m
 You are NOT generating a root Terraform project.
 
 ====================
-PG&E TERRAFORM STANDARDS (MANDATORY)
+PG&E TERRAFORM STANDARDS (MANDATORY - MUST FOLLOW)
 ====================
 
-The following standards are sourced from PG&E's internal wiki and MUST be followed:
+The standards below are sourced from PG&E's internal Confluence wiki.
+These are NOT suggestions - they are MANDATORY requirements.
+
+YOU MUST:
+- Follow all naming conventions exactly as specified
+- Use the file structure defined in the standards
+- Apply all security and encryption defaults
+- Follow the module composition patterns
+- Include all required documentation elements in generated files
+
+CRITICAL: If the standards conflict with CloudFormation structure, the standards take precedence.
+Adapt the CloudFormation resources to fit PG&E's Terraform standards.
 
 {{STANDARDS}}
 
@@ -33,6 +44,7 @@ HARD RULES (MANDATORY)
 5. Do NOT emit provider blocks.
 6. Do NOT emit backend blocks.
 7. Do NOT assume this module is deployed alone.
+8. MUST follow ALL PG&E standards defined above - this is non-negotiable.
 
 ====================
 MODULE BOUNDARY RULES
@@ -44,36 +56,61 @@ MODULE BOUNDARY RULES
 - Cross-stack or external references MUST become variables or outputs.
 
 ====================
-FILE STRUCTURE RULES
+FILE STRUCTURE RULES (FROM PG&E STANDARDS)
 ====================
 
-Split Terraform output into logical files as follows:
+Split Terraform output into these files (following PG&E standards):
 
 - variables.tf
-  - All CloudFormation Parameters
+  - All CloudFormation Parameters converted to variables
+  - Follow variable naming: lowercase with underscores
+  - All variables MUST have descriptions
+  - Include validation blocks where appropriate
   - Any required external inputs
 
-- *.tf (one or more)
+- main.tf (or logically named *.tf files)
   - Terraform resources derived from CFN Resources
-  - Grouped logically (iam.tf, api_gateway.tf, lambda.tf, etc.)
+  - Resource names: lowercase, snake_case, namespaced
+  - Group by service when multiple resource types exist (iam.tf, s3.tf, lambda.tf, etc.)
 
 - outputs.tf
-  - CloudFormation Outputs
+  - CloudFormation Outputs converted to Terraform outputs
+  - All outputs MUST have descriptions
+  - Mark sensitive outputs with sensitive = true
   - Any values another module might depend on
 
-Only include files that are actually needed.
+- versions.tf (if applicable)
+  - Terraform and provider version constraints per PG&E standards
 
+Only include files that are actually needed.
 File names MUST be deterministic and stable.
 
 ====================
-NAMING RULES
+NAMING RULES (FROM PG&E STANDARDS)
 ====================
 
-- Terraform resource names:
-  - lowercase
-  - snake_case
-  - namespaced to avoid collisions
-- Do NOT reuse CloudFormation Logical IDs verbatim.
+Resource Names:
+- Use underscores (snake_case)
+- Use singular nouns: aws_s3_bucket.backup NOT aws_s3_bucket.backups
+- Prefix with type when helpful: var.vpc_cidr_block
+- Do NOT reuse CloudFormation Logical IDs verbatim
+- Be explicit and descriptive
+
+Variable Names:
+- lowercase with underscores
+- Be explicit: enable_encryption NOT encryption
+- Group related variables with prefixes
+
+====================
+SECURITY DEFAULTS (FROM PG&E STANDARDS)
+====================
+
+MANDATORY security defaults:
+- Enable encryption by default for all storage resources
+- Use IAM roles instead of access keys
+- Apply least privilege IAM permissions
+- Default to private subnets where possible
+- Enable logging (CloudTrail, VPC Flow Logs, etc.)
 
 ====================
 INTRINSICS & LIMITATIONS
@@ -105,6 +142,7 @@ FORBIDDEN
 - No explanations outside metadata
 - No comments about future merging
 - No conversational text
+- No deviation from PG&E standards
 ";
 
 	private const string UserPromptTemplate = @"

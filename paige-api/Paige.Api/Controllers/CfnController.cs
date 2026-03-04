@@ -15,148 +15,156 @@ namespace Paige.Api.Controllers;
 [Route("api/cfn")]
 public sealed class CfnController : ControllerBase
 {
-    private readonly CfnExecutionService _cfnExecutionService;
-    private readonly TerraformProjectBuilder _terraformProjectBuilder;
+	private readonly CfnExecutionService _cfnExecutionService;
+	private readonly TerraformProjectBuilder _terraformProjectBuilder;
 
-    public CfnController(
-        CfnExecutionService cfnExecutionService,
-        TerraformProjectBuilder terraformProjectBuilder)
-    {
-        _cfnExecutionService = cfnExecutionService;
-        _terraformProjectBuilder = terraformProjectBuilder;
-    }
+	public CfnController(
+		CfnExecutionService cfnExecutionService,
+		TerraformProjectBuilder terraformProjectBuilder)
+	{
+		_cfnExecutionService = cfnExecutionService;
+		_terraformProjectBuilder = terraformProjectBuilder;
+	}
 
-    [HttpPost("create-project")]
-    public ActionResult<JobResponse> CreateProject([FromBody] CfnGenerationResponse request)
-    {
-        if (request.CfnResults == null || request.CfnResults.Count == 0)
-        {
-            return BadRequest("No CloudFormation templates provided.");
-        }
+	[HttpPost("create-project")]
+	public ActionResult<JobResponse> CreateProject([FromBody] CfnGenerationResponse request)
+	{
+		if (request.CfnResults == null || request.CfnResults.Count == 0)
+		{
+			return BadRequest("No CloudFormation templates provided.");
+		}
 
-        var terraformProject = _terraformProjectBuilder.Build(request.CfnResults);
+		var terraformProject = _terraformProjectBuilder.Build(request.CfnResults);
 
-        return Ok(terraformProject);
-    }
+		return Ok(terraformProject);
+	}
 
-    [HttpPost("generate")]
-    public ActionResult<JobResponse> StartGeneration([FromBody] CfnGenerationRequest request)
-    {
-        if (request.Cfns == null || request.Cfns.Count == 0)
-        {
-            return BadRequest("No CloudFormation templates provided.");
-        }
+	[HttpPost("generate")]
+	public ActionResult<JobResponse> StartGeneration([FromBody] CfnGenerationRequest request)
+	{
+		if (request.Cfns == null || request.Cfns.Count == 0)
+		{
+			return BadRequest("No CloudFormation templates provided.");
+		}
 
-        var jobId = JobStore<IReadOnlyList<CfnInput>>.CreateJob(request.Cfns);
+		var jobId = JobStore<IReadOnlyList<CfnInput>>.CreateJob(request.Cfns);
 
-        return Ok(new JobResponse { JobId = jobId });
-    }
+		return Ok(new JobResponse { JobId = jobId });
+	}
 
-    [HttpGet("generate-stream/{jobId}")]
-    public async Task StreamGeneration(string jobId, CancellationToken requestToken)
-    {
-        if (!JobStore<IReadOnlyList<CfnInput>>.TryGetJob(jobId, out var job))
-        {
-            Response.StatusCode = StatusCodes.Status404NotFound;
+	[HttpGet("generate-stream/{jobId}")]
+	public async Task StreamGeneration(string jobId, CancellationToken requestToken)
+	{
+		if (!JobStore<IReadOnlyList<CfnInput>>.TryGetJob(jobId, out var job))
+		{
+			Response.StatusCode = StatusCodes.Status404NotFound;
+			return;
+		}
 
-            return;
-        }
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(requestToken, job.Cancellation.Token);
+		var cancellationToken = linkedCts.Token;
 
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(requestToken, job.Cancellation.Token);
+		Response.Headers["Content-Type"] = "text/event-stream";
+		Response.Headers["Cache-Control"] = "no-cache";
+		Response.Headers["X-Accel-Buffering"] = "no";
+		Response.Headers["Connection"] = "keep-alive";
+		Response.Headers["Content-Encoding"] = "none";
 
-        var cancellationToken = linkedCts.Token;
+		// Extract all AWS services from all CFN files upfront
+		var allServices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (var cfn in job.Request)
+		{
+			var services = CfnExecutionService.ExtractAwsServices(cfn.RawCfn);
+			foreach (var svc in services)
+			{
+				allServices.Add(svc);
+			}
+		}
 
-        Response.Headers["Content-Type"] = "text/event-stream";
-        Response.Headers["Cache-Control"] = "no-cache";
-        Response.Headers["X-Accel-Buffering"] = "no";
-        Response.Headers["Connection"] = "keep-alive";
-        Response.Headers["Content-Encoding"] = "none";
+		// Single MCP call for entire job
+		var standards = await _cfnExecutionService.FetchStandardsAsync(allServices, cancellationToken);
 
-        var channel = Channel.CreateUnbounded<ModuleStreamMessage>();
-        var writerTask = WriteStreamAsync(channel.Reader, Response.Body, cancellationToken);
-        var executionTasks = job.Request.Select(cfn => ProcessModuleAsync(cfn, channel.Writer, cancellationToken));
+		var channel = Channel.CreateUnbounded<ModuleStreamMessage>();
+		var writerTask = WriteStreamAsync(channel.Reader, Response.Body, cancellationToken);
+		var executionTasks = job.Request.Select(cfn => ProcessModuleAsync(cfn, standards, channel.Writer, cancellationToken));
 
-        try
-        {
-            await Task.WhenAll(executionTasks);
-        }
-        catch (OperationCanceledException)
-        {
-            // expected – user canceled or connection dropped
-        }
-        finally
-        {
-            channel.Writer.TryComplete();
+		try
+		{
+			await Task.WhenAll(executionTasks);
+		}
+		catch (OperationCanceledException)
+		{
+			// expected – user canceled or connection dropped
+		}
+		finally
+		{
+			channel.Writer.TryComplete();
+			await writerTask;
+			JobStore<IReadOnlyList<CfnInput>>.CompleteJob(jobId);
+		}
+	}
 
-            await writerTask;
+	[HttpPost("cancel/{jobId}")]
+	public IActionResult Cancel(string jobId)
+	{
+		JobStore<IReadOnlyList<CfnInput>>.CancelJob(jobId);
 
-            JobStore<IReadOnlyList<CfnInput>>.CompleteJob(jobId);
-        }
-    }
+		return NoContent();
+	}
 
-    [HttpPost("cancel/{jobId}")]
-    public IActionResult Cancel(string jobId)
-    {
-        JobStore<IReadOnlyList<CfnInput>>.CancelJob(jobId);
+	private async Task ProcessModuleAsync(CfnInput input, string standards, ChannelWriter<ModuleStreamMessage> writer, CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
 
-        return NoContent();
-    }
+		try
+		{
+			Console.WriteLine($"START {input.Module}");
 
-    private async Task ProcessModuleAsync(CfnInput input, ChannelWriter<ModuleStreamMessage> writer, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
+			var result = await _cfnExecutionService.GenerateTerraformAsync(input.RawCfn, standards, cancellationToken);
+			var output = result.Output.Replace("```json" , "").Replace("```", "");
 
-        try
-        {
-            Console.WriteLine($"START {input.Module}");
+			using var doc = JsonDocument.Parse(output);
 
-            var result = await _cfnExecutionService.GenerateTerraformAsync(input.RawCfn, cancellationToken);
-            var output = result.Output.Replace("```json" , "").Replace("```", "");
+			await writer.WriteAsync(
+				new ModuleStreamMessage
+				{
+					Module = input.Module,
+					Files = doc.RootElement.GetProperty("files").Clone()
+				},
+				cancellationToken);
 
-            using var doc = JsonDocument.Parse(output);
+			Console.WriteLine($"END {input.Module}");
+		}
+		catch (OperationCanceledException)
+		{
+			Console.WriteLine($"CANCELLED {input.Module}");
+			throw;
+		}
+	}
 
-            await writer.WriteAsync(
-                new ModuleStreamMessage
-                {
-                    Module = input.Module,
-                    Files = doc.RootElement.GetProperty("files").Clone()
-                },
-                cancellationToken);
+	private static async Task WriteStreamAsync(ChannelReader<ModuleStreamMessage> reader, Stream responseBody, CancellationToken cancellationToken)
+	{
+		var encoding = Encoding.UTF8;
 
-            Console.WriteLine($"END {input.Module}");
-        }
-        catch (OperationCanceledException)
-        {
-            Console.WriteLine($"CANCELLED {input.Module}");
+		await foreach (var message in reader.ReadAllAsync(cancellationToken))
+		{
+			var payload = JsonSerializer.Serialize(new
+			{
+				module = message.Module,
+				files = message.Files
+			});
 
-            throw;
-        }
-    }
+			var data = $"data: {payload}\n\n";
+			var bytes = encoding.GetBytes(data);
 
-    private static async Task WriteStreamAsync(ChannelReader<ModuleStreamMessage> reader, Stream responseBody, CancellationToken cancellationToken)
-    {
-        var encoding = Encoding.UTF8;
+			await responseBody.WriteAsync(bytes, cancellationToken);
+			await responseBody.FlushAsync(cancellationToken);
+		}
 
-        await foreach (var message in reader.ReadAllAsync(cancellationToken))
-        {
-            var payload = JsonSerializer.Serialize(new
-            {
-                module = message.Module,
-                files = message.Files
-            });
+		var complete = "event: complete\n" + "data: {}\n\n";
 
-            var data = $"data: {payload}\n\n";
-            var bytes = encoding.GetBytes(data);
-
-            await responseBody.WriteAsync(bytes, cancellationToken);
-            await responseBody.FlushAsync(cancellationToken);
-        }
-
-        var complete = "event: complete\n" + "data: {}\n\n";
-
-        await responseBody.WriteAsync(encoding.GetBytes(complete), cancellationToken);
-        await responseBody.FlushAsync(cancellationToken);
-        await Task.Delay(100, cancellationToken);
-    }
+		await responseBody.WriteAsync(encoding.GetBytes(complete), cancellationToken);
+		await responseBody.FlushAsync(cancellationToken);
+		await Task.Delay(100, cancellationToken);
+	}
 }
-
