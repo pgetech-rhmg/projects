@@ -6,5 +6,5 @@
   
   "s3": "pge-epic-paige-mcp-deploy-dev",
   "ec2InstanceId": "i-011d7765d12ab435c",
-  "appExecutable": "terraform-kb-server"
+  "appExecutable": "terraform_kb_server"
 }
