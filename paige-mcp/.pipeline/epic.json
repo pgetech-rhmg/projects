@@ -1,7 +1,7 @@
 {
   "appName": "paige",
   "appType": "python",
-  "codePath": "/src/confluence_tf_mcp",
+  "codePath": "/",
   "pythonVersion": "3.12",
   
   "s3": "pge-epic-paige-mcp-deploy-dev",
