@@ -221,7 +221,7 @@ async def health():
 	return PlainTextResponse("healthy")
 
 
-@app.get("/sse")
+@app.api_route("/sse", methods=["GET", "POST"])
 async def handle_sse(request: Request):
 	async with transport.connect_sse(
 		request.scope,
