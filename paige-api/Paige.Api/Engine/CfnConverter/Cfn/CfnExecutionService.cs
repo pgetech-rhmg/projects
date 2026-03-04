@@ -20,10 +20,10 @@ public sealed class CfnExecutionService
 	public async Task<string> FetchStandardsAsync(HashSet<string> services, CancellationToken cancellationToken)
 	{
 		var query = services.Count > 0 
-			? $"terraform {string.Join(" ", services)}"
-			: "terraform";
+			? string.Join(" ", services)
+			: "s3";  // fallback to s3 if no services detected
 
-		return await _mcpClientService.SearchConfluenceAsync(query, limit: 3, cancellationToken);
+		return await _mcpClientService.SearchTerraformModulesAsync(query, limit: 1, cancellationToken);
 	}
 
 	public async Task<PortKeyExecutionResult> GenerateTerraformAsync(string rawCfn, string standards, CancellationToken cancellationToken)
