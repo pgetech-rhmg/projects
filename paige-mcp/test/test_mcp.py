@@ -2,10 +2,11 @@
 """Test MCP server via SSE."""
 
 import asyncio
+import json
 import httpx
 
 async def test_mcp():
-	url = "https://paige-api.YOUR-DOMAIN.pge.com/sse"
+	url = "https://paige-mcp-dev.nonprod.pge.com:8000/sse"
 	
 	async with httpx.AsyncClient(timeout=30.0) as client:
 		# Initialize
@@ -20,12 +21,13 @@ async def test_mcp():
 			}
 		}
 		
+		print("=== INITIALIZE ===")
 		async with client.stream("POST", url, json=init_req, headers={"Accept": "text/event-stream"}) as response:
 			async for line in response.aiter_lines():
+				print(f"Raw line: {line}")
 				if line.startswith("data: "):
-					data = line[6:]
-					print(f"Initialize response: {data}")
-					break
+					data = json.loads(line[6:])
+					print(f"Parsed: {json.dumps(data, indent=2)}")
 		
 		# Call tool
 		tool_req = {
@@ -38,11 +40,13 @@ async def test_mcp():
 			}
 		}
 		
+		print("\n=== TOOL CALL ===")
 		async with client.stream("POST", url, json=tool_req, headers={"Accept": "text/event-stream"}) as response:
 			async for line in response.aiter_lines():
+				print(f"Raw line: {line}")
 				if line.startswith("data: "):
-					data = line[6:]
-					print(f"Tool call response: {data}")
+					data = json.loads(line[6:])
+					print(f"Parsed: {json.dumps(data, indent=2)}")
 
 if __name__ == "__main__":
 	asyncio.run(test_mcp())
