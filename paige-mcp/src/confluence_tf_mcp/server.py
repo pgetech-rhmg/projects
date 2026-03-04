@@ -8,14 +8,13 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
-from enum import Enum
 from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
-from starlette.routing import Mount
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from .models import ContentChunk, KnowledgeBase
 
@@ -62,7 +61,12 @@ def _fmt_json(chunks: list[ContentChunk]) -> str:
 
 # ── MCP Server Setup ─────────────────────────────────────────────────────────
 
-mcp = FastMCP("confluence_tf_mcp")
+mcp = FastMCP(
+	"confluence_tf_mcp",
+	transport_security=TransportSecuritySettings(
+		enable_dns_rebinding_protection=False
+	)
+)
 
 
 @mcp.tool()
@@ -141,12 +145,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+
 @app.get("/health")
 async def health():
 	return PlainTextResponse("healthy")
 
+
 # Mount MCP SSE server
 app.mount("/", mcp.sse_app())
+
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
 
