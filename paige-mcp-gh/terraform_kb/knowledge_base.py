@@ -7,7 +7,7 @@ from .crawler import TerraformModuleCrawler
 from .models import KnowledgeBase
 
 logger = logging.getLogger(__name__)
-DEFAULT_KB_PATH = Path.cwd() / "knowledge_base.json"
+DEFAULT_KB_PATH = Path(__file__).parent / "knowledge_base.json"
 
 
 async def build_knowledge_base(
@@ -43,7 +43,8 @@ async def build_knowledge_base(
 	return kb
 
 
-def load_knowledge_base(path: Path | str) -> KnowledgeBase:
+def load_knowledge_base(path: Path | str | None = None) -> KnowledgeBase:
 	"""Load knowledge base from JSON file."""
+	path = path or DEFAULT_KB_PATH
 	with open(path) as f:
 		return KnowledgeBase.model_validate(json.load(f))

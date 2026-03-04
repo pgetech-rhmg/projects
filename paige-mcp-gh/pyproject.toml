@@ -5,11 +5,14 @@ description = "Terraform modules knowledge base builder from Github"
 requires-python = ">=3.11"
 dependencies = [
 	"pydantic>=2.0",
-	"httpx>=0.25",
+	"fastapi>=0.100",
+	"uvicorn>=0.23",
+	"mcp>=1.0",
 ]
 
 [project.scripts]
 terraform-kb = "terraform_kb.__main__:main"
+terraform-kb-server = "terraform_kb.server:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
