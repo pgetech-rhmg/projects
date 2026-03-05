@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from ..models import KnowledgeBase, TerraformModule, TerraformExample
 
@@ -104,8 +105,18 @@ def _format_examples(examples: list[TerraformExample]) -> str:
 mcp = FastMCP(
 	"terraform_modules_mcp",
 	stateless_http=True,
-	json_response=True
+	json_response=True,
+	transport_security=TransportSecuritySettings(
+		enable_dns_rebinding_protection=True,
+		allowed_hosts=["localhost:*", "127.0.0.1:*", "paige-mcp-dev.nonprod.pge.com:*"],
+		allowed_origins=["https://paige-mcp-dev.nonprod.pge.com"]
+	)
 )
+# mcp = FastMCP(
+# 	"terraform_modules_mcp",
+# 	stateless_http=True,
+# 	json_response=True
+# )
 
 
 @mcp.tool()
