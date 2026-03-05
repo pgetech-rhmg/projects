@@ -226,17 +226,6 @@ module "s3_mcp" {
 # EC2 (MCP)
 ###############################################################################
 
-data "aws_ami" "amazon_linux" {
-	most_recent = true
-	owners      = ["amazon"]
-
-	filter {
-		name   = "name"
-		values = ["al2023-ami-2023*-x86_64"]
-	}
-}
-
-
 module "ec2" {
 	source = "git::https://github.com/pgetech/epic-pipeline-module-aws-ec2.git?ref=main"
 
