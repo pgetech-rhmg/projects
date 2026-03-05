@@ -160,14 +160,13 @@ def terraform_kb_stats() -> str:
 
 class AllowALBHostMiddleware(BaseHTTPMiddleware):
 	async def dispatch(self, request, call_next):
-		# Override the host header that FastMCP sees for /mcp requests
-		if request.url.path.startswith("/mcp"):
+		# Only override host header when behind ALB (detected by X-Forwarded-For header)
+		if request.url.path.startswith("/mcp") and "x-forwarded-for" in dict(request.headers):
 			headers = dict(request.scope["headers"])
 			headers[b"host"] = b"paige-mcp-dev.nonprod.pge.com"
 			request.scope["headers"] = [(k, v) for k, v in headers.items()]
 		
 		return await call_next(request)
-
 
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 
