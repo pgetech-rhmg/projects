@@ -1,0 +1,77 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Zip Published Output
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo "Zipping build files..."
+
+      BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+
+      cd "$BUILD_PATH"
+
+      zip -r ../deploy.zip .
+    displayName: "Create Deployment ZIP"
+
+
+  #############################################################################
+  # Upload to S3
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo "Deploying zip file..."
+
+      ZIP_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/deploy.zip"
+      S3_BUCKET="${{ parameters.s3 }}"
+
+      aws s3 cp "$ZIP_PATH" "s3://$S3_BUCKET/${{ parameters.appName }}.zip"
+    displayName: "Upload ZIP to S3"
+    env:
+      AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+      AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+      AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
+
+
+  #############################################################################
+  # Deploy to EC2 via SSM
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo "Deploying ${{ parameters.appType }}..."
+
+      INSTANCE_ID="${{ parameters.ec2InstanceId }}"
+      S3_BUCKET="${{ parameters.s3 }}"
+      APP_NAME="${{ parameters.appName }}"
+
+      echo "Deploying to EC2: $INSTANCE_ID"
+
+      aws ssm send-command \
+        --instance-ids "$INSTANCE_ID" \
+        --document-name "AWS-RunShellScript" \
+        --comment "Deploy $APP_NAME" \
+        --parameters commands="[
+          \"set -e\",
+          \"sudo mkdir -p /opt/${{ parameters.appName }}\",
+          \"cd /opt/${{ parameters.appName }}\",
+          \"sudo rm -rf app\",
+          \"sudo mkdir -p app\",
+          \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
+          \"sudo unzip -o $APP_NAME.zip -d app\",
+          \"sudo systemctl daemon-reload\",
+          \"sudo systemctl stop ${{ parameters.appName }} || true\",
+          \"sudo systemctl start ${{ parameters.appName }}\"
+        ]"
+
+      echo "Deployment complete."
+    displayName: "Deploy to EC2 via SSM (Java)"
+    env:
+      AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+      AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+      AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)

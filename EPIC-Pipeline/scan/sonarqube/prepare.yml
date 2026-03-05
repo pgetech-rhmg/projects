@@ -25,6 +25,14 @@ steps:
           testExecutionProperty="sonar.testExecutionReportPaths=.reports/sonar-test-report.xml"
           ;;
 
+        junit)
+          testFiles='**/*Test.java,**/*Tests.java'
+          exclusions='**/target/**,**/build/**'
+
+          coverageProperty="sonar.coverage.jacoco.xmlReportPaths=.reports/coverage.xml"
+          testExecutionProperty="sonar.junit.reportPaths=.reports"
+          ;;
+          
         pytest)
           testFiles='**/test_*.py,**/*_test.py'
           exclusions='**/__pycache__/**,**/*.pyc'

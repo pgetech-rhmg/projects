@@ -1,0 +1,75 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Set Java Version
+  #############################################################################
+  - task: JavaToolInstaller@0
+    displayName: "Use Java ${{ parameters.javaVersion }}"
+    inputs:
+      versionSpec: "${{ parameters.javaVersion }}"
+      jdkArchitectureOption: "x64"
+      jdkSourceOption: "PreInstalled"
+
+
+  #############################################################################
+  # Verify Java & Build Tool
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo ">> Java version"
+      java -version
+
+      ${{ if eq(parameters.buildType, 'maven') }}:
+      echo ">> Maven version"
+      mvn -version
+      ${{ elseif eq(parameters.buildType, 'gradle') }}:
+      echo ">> Gradle version"
+      gradle -version
+      ${{ endif }}
+    displayName: "Verify Java & Build Tool"
+
+
+  #############################################################################
+  # Test (Maven)
+  #############################################################################
+  - ${{ if eq(parameters.buildType, 'maven') }}:
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        echo ">> Running tests with coverage (Maven)"
+        mvn test jacoco:report
+
+        echo ">> Creating reports directory"
+        mkdir -p .reports
+
+        echo ">> Copying test reports"
+        cp -R target/surefire-reports/*.xml .reports/ 2>/dev/null || echo "No XML reports found"
+        cp target/site/jacoco/jacoco.xml .reports/coverage.xml 2>/dev/null || echo "No coverage report found"
+      displayName: "Execute tests with coverage (Maven)"
+
+
+  #############################################################################
+  # Test (Gradle)
+  #############################################################################
+  - ${{ if eq(parameters.buildType, 'gradle') }}:
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        echo ">> Running tests with coverage (Gradle)"
+        gradle test jacocoTestReport
+
+        echo ">> Creating reports directory"
+        mkdir -p .reports
+
+        echo ">> Copying test reports"
+        cp -R build/test-results/test/*.xml .reports/ 2>/dev/null || echo "No XML reports found"
+        cp build/reports/jacoco/test/jacocoTestReport.xml .reports/coverage.xml 2>/dev/null || echo "No coverage report found"
+      displayName: "Execute tests with coverage (Gradle)"

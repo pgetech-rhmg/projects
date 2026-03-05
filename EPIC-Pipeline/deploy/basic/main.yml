@@ -1,0 +1,31 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Deploy
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo "Deploying ${{ parameters.appType }}..."
+
+      BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+      BUCKET_NAME="${{ parameters.s3 }}"
+      DISTRIBUTION_ID="${{ parameters.cloudfront }}"
+
+      echo "Syncing to S3..."
+      aws s3 sync "$BUILD_PATH" "s3://$BUCKET_NAME" --delete
+
+      echo "Invalidating CloudFront..."
+      aws cloudfront create-invalidation \
+        --distribution-id "$DISTRIBUTION_ID" \
+        --paths "/*"
+
+      echo "Deployment complete."
+    displayName: "Deploy ${{ parameters.appType }}"
+    env:
+      AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+      AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+      AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)

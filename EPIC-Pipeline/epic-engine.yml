@@ -43,6 +43,9 @@ parameters:
   - name: dotnetVersion
     type: string
     default: "9.x"
+  - name: javaVersion
+    type: string
+    default: "17"
 
   # Tools
   - name: scanTool

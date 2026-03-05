@@ -1,0 +1,68 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Set Java Version
+  #############################################################################
+  - task: JavaToolInstaller@0
+    displayName: "Use Java ${{ parameters.javaVersion }}"
+    inputs:
+      versionSpec: "${{ parameters.javaVersion }}"
+      jdkArchitectureOption: "x64"
+      jdkSourceOption: "PreInstalled"
+
+
+  #############################################################################
+  # Verify Java & Build Tool
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo ">> Java version"
+      java -version
+
+      ${{ if eq(parameters.buildType, 'maven') }}:
+      echo ">> Maven version"
+      mvn -version
+      ${{ elseif eq(parameters.buildType, 'gradle') }}:
+      echo ">> Gradle version"
+      gradle -version
+      ${{ endif }}
+    displayName: "Verify Java & Build Tool"
+
+  #############################################################################
+  # Build JAR (Maven)
+  #############################################################################
+  - ${{ if eq(parameters.buildType, 'maven') }}:
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        echo ">> Building JAR with Maven"
+        mvn clean package -DskipTests
+
+        echo ">> Preparing .build output"
+        mkdir -p .build
+        cp target/*.jar .build/
+      displayName: "Build JAR (Maven)"
+
+
+  #############################################################################
+  # Build JAR (Gradle)
+  #############################################################################
+  - ${{ if eq(parameters.buildType, 'gradle') }}:
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        echo ">> Building JAR with Gradle"
+        gradle clean build -x test
+
+        echo ">> Preparing .build output"
+        mkdir -p .build
+        cp build/libs/*.jar .build/
+      displayName: "Build JAR (Gradle)"

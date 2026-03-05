@@ -40,10 +40,12 @@ EPIC-Pipeline/
 │   ├── angular/
 │   ├── dotnet/
 │   ├── dotnet_framework/
+│   ├── java/
 │   └── python/
 ├── test/
 │   ├── main.yml                 # Test dispatcher
 │   ├── jest/
+│   ├── junit/
 │   ├── playwright/
 │   ├── pytest/
 │   └── xunit/
@@ -53,7 +55,11 @@ EPIC-Pipeline/
 │   ├── sonarqube/
 │   └── wiz/
 ├── deploy/
-│   └── main.yml                 # Deployment logic
+│   ├── main.yml                 # Deployment dispatcher
+│   ├── basic/
+│   ├── dotnet/
+│   ├── java/
+│   └── python/
 └── .gitignore
 ```
 
@@ -268,8 +274,9 @@ string
 | Value              | Description                          |
 |--------------------|--------------------------------------|
 | angular            | Angular frontend application         |
-| dotnet.            | .NET Core / .NET 6+ application      |
+| dotnet             | .NET Core / .NET 6+ application      |
 | dotnet_framework   | .NET Framework application           |
+| java               | Java application                     |
 | python             | Python application                   |
 
 ---
@@ -284,6 +291,13 @@ If omitted, EPIC performs a standard build without packaging.
 **Type**  
 string
 
+### dotnet / dotnet_framework
+
+| Value   | Description |
+|---------|-------------|
+| package | Produce deployable package (zip / publish output) |
+| ommited | Standard build |
+
 ### Python
 
 | Value   | Description |
@@ -293,12 +307,12 @@ string
 | sdist   | Build source distribution |
 | omitted | Validated source |
 
-### dotnet / dotnet_framework
+### java
 
-| Value   | Description |
-|---------|-------------|
-| package | Produce deployable package (zip / publish output) |
-| ommited | Standard build |
+| Value   | Description  |
+|---------|--------------|
+| maven   | Maven build  | 
+| gradle  | Gradle build |
 
 ---
 
@@ -323,6 +337,43 @@ Supports mono-repo and nested application structures.
 ---
 
 ## Build Runtime Versions
+
+---
+
+### dotnetVersion (Optional)
+
+**Default:** `"9.x"`
+
+**Description**  
+.NET SDK version used during build.
+
+**Type**  
+string
+
+**Examples**
+```
+"8.x"
+"9.x"
+"10.x"
+```
+
+---
+
+### javaVersion (Optional)
+
+**Default:** `"17"`
+
+**Description**  
+Node.js version used for Angular or Node-based builds.
+
+**Type**  
+string
+
+**Examples**
+```
+"17"
+"18"
+```
 
 ---
 
@@ -362,25 +413,6 @@ string
 
 ---
 
-### dotnetVersion (Optional)
-
-**Default:** `"9.x"`
-
-**Description**  
-.NET SDK version used during build.
-
-**Type**  
-string
-
-**Examples**
-```
-"8.x"
-"9.x"
-"10.x"
-```
-
----
-
 ## Tool Configuration
 
 ---
@@ -395,12 +427,12 @@ string
 
 **Allowed Values**
 
-| Value       | Description                          |
-|-------------|--------------------------------------|
-| sonarqube   | Code quality and coverage scanning   |
-| jfrog       | Artifact scanning                    |
-| wiz         | Cloud security scanning              |
-| omitted     | Skip scanning                        |
+| Value       | Description                            |
+|-------------|----------------------------------------|
+| sonarqube   | Code quality and coverage scanning     |
+| jfrog       | Artifact scanning (comming soon)       |
+| wiz         | Cloud security scanning (comming soon) |
+| omitted     | Skip scanning                          |
 
 ---
 
@@ -417,8 +449,9 @@ string
 | Value   | Description                     |
 |---------|---------------------------------|
 | jest    | JavaScript / Angular tests      |
-| xunit   | .NET tests                      |
+| junit   | Java (Maven / Gradle)           |
 | pytest  | Python tests                    |
+| xunit   | .NET tests                      |
 | omitted | Skip unit tests                 |
 
 ---
@@ -435,7 +468,7 @@ string
 
 | Value      | Description                         |
 |------------|-------------------------------------|
-| playwright | Browser automation                  |
+| playwright | Browser automation (comming soon)   |
 | omitted    | Skip integration tests              |
 
 ---
