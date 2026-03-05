@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from mcp.server.fastmcp import FastMCP
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..models import KnowledgeBase, TerraformModule, TerraformExample
 
@@ -155,6 +156,19 @@ def terraform_kb_stats() -> str:
 	}, indent=2, default=str)
 
 
+# ── Middleware ───────────────────────────────────────────────────────────────
+
+class AllowALBHostMiddleware(BaseHTTPMiddleware):
+	async def dispatch(self, request, call_next):
+		# Override the host header that FastMCP sees for /mcp requests
+		if request.url.path.startswith("/mcp"):
+			headers = dict(request.scope["headers"])
+			headers[b"host"] = b"paige-mcp-dev.nonprod.pge.com"
+			request.scope["headers"] = [(k, v) for k, v in headers.items()]
+		
+		return await call_next(request)
+
+
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -189,6 +203,9 @@ app.add_middleware(
 	allow_methods=["*"],
 	allow_headers=["*"],
 )
+
+# Add ALB host header fix
+app.add_middleware(AllowALBHostMiddleware)
 
 
 @app.get("/health")
