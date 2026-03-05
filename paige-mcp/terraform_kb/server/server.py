@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from mcp.server.fastmcp import FastMCP
 
@@ -179,6 +180,15 @@ async def combined_lifespan(app: FastAPI):
 		yield
 
 app = FastAPI(lifespan=combined_lifespan)
+
+# Add CORS middleware
+app.add_middleware(
+	CORSMiddleware,
+	allow_origins=["*"],
+	allow_credentials=True,
+	allow_methods=["*"],
+	allow_headers=["*"],
+)
 
 
 @app.get("/health")
