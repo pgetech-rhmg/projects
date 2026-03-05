@@ -1,0 +1,28 @@
+curl http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+
+
+
+curl http://localhost:8001/mcp \
+  -H "Host: paige-mcp-dev.nonprod.pge.com" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+
+
+sh-5.2$ cat /etc/systemd/system/paige.service
+[Unit]
+Description=paige
+After=network.target
+[Service]
+WorkingDirectory=/opt/paige/app
+ExecStart=/opt/paige/venv/bin/python -m terraform_kb.server
+Restart=always
+RestartSec=5
+User=ec2-user
+Environment="PORT=8001"
+
+[Install]
+WantedBy=multi-user.target
