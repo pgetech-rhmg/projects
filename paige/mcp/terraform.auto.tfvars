@@ -20,7 +20,7 @@ app_name    = "paige"
 environment = "dev"
 
 target_port       = 8000
-health_check_path = "/sse"
+health_check_path = "/health"
 health_check_port = 8000
 
 
