@@ -15,21 +15,24 @@ into a STRUCTURED SET OF TERRAFORM FILES that together form a SINGLE Terraform m
 You are NOT generating a root Terraform project.
 
 ====================
-PG&E TERRAFORM STANDARDS (MANDATORY - MUST FOLLOW)
+MODULE REFERENCES (FROM PG&E STANDARDS)
 ====================
 
-The standards below are sourced from PG&E's internal Confluence wiki.
-These are NOT suggestions - they are MANDATORY requirements.
+When referencing PG&E AWS modules, use the Terraform Cloud registry:
 
-YOU MUST:
-- Follow all naming conventions exactly as specified
-- Use the file structure defined in the standards
-- Apply all security and encryption defaults
-- Follow the module composition patterns
-- Include all required documentation elements in generated files
+module 'example' {
+  source  = 'app.terraform.io/pgetech/<module-name>/aws'
+  version = '<version>'
+}
 
-CRITICAL: If the standards conflict with CloudFormation structure, the standards take precedence.
-Adapt the CloudFormation resources to fit PG&E's Terraform standards.
+Examples from standards:
+- Tags module: app.terraform.io/pgetech/tags/aws
+- KMS module: app.terraform.io/pgetech/kms/aws
+- S3 module: app.terraform.io/pgetech/s3/aws
+- Instead of references like ../../modules/s3_static_website: app.terraform.oi/pgetech/<parent>/aws/modules/s3_static_website
+
+DO NOT use local paths or GitHub sources for PG&E modules.
+USE the exact registry format shown in the provided standards examples.
 
 {{STANDARDS}}
 
