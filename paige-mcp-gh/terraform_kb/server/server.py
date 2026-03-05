@@ -13,11 +13,7 @@ from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
-from starlette.routing import Mount, Route
-from starlette.applications import Starlette
 from mcp.server.fastmcp import FastMCP
-from mcp.server.sse import SseServerTransport
-from mcp.server.transport_security import TransportSecuritySettings
 
 from ..models import KnowledgeBase, TerraformModule, TerraformExample
 
@@ -103,12 +99,7 @@ def _format_examples(examples: list[TerraformExample]) -> str:
 
 # ── MCP Server Setup ─────────────────────────────────────────────────────────
 
-mcp = FastMCP(
-	"terraform_modules_mcp",
-	transport_security=TransportSecuritySettings(
-		enable_dns_rebinding_protection=False
-	)
-)
+mcp = FastMCP("terraform_modules_mcp")
 
 
 @mcp.tool()
@@ -158,35 +149,6 @@ def terraform_kb_stats() -> str:
 	}, indent=2, default=str)
 
 
-# ── SSE Transport Helper ─────────────────────────────────────────────────────
-
-def create_sse_server(mcp_instance: FastMCP) -> Starlette:
-	"""Create a Starlette app that handles SSE connections and message handling"""
-	transport = SseServerTransport(
-		"/messages/",
-		security_settings=TransportSecuritySettings(enable_dns_rebinding_protection=False)
-	)
-	
-	class SSEEndpoint:
-		async def __call__(self, scope, receive, send):
-			if scope["type"] != "http":
-				return
-			async with transport.connect_sse(scope, receive, send) as streams:
-				await mcp_instance._mcp_server.run(
-					streams[0],
-					streams[1],
-					mcp_instance._mcp_server.create_initialization_options()
-				)
-	
-	from starlette.routing import Route, Mount
-	
-	routes = [
-		Route("/sse", endpoint=SSEEndpoint()),
-		Mount("/messages", app=transport.handle_post_message),
-	]
-	
-	return Starlette(routes=routes)
-
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -219,9 +181,10 @@ async def search_api(query: str, limit: int = 3):
 		"content": _format_examples(results)
 	}
 
+mcp.settings.sse_path = "/sse"
 
-# Mount the SSE server
-app.mount("/", create_sse_server(mcp))
+# Mount at root
+app.mount("/", mcp.sse_app())
 
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
