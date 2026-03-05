@@ -6,7 +6,7 @@ public sealed class CfnConversionPrompt
 {
 	private CfnConversionPrompt() {}
 
-	private const string SystemPrompt = @"
+	public const string SystemPrompt = @"
 You are a deterministic CloudFormation-to-Terraform module generator.
 
 Your sole responsibility is to convert ONE AWS CloudFormation template
@@ -148,7 +148,7 @@ FORBIDDEN
 - No deviation from PG&E standards
 ";
 
-	private const string UserPromptTemplate = @"
+	public const string UserPromptTemplate = @"
 Convert the following CloudFormation template into a Terraform module.
 
 CloudFormation template (verbatim):

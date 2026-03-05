@@ -159,5 +159,63 @@ public sealed class PortKeyExecutionService : IPortKeyExecutionService
             }
         }
     }
+
+    public async Task<PortKeyExecutionResult> ExecuteWithMcpAsync(
+        PortKeyPromptEnvelope prompt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+
+        var model = _config.PortKeyDefaultModel;
+
+        if (prompt.Model != null)
+        {
+            model = prompt.Model;
+        }
+
+        var payload = new
+        {
+            model = model,
+            temperature = 0,
+            presence_penalty = 0,
+            frequency_penalty = 0,
+            messages = prompt.Messages,
+            mcp_servers = new[]
+            {
+            new
+            {
+                type = "url",
+                url = _config.McpServerBaseUrl,
+                name = "terraform-standards"
+            }
+        }
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+        };
+
+        var response = await _httpClient.SendAsync(request, cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+
+        var content =
+            doc.RootElement
+               .GetProperty("choices")[0]
+               .GetProperty("message")
+               .GetProperty("content")
+               .GetString()!;
+
+        return new PortKeyExecutionResult
+        {
+            Output = content,
+            ModelAlias = model,
+            InputTokens = 0,
+            OutputTokens = 0
+        };
+    }
 }
 

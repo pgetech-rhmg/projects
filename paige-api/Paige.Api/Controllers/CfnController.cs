@@ -120,8 +120,11 @@ public sealed class CfnController : ControllerBase
 		{
 			Console.WriteLine($"START {input.Module}");
 
-			var result = await _cfnExecutionService.GenerateTerraformAsync(input.RawCfn, standards, cancellationToken);
-			var output = result.Output.Replace("```json" , "").Replace("```", "");
+			// var result = await _cfnExecutionService.GenerateTerraformAsync(input.RawCfn, standards, cancellationToken);
+			var services = CfnExecutionService.ExtractAwsServices(input.RawCfn);
+			var result = await _cfnExecutionService.GenerateTerraformWithMcpAsync(input.RawCfn, services, cancellationToken);
+			
+			var output = result.Output.Replace("```json", "").Replace("```", "");
 
 			using var doc = JsonDocument.Parse(output);
 

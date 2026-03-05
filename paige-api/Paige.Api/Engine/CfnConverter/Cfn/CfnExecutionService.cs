@@ -44,6 +44,35 @@ public sealed class CfnExecutionService
 		return await _portKeyExecutionService.ExecuteAsync(prompt, cancellationToken);
 	}
 
+	public async Task<PortKeyExecutionResult> GenerateTerraformWithMcpAsync(string rawCfn, HashSet<string> services, CancellationToken cancellationToken)
+	{
+		if (string.IsNullOrEmpty(rawCfn))
+		{
+			throw new ArgumentNullException(nameof(rawCfn));
+		}
+
+		// Build query from extracted services
+		var query = services.Count > 0 ? string.Join(" ", services) : "s3";
+
+		// Build prompt telling Claude to search for standards
+		var systemPrompt = CfnConversionPrompt.SystemPrompt.Replace(
+			"{{STANDARDS}}",
+			$"IMPORTANT: Before converting, use the terraform_search tool with query '{query}' to fetch the latest PG&E Terraform standards."
+		);
+
+		var prompt = new PortKeyPromptEnvelope
+		{
+			PromptKey = "cfntoterraform.v1",
+			Messages = new[]
+			{
+				new { role = "system", content = systemPrompt },
+				new { role = "user", content = CfnConversionPrompt.UserPromptTemplate.Replace("{{CFN_TEMPLATE}}", rawCfn) }
+			}
+		};
+
+		return await _portKeyExecutionService.ExecuteWithMcpAsync(prompt, cancellationToken);
+	}
+
 	public static HashSet<string> ExtractAwsServices(string cfn)
 	{
 		var regex = new Regex(@"AWS::([A-Za-z0-9]+)::", RegexOptions.Compiled);

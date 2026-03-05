@@ -5,4 +5,6 @@ public interface IPortKeyExecutionService
     Task<PortKeyExecutionResult> ExecuteAsync(PortKeyPromptEnvelope prompt, CancellationToken cancellationToken);
 
     IAsyncEnumerable<string> ExecuteStreamAsync(PortKeyPromptEnvelope prompt, CancellationToken cancellationToken);
+
+    Task<PortKeyExecutionResult> ExecuteWithMcpAsync(PortKeyPromptEnvelope prompt, CancellationToken cancellationToken);
 }
