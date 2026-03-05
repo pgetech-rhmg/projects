@@ -267,7 +267,28 @@ module "ec2" {
 set -e
 
 dnf update -y
-dnf install -y python3.11 python3.11-pip git awscli
+dnf install -y python3.11 python3.11-pip git awscli nginx
+
+# Nginx config
+cat > /etc/nginx/conf.d/mcp.conf <<'NGINX'
+server {
+    listen 8000;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_set_header Host paige-mcp-dev.nonprod.pge.com;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400s;
+    }
+}
+NGINX
+
+systemctl enable nginx
+systemctl start nginx
 
 mkdir -p /opt/${var.app_name}/app
 
@@ -282,6 +303,7 @@ ExecStart=/opt/${var.app_name}/venv/bin/python -m ${var.app_executable}
 Restart=always
 RestartSec=5
 User=ec2-user
+Environment="PORT=8001"
 
 [Install]
 WantedBy=multi-user.target

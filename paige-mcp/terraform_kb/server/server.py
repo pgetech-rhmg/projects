@@ -16,7 +16,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from mcp.server.fastmcp import FastMCP
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..models import KnowledgeBase, TerraformModule, TerraformExample
 
@@ -156,18 +155,6 @@ def terraform_kb_stats() -> str:
 	}, indent=2, default=str)
 
 
-# ── Middleware ───────────────────────────────────────────────────────────────
-
-class AllowALBHostMiddleware(BaseHTTPMiddleware):
-	async def dispatch(self, request, call_next):
-		# Only override host header when behind ALB (detected by X-Forwarded-For header)
-		if request.url.path.startswith("/mcp") and "x-forwarded-for" in dict(request.headers):
-			headers = dict(request.scope["headers"])
-			headers[b"host"] = b"paige-mcp-dev.nonprod.pge.com"
-			request.scope["headers"] = [(k, v) for k, v in headers.items()]
-		
-		return await call_next(request)
-
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -203,9 +190,6 @@ app.add_middleware(
 	allow_headers=["*"],
 )
 
-# Add ALB host header fix
-app.add_middleware(AllowALBHostMiddleware)
-
 
 @app.get("/health")
 async def health():
@@ -235,7 +219,8 @@ app.mount("/", mcp_app)
 def main() -> None:
 	import uvicorn
 	logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s", stream=sys.stderr)
-	uvicorn.run(app, host="0.0.0.0", port=8000)
+	port = int(os.environ.get("PORT", 8000))
+	uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
