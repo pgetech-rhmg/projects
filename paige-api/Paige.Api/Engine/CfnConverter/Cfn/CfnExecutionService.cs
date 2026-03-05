@@ -19,11 +19,17 @@ public sealed class CfnExecutionService
 
 	public async Task<string> FetchStandardsAsync(HashSet<string> services, CancellationToken cancellationToken)
 	{
-		var query = services.Count > 0 
+		var query = services.Count > 0
 			? string.Join(" ", services)
-			: "s3";  // fallback to s3 if no services detected
+			: "s3";
 
-		return await _mcpClientService.SearchTerraformModulesAsync(query, limit: 1, cancellationToken);
+		var standards = await _mcpClientService.SearchTerraformModulesAsync(query, limit: 1, cancellationToken);
+
+		Console.WriteLine($"[STANDARDS] Query: {query}");
+		Console.WriteLine($"[STANDARDS] Length: {standards.Length} chars");
+		Console.WriteLine($"[STANDARDS] Preview: {standards.Substring(0, Math.Min(500, standards.Length))}...");
+
+		return standards;
 	}
 
 	public async Task<PortKeyExecutionResult> GenerateTerraformAsync(string rawCfn, string standards, CancellationToken cancellationToken)
@@ -42,9 +48,9 @@ public sealed class CfnExecutionService
 	{
 		var regex = new Regex(@"AWS::([A-Za-z0-9]+)::", RegexOptions.Compiled);
 		var matches = regex.Matches(cfn);
-		
+
 		var services = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		
+
 		foreach (Match match in matches)
 		{
 			if (match.Groups.Count > 1)
