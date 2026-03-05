@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -99,7 +100,11 @@ def _format_examples(examples: list[TerraformExample]) -> str:
 
 # ── MCP Server Setup ─────────────────────────────────────────────────────────
 
-mcp = FastMCP("terraform_modules_mcp")
+mcp = FastMCP(
+	"terraform_modules_mcp",
+	stateless_http=True,
+	json_response=True
+)
 
 
 @mcp.tool()
@@ -152,7 +157,7 @@ def terraform_kb_stats() -> str:
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def app_lifespan(app: FastAPI):
 	global _kb
 	logger.info(f"Loading knowledge base from {KB_PATH}")
 	_kb = _load_kb()
@@ -160,7 +165,20 @@ async def lifespan(app: FastAPI):
 	yield
 
 
-app = FastAPI(lifespan=lifespan)
+# Create MCP app first
+mcp_app = mcp.streamable_http_app()
+
+# Combine both lifespans manually
+@asynccontextmanager
+async def combined_lifespan(app: FastAPI):
+	async with contextlib.AsyncExitStack() as stack:
+		# Enter MCP's session manager
+		await stack.enter_async_context(mcp.session_manager.run())
+		# Enter app lifespan
+		await stack.enter_async_context(app_lifespan(app))
+		yield
+
+app = FastAPI(lifespan=combined_lifespan)
 
 
 @app.get("/health")
@@ -181,10 +199,9 @@ async def search_api(query: str, limit: int = 3):
 		"content": _format_examples(results)
 	}
 
-mcp.settings.sse_path = "/sse"
 
-# Mount at root
-app.mount("/", mcp.sse_app())
+# Mount MCP server
+app.mount("/", mcp_app)
 
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────

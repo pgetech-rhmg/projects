@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import asyncio
 from mcp import ClientSession
-from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamable_http_client
 
 async def test():
-	async with sse_client("http://localhost:8000/sse") as (read, write):
+	async with streamable_http_client("http://localhost:8000/mcp") as (read, write, _):
 		async with ClientSession(read, write) as session:
 			await session.initialize()
 			
