@@ -44,7 +44,7 @@ resource "aws_kms_alias" "terraform_state" {
 module "s3_terraform_state" {
 	source = "git::https://github.com/pgetech/epic-pipeline-module-aws-s3.git?ref=main"
 
-	app_name                   = "pge-epic-terraform-state"
+	app_name                   = "terraform-state"
 	environment                = var.environment
 	tags                       = module.tags.tags
 	access_log_bucket          = var.access_log_bucket
@@ -61,8 +61,9 @@ module "s3_terraform_state" {
 		{
 			id     = "expire-old-versions"
 			status = "Enabled"
+			prefix = "logs/"
 			noncurrent_version_expiration = {
-				days = 90
+				noncurrent_days = 90
 			}
 		}
 	]
@@ -74,7 +75,7 @@ module "s3_terraform_state" {
 ###############################################################################
 
 resource "aws_dynamodb_table" "terraform_locks" {
-	name         = "epge-epic-${var.environment}"
+	name         = "pge-epic-${var.environment}"
 	billing_mode = "PAY_PER_REQUEST"
 	hash_key     = "LockID"
 
@@ -105,7 +106,8 @@ resource "aws_dynamodb_table" "terraform_locks" {
 resource "aws_iam_openid_connect_provider" "ado" {
 	count = var.create_oidc_provider ? 1 : 0
 
-	url = "https://vstoken.dev.azure.com/${var.ado_organization}"
+	# the issuer URL uses the org's GUID, not the human-readable name
+	url = "https://vstoken.dev.azure.com/${var.ado_organization_id}"
 
 	client_id_list = [
 		"api://AzureADTokenExchange"
@@ -147,12 +149,14 @@ data "aws_iam_policy_document" "epic_service_assume_role" {
 			actions = ["sts:AssumeRoleWithWebIdentity"]
 			condition {
 				test     = "StringEquals"
-				variable = "vstoken.dev.azure.com/${var.ado_organization}:aud"
+				# issuer-based variable uses organization GUID
+				variable = "vstoken.dev.azure.com/${var.ado_organization_id}:aud"
 				values   = ["api://AzureADTokenExchange"]
 			}
 			condition {
 				test     = "StringLike"
-				variable = "vstoken.dev.azure.com/${var.ado_organization}:sub"
+				variable = "vstoken.dev.azure.com/${var.ado_organization_id}:sub"
+				# subject pattern still uses friendly organization name
 				values   = ["sc://${var.ado_organization}/${var.ado_project}/*"]
 			}
 		}

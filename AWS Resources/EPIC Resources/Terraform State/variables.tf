@@ -18,7 +18,12 @@ variable "aws_region" {
 }
 
 variable "ado_organization" {
-	description = "Azure DevOps organization name"
+	description = "Azure DevOps organization **name** (e.g. pgetech). Used in the OIDC sub claim.)"
+	type        = string
+}
+
+variable "ado_organization_id" {
+	description = "Azure DevOps organization GUID (used for OIDC issuer URL and condition variables)."
 	type        = string
 }
 

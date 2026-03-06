@@ -3,7 +3,7 @@ jobs:
   displayName: "Deploy App"
   pool:
     vmImage: ubuntu-latest
-
+    
   workspace:
     clean: all
 
