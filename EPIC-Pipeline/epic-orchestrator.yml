@@ -31,14 +31,6 @@
 #   are owned entirely by the EPIC Engine pipeline.
 ###############################################################################
 
-resources:
-  repositories:
-    - repository: AppRepo
-      type: github
-      endpoint: Github
-      name: pgetech/${{ parameters.repo }}
-      ref: ${{ parameters.branch }}
-
 trigger: none
 pr: none
 
@@ -96,7 +88,7 @@ parameters:
 # Global Variables (pipeline IDs, org, project)
 ###############################################################################
 variables:
-  # - group: GV-account-access
+  - group: GV-account-access
 
   - name: PIPELINE_ID
     value: "194"
@@ -124,64 +116,46 @@ stages:
           vmImage: ubuntu-latest
         
         steps:
-          # - bash: |
-          #     set -euo pipefail
+          - bash: |
+              set -euo pipefail
 
-          #     echo ">> Verifying parameters..."
+              echo ">> Verifying parameters..."
 
-          #     REPO="${{ parameters.repo }}"
-          #     BRANCH="${{ parameters.branch }}"
-          #     ENVIRONMENT="${{ parameters.environment }}"
+              REPO="${{ parameters.repo }}"
+              BRANCH="${{ parameters.branch }}"
+              ENVIRONMENT="${{ parameters.environment }}"
 
-          #     if [[ -z "$REPO" || -z "$BRANCH" || -z "$ENVIRONMENT" ]]; then
-          #       echo "!! repo, branch, and environment parameters are required"
-          #       exit 1
-          #     fi
+              if [[ -z "$REPO" || -z "$BRANCH" || -z "$ENVIRONMENT" ]]; then
+                echo "!! repo, branch, and environment parameters are required"
+                exit 1
+              fi
 
-          #     echo ">> VALID!"
-          #   displayName: "Validate parameters"
-
-          - checkout: AppRepo
+              echo ">> VALID!"
+            displayName: "Validate parameters"
 
           - bash: |
               set -euo pipefail
 
-              echo ">> Extracting config file..."
+              echo ">> Downloading config file..."
 
-              if [ ! -f ".pipeline/epic.json" ]; then
-                echo "!! ERROR: .pipeline/epic.json not found in repo"
-                exit 1
-              fi
+              mkdir -p .pipeline
 
-              echo ">> Config file:"
+              # Clone repo to temp dir
+              git clone --depth 1 --branch "${{ parameters.branch }}" "https://${GITHUB_PAT}@github.com/${ORG}/${{ parameters.repo }}.git" /tmp/repo-temp
+
+              # Copy just the config file
+              cp /tmp/repo-temp/.pipeline/epic.json .pipeline/epic.json
+
+              # Clean up
+              rm -rf /tmp/repo-temp
+
+              echo ">> File downloaded:"
               echo "-------------------------------------------------"
               jq . .pipeline/epic.json
               echo "-------------------------------------------------"
-            displayName: "Extract config file"
-
-          # - bash: |
-          #     set -euo pipefail
-
-          #     echo ">> Downloading config file..."
-
-          #     mkdir -p .pipeline
-
-          #     # Clone repo to temp dir
-          #     git clone --depth 1 --branch "${{ parameters.branch }}" "https://${GITHUB_PAT}@github.com/${ORG}/${{ parameters.repo }}.git" /tmp/repo-temp
-
-          #     # Copy just the config file
-          #     cp /tmp/repo-temp/.pipeline/epic.json .pipeline/epic.json
-
-          #     # Clean up
-          #     rm -rf /tmp/repo-temp
-
-          #     echo ">> File downloaded:"
-          #     echo "-------------------------------------------------"
-          #     jq . .pipeline/epic.json
-          #     echo "-------------------------------------------------"
-          #   displayName: "Download config file"
-          #   env:
-          #     GITHUB_PAT: $(GITHUB_PAT)
+            displayName: "Download config file"
+            env:
+              GITHUB_PAT: $(GITHUB_PAT)
 
           - bash: |
               set -euo pipefail
