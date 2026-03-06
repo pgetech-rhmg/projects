@@ -4,58 +4,40 @@
 steps:
 
   #############################################################################
-  # Configure AWS Credentials
-  #############################################################################
-  - task: AWSCredentials@1
-    inputs:
-      awsCredentials: 'AWS'
-      roleToAssume: 'arn:aws:iam::${{ parameters.awsAccountId }}:role/pge-epic-service-role'
-      roleSessionName: 'ADO-$(Build.BuildId)'
-
-
-  #############################################################################
   # Deploy
   #############################################################################
-  - bash: |
-      set -euo pipefail
-
-      echo "Deploying ${{ parameters.appType }}..."
-
-      BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
-      BUCKET_NAME="${{ parameters.s3 }}"
-      DISTRIBUTION_ID="${{ parameters.cloudfront }}"
-
-      echo "Syncing to S3..."
-      aws s3 sync "$BUILD_PATH" "s3://$BUCKET_NAME" --delete
-
-      echo "Invalidating CloudFront..."
-      aws cloudfront create-invalidation \
-        --distribution-id "$DISTRIBUTION_ID" \
-        --paths "/*"
-
-      echo "Deployment complete."
+  - task: AWSShellScript@1
+    inputs:
+      awsCredentials: 'AWS'
+      regionName: 'us-west-2'
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+        
+        # Assume role
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::${{ parameters.awsAccountId }}:role/pge-epic-service-role" \
+          --role-session-name "ADO-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+        
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+        
+        echo "Deploying ${{ parameters.appType }}..."
+        
+        BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+        BUCKET_NAME="${{ parameters.s3 }}"
+        DISTRIBUTION_ID="${{ parameters.cloudfront }}"
+        
+        echo "Syncing to S3..."
+        aws s3 sync "$BUILD_PATH" "s3://$BUCKET_NAME" --delete
+        
+        echo "Invalidating CloudFront..."
+        aws cloudfront create-invalidation \
+          --distribution-id "$DISTRIBUTION_ID" \
+          --paths "/*"
+        
+        echo "Deployment complete."
     displayName: "Deploy ${{ parameters.appType }}"
-
-  # - bash: |
-  #     set -euo pipefail
-
-  #     echo "Deploying ${{ parameters.appType }}..."
-
-  #     BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
-  #     BUCKET_NAME="${{ parameters.s3 }}"
-  #     DISTRIBUTION_ID="${{ parameters.cloudfront }}"
-
-  #     echo "Syncing to S3..."
-  #     aws s3 sync "$BUILD_PATH" "s3://$BUCKET_NAME" --delete
-
-  #     echo "Invalidating CloudFront..."
-  #     aws cloudfront create-invalidation \
-  #       --distribution-id "$DISTRIBUTION_ID" \
-  #       --paths "/*"
-
-  #     echo "Deployment complete."
-  #   displayName: "Deploy ${{ parameters.appType }}"
-  #   env:
-  #     AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
-  #     AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
-  #     AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
