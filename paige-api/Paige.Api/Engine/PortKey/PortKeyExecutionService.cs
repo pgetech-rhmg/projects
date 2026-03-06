@@ -183,12 +183,12 @@ public sealed class PortKeyExecutionService : IPortKeyExecutionService
             mcp_servers = new[]
             {
             new
-            {
-                type = "url",
-                url = _config.McpServerBaseUrl,
-                name = "terraform-standards"
-            }
-        },
+                {
+                    type = "url",
+                    url = _config.McpServerBaseUrl,
+                    name = "terraform-standards"
+                }
+            },
             tools = new[]
             {
             new
