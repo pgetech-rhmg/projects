@@ -1,4 +1,23 @@
 ###############################################################################
+# Tags
+###############################################################################
+
+module "tags" {
+	source = "git::https://github.com/pgetech/epic-pipeline-module-aws-tags.git?ref=main"
+
+	aws_account_id     = var.aws_account_id
+	environment        = var.environment
+	appid              = var.appid
+	compliance         = var.compliance
+	cris               = var.cris
+	dataclassification = var.dataclassification
+	notify             = var.notify
+	order              = var.order
+	owner              = var.owner
+}
+
+
+###############################################################################
 # EPIC Deployment Role
 ###############################################################################
 
@@ -14,15 +33,10 @@ data "aws_iam_policy_document" "epic_assume_role" {
 }
 
 resource "aws_iam_role" "epic_deployment" {
-  name                 = "epic-deployment-role"
+  name                 = "pge-epic-deployment-role"
   assume_role_policy   = data.aws_iam_policy_document.epic_assume_role.json
   max_session_duration = 3600
-
-  tags = {
-    Name      = "epic-deployment-role"
-    ManagedBy = "EPIC"
-    Purpose   = "Infrastructure and application deployment"
-  }
+  tags                 = module.tags.tags
 }
 
 
@@ -279,7 +293,7 @@ data "aws_iam_policy_document" "epic_infrastructure" {
 }
 
 resource "aws_iam_role_policy" "epic_infrastructure" {
-  name   = "epic-infrastructure-provisioning"
+  name   = "pge-epic-infrastructure-provisioning"
   role   = aws_iam_role.epic_deployment.id
   policy = data.aws_iam_policy_document.epic_infrastructure.json
 }
@@ -343,7 +357,7 @@ data "aws_iam_policy_document" "epic_application" {
 }
 
 resource "aws_iam_role_policy" "epic_application" {
-  name   = "epic-application-deployment"
+  name   = "pge-epic-application-deployment"
   role   = aws_iam_role.epic_deployment.id
   policy = data.aws_iam_policy_document.epic_application.json
 }
