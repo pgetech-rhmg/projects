@@ -36,7 +36,7 @@ jobs:
 
       displayName: "Clone app from Github"
       env:
-        GITHUB_TOKEN: $(ENDPOINT_AUTH_PARAMETER_PGETECH_ACCESSTOKEN)
+        GITHUB_TOKEN: $(ENDPOINT_AUTH_PARAMETER_GITHUB_ACCESSTOKEN)
 
     # - bash: |
     #     set -euo pipefail
