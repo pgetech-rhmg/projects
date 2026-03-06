@@ -22,57 +22,87 @@ steps:
   #############################################################################
   # Upload to S3
   #############################################################################
-  - bash: |
-      set -euo pipefail
-
-      echo "Deploying zip file..."
-
-      ZIP_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/deploy.zip"
-      S3_BUCKET="${{ parameters.s3 }}"
-
-      aws s3 cp "$ZIP_PATH" "s3://$S3_BUCKET/${{ parameters.appName }}.zip"
+  - task: AWSShellScript@1
+    inputs:
+      awsCredentials: 'AWS'
+      regionName: 'us-west-2'
+      scriptType: 'inline'
+      arguments: ${{ parameters.awsAccountId }}
+      inlineScript: |
+        set -euo pipefail
+        
+        AWS_ACCOUNT_ID=$1
+        
+        # Assume the app account role using EPIC credentials
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-DEPLOY-ADO-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+        
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+        
+        echo "Deploying zip file..."
+        
+        ZIP_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/deploy.zip"
+        S3_BUCKET="${{ parameters.s3 }}"
+        
+        aws s3 cp "$ZIP_PATH" "s3://$S3_BUCKET/${{ parameters.appName }}.zip"
     displayName: "Upload ZIP to S3"
-    env:
-      AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
-      AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
-      AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
 
 
   #############################################################################
   # Deploy to EC2 via SSM
   #############################################################################
-  - bash: |
-      set -euo pipefail
-
-      echo "Deploying ${{ parameters.appType }}..."
-
-      INSTANCE_ID="${{ parameters.ec2InstanceId }}"
-      S3_BUCKET="${{ parameters.s3 }}"
-      APP_NAME="${{ parameters.appName }}"
-
-      echo "Deploying to EC2: $INSTANCE_ID"
-
-      aws ssm send-command \
-        --instance-ids "$INSTANCE_ID" \
-        --document-name "AWS-RunShellScript" \
-        --comment "Deploy $APP_NAME" \
-        --parameters commands="[
-          \"set -e\",
-          \"sudo mkdir -p /opt/${{ parameters.appName }}\",
-          \"cd /opt/${{ parameters.appName }}\",
-          \"sudo rm -rf app\",
-          \"sudo mkdir -p app\",
-          \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
-          \"sudo unzip -o $APP_NAME.zip -d app\",
-          \"sudo chmod +x /opt/${{ parameters.appName }}/app/${{ parameters.appExecutable }}\",
-          \"sudo systemctl daemon-reload\",
-          \"sudo systemctl stop ${{ parameters.appName }} || true\",
-          \"sudo systemctl start ${{ parameters.appName }}\"
-        ]"
-
-      echo "Deployment complete."
+  - task: AWSShellScript@1
+    inputs:
+      awsCredentials: 'AWS'
+      regionName: 'us-west-2'
+      scriptType: 'inline'
+      arguments: ${{ parameters.awsAccountId }}
+      inlineScript: |
+        set -euo pipefail
+        
+        AWS_ACCOUNT_ID=$1
+        
+        # Assume the app account role using EPIC credentials
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-DEPLOY-ADO-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+        
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+        
+        echo "Deploying ${{ parameters.appType }}..."
+        
+        INSTANCE_ID="${{ parameters.ec2InstanceId }}"
+        S3_BUCKET="${{ parameters.s3 }}"
+        APP_NAME="${{ parameters.appName }}"
+        
+        echo "Deploying to EC2: $INSTANCE_ID"
+        
+        aws ssm send-command \
+          --instance-ids "$INSTANCE_ID" \
+          --document-name "AWS-RunShellScript" \
+          --comment "Deploy $APP_NAME" \
+          --parameters commands="[
+            \"set -e\",
+            \"sudo mkdir -p /opt/${{ parameters.appName }}\",
+            \"cd /opt/${{ parameters.appName }}\",
+            \"sudo rm -rf app\",
+            \"sudo mkdir -p app\",
+            \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
+            \"sudo unzip -o $APP_NAME.zip -d app\",
+            \"sudo chmod +x /opt/${{ parameters.appName }}/app/${{ parameters.appExecutable }}\",
+            \"sudo systemctl daemon-reload\",
+            \"sudo systemctl stop ${{ parameters.appName }} || true\",
+            \"sudo systemctl start ${{ parameters.appName }}\"
+          ]"
+        
+        echo "Deployment complete."
     displayName: "Deploy to EC2 via SSM (.NET)"
-    env:
-      AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
-      AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
-      AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
