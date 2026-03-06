@@ -88,7 +88,7 @@ parameters:
 # Global Variables (pipeline IDs, org, project)
 ###############################################################################
 variables:
-  - group: GV-account-access
+  # - group: GV-account-access
 
   - name: PIPELINE_ID
     value: "194"
@@ -141,7 +141,7 @@ stages:
               mkdir -p .pipeline
 
               curl -sSL \
-                -H "Authorization: token $GITHUB_PAT" \
+                -H "Authorization: token $GITHUB_TOKEN" \
                 -o .pipeline/epic.json \
                 "https://raw.githubusercontent.com/${ORG}/${{ parameters.repo }}/${{ parameters.branch }}/.pipeline/epic.json"
 
@@ -151,7 +151,27 @@ stages:
               echo "-------------------------------------------------"
             displayName: "Download config file"
             env:
-              GITHUB_PAT: $(GITHUB_PAT)
+              GITHUB_TOKEN: $(ENDPOINT_AUTH_PARAMETER_PGETECH_ACCESSTOKEN)
+
+          # - bash: |
+          #     set -euo pipefail
+
+          #     echo ">> Downloading config file..."
+
+          #     mkdir -p .pipeline
+
+          #     curl -sSL \
+          #       -H "Authorization: token $GITHUB_PAT" \
+          #       -o .pipeline/epic.json \
+          #       "https://raw.githubusercontent.com/${ORG}/${{ parameters.repo }}/${{ parameters.branch }}/.pipeline/epic.json"
+
+          #     echo ">> File downloaded:"
+          #     echo "-------------------------------------------------"
+          #     jq . .pipeline/epic.json
+          #     echo "-------------------------------------------------"
+          #   displayName: "Download config file"
+          #   env:
+          #     GITHUB_PAT: $(GITHUB_PAT)
 
           - bash: |
               set -euo pipefail
