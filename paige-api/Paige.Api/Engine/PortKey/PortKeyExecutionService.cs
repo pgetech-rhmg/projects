@@ -183,12 +183,12 @@ public sealed class PortKeyExecutionService : IPortKeyExecutionService
             mcp_servers = new[]
             {
             new
-                {
-                    type = "url",
-                    url = _config.McpServerBaseUrl,
-                    name = "terraform-standards"
-                }
-            },
+            {
+                type = "url",
+                url = $"{_config.McpServerBaseUrl}/mcp",
+                name = "terraform-standards"
+            }
+        },
             tools = new[]
             {
             new
@@ -199,19 +199,38 @@ public sealed class PortKeyExecutionService : IPortKeyExecutionService
         }
         };
 
+        var payloadJson = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+        Console.WriteLine("=== MCP PAYLOAD ===");
+        Console.WriteLine(payloadJson);
+        Console.WriteLine("===================");
+
         var request = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
         };
 
         // Beta header
         request.Headers.Add("anthropic-beta", "mcp-client-2025-11-20");
 
+        Console.WriteLine("=== REQUEST HEADERS ===");
+        foreach (var header in request.Headers)
+        {
+            Console.WriteLine($"{header.Key}: {string.Join(", ", header.Value)}");
+        }
+        Console.WriteLine("=======================");
+
         var response = await _httpClient.SendAsync(request, cancellationToken);
+
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        Console.WriteLine("=== RESPONSE STATUS ===");
+        Console.WriteLine($"Status: {response.StatusCode}");
+        Console.WriteLine("=== RESPONSE BODY ===");
+        Console.WriteLine(responseBody);
+        Console.WriteLine("=====================");
 
         response.EnsureSuccessStatusCode();
 
-        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        using var doc = JsonDocument.Parse(responseBody);
 
         var content =
             doc.RootElement
