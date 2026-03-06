@@ -188,6 +188,14 @@ public sealed class PortKeyExecutionService : IPortKeyExecutionService
                 url = _config.McpServerBaseUrl,
                 name = "terraform-standards"
             }
+        },
+            tools = new[]
+            {
+            new
+            {
+                type = "mcp_toolset",
+                mcp_server_name = "terraform-standards"
+            }
         }
         };
 
@@ -195,6 +203,9 @@ public sealed class PortKeyExecutionService : IPortKeyExecutionService
         {
             Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
         };
+
+        // Beta header
+        request.Headers.Add("anthropic-beta", "mcp-client-2025-11-20");
 
         var response = await _httpClient.SendAsync(request, cancellationToken);
 
