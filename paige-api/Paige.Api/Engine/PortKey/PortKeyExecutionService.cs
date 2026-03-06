@@ -222,11 +222,9 @@ public sealed class PortKeyExecutionService : IPortKeyExecutionService
         var response = await _httpClient.SendAsync(request, cancellationToken);
 
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-        Console.WriteLine("=== RESPONSE STATUS ===");
-        Console.WriteLine($"Status: {response.StatusCode}");
-        Console.WriteLine("=== RESPONSE BODY ===");
-        Console.WriteLine(responseBody);
-        Console.WriteLine("=====================");
+        Console.WriteLine("=== FULL RESPONSE JSON ===");
+        Console.WriteLine(JsonSerializer.Serialize(JsonDocument.Parse(responseBody), new JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine("==========================");
 
         response.EnsureSuccessStatusCode();
 
