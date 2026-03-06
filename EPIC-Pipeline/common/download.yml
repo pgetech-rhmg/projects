@@ -29,7 +29,7 @@ jobs:
         mkdir app
         cd app
 
-        git clone --branch "${{ parameters.branch }}" "https://${GITHUB_TOKEN}@github.com/pgetech/${{ parameters.repo }}.git" .
+        git clone --branch "${{ parameters.branch }}" "https://${GITHUB_TOKEN}@github.com/${ORG}/${{ parameters.repo }}.git" .
 
         echo ""
         echo ">> App downloaded"

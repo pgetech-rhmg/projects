@@ -140,10 +140,16 @@ stages:
 
               mkdir -p .pipeline
 
-              curl -sSL \
-                -H "Authorization: token $GITHUB_TOKEN" \
-                -o .pipeline/epic.json \
-                "https://raw.githubusercontent.com/${ORG}/${{ parameters.repo }}/${{ parameters.branch }}/.pipeline/epic.json"
+              # Clone repo to temp dir
+              git clone --depth 1 --branch "${{ parameters.branch }}" \
+                "https://${GITHUB_TOKEN}@github.com/${ORG}/${{ parameters.repo }}.git" \
+                /tmp/repo-temp
+
+              # Copy just the config file
+              cp /tmp/repo-temp/.pipeline/epic.json .pipeline/epic.json
+
+              # Clean up
+              rm -rf /tmp/repo-temp
 
               echo ">> File downloaded:"
               echo "-------------------------------------------------"
@@ -151,7 +157,7 @@ stages:
               echo "-------------------------------------------------"
             displayName: "Download config file"
             env:
-              GITHUB_TOKEN: $(ENDPOINT_AUTH_PARAMETER_PGETECH_ACCESSTOKEN)
+              GITHUB_TOKEN: $(ENDPOINT_AUTH_PARAMETER_GITHUB_ACCESSTOKEN)
 
           # - bash: |
           #     set -euo pipefail
