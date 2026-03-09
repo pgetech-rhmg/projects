@@ -231,6 +231,7 @@ This file defines how EPIC builds, tests, scans, and deploys the application.
   "integrationTestTool": "playwright",
 
   // AWS resource information based on app
+  "awsAccountId": "999999999999",
   "s3": "pge-epic-my-app-web-dev",
   "cloudfront": "X9X9X9XX99XX9X"
 }
