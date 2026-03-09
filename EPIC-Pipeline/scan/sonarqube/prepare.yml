@@ -80,7 +80,7 @@ steps:
           sonar.projectBaseDir=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}
           sonar.branch.name=${{ parameters.branch }}
           sonar.sourceEncoding=UTF-8
-          sonar.tests=.
+          sonar.sources=.
           sonar.test.inclusions=$(testFiles)
           sonar.coverage.exclusions=$(testFiles)
 
