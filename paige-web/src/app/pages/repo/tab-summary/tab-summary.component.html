@@ -17,13 +17,13 @@
                             {{ item }}
                             <button *ngIf="item === 'CloudFormation'" (click)="convert()">Convert to Terraform</button>
                         </div>
-                        <label *ngIf="repoData.summary.structure.frameworks.length === 0" style="padding-left: 5px;">Unknown</label>
+                        <div *ngIf="repoData.summary.structure.frameworks.length === 0" style="padding-left: 5px;">Unknown</div>
                     </div>
                 </td>
                 <td>
                     <div class="list">
                         <div *ngFor="let item of repoData.summary.structure.languages">{{ item }}</div>
-                        <label *ngIf="repoData.summary.structure.languages.length === 0" style="padding-left: 5px;">Unknown</label>
+                        <div *ngIf="repoData.summary.structure.languages.length === 0" style="padding-left: 5px;">Unknown</div>
                     </div>
                 </td>
                 <td>
@@ -34,7 +34,7 @@
                             <div><strong>File:</strong> {{ item.match }}</div>
                             <br />
                         </div>
-                        <label *ngIf="repoData.summary.structure.keyFiles.length === 0" style="padding-left: 5px;">Unknown</label>
+                        <div *ngIf="repoData.summary.structure.keyFiles.length === 0" style="padding-left: 5px;">Unknown</div>
                     </div>
                 </td>
                 <td>

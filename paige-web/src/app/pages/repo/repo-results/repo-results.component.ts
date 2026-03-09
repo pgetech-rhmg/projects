@@ -94,10 +94,10 @@ export class RepoResultsComponent extends BaseComponent implements OnInit {
                 repoData: this.response
             }
 
-            var output = this.response.analysis ? this.response.analysis : null;
+            let output = this.response.analysis ? this.response.analysis : null;
 
             this.tabs[2].inputs = {
-                isAnalyzing: output ? false : true,
+                isAnalyzing: !output,
                 output: output
             }
 
@@ -132,10 +132,10 @@ export class RepoResultsComponent extends BaseComponent implements OnInit {
                 this.analysisRan = true;
                 this.analyze();
             } else {
-                var output = this.response.analysis ? this.response.analysis : null;
+                let output = this.response.analysis ? this.response.analysis : null;
 
                 this.tabs[2].inputs = {
-                    isAnalyzing: output ? false : true,
+                    isAnalyzing: !output,
                     output: output
                 }
             }
