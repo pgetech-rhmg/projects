@@ -75,6 +75,8 @@ steps:
         cliProjectVersion: '$(Build.BuildNumber)'
         cliSources: '.'
         extraProperties: |
+          sonar.projectKey=${{ parameters.repo }}
+          sonar.projectName=${{ parameters.repo }}
           sonar.projectBaseDir=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}
           sonar.branch.name=${{ parameters.branch }}
           sonar.sourceEncoding=UTF-8
