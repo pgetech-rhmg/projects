@@ -1,10 +1,19 @@
-Hi Shamal,
-
-Hoping George Nadar from Elevate has already been in touch - if not, that's part of why I'm reaching out.
-
-They're still unclear on the SHIELD deployment approach, and I want to get them unblocked. Would you be willing to connect with George and share your perspective on using ADO as an interim or experimental solution? I think hearing it from you directly would go a long way.
-
-I'm fully committed to making Elevate successful - just need to close this gap on their end.
-
-Thanks,
-Robb
+Federated identity model between Azure DevOps and AWS
+Reusable Azure DevOps pipeline templates (YAML)
+Build,Test,Security, scan,Deploy to AWS
+Elevate explicitly requires multiple tools integrated into CI/CD:
+JFrog,SonarQube,Wiz,GitHub,Service connections,Secrets, handlingPolicy, enforcement
+Consistent security gates
+SAST / SCA / IaC scanning
+Policy-based fail conditions
+Artifact lifecycle standards
+Promotion rules
+Retention and provenance
+CCoE must operationalize
+Environment onboardingNew AWS accounts wired to Azure DevOps automatically
+Observability hooksPipeline telemetryDeployment traceability
+Run model
+Who supports failed pipelines?
+Who owns platform SLAs?
+Compliance evidence
+Audit-ready logs across Azure DevOps + AWS
