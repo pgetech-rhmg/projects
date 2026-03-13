@@ -480,6 +480,19 @@ Used only when deploying to AWS.
 
 ---
 
+### awsAccountId
+
+**Description**  
+Target AWS account.
+
+**Type**  
+string
+
+**Constraints**
+- Must be a valid 12-digit AWS account ID
+
+---
+
 ### s3
 
 **Description**  
@@ -488,8 +501,10 @@ Target S3 bucket. Used to store app files or deployment (zip) files.
 **Type**  
 string
 
-**Constraints**
-- Must be a valid 12-digit AWS account ID
+**Example**
+```
+"pge-epic-myapp-dev"
+```
 
 ---
 
@@ -570,11 +585,11 @@ string
 |-----------------------|----------|-------|
 | Application Identity  | Yes      | appName, appType, codePath |
 | Packaging             | Optional | buildType |
-| Runtime Versions      | Optional | nodeVersion, pythonVersion, dotnetVersion |
+| Runtime Versions      | Optional | nodeVersion, pythonVersion, dotnetVersion, javaVersion |
 | Scanning              | Optional | scanTool |
 | Unit Testing          | Optional | unitTestTool |
 | Integration Testing   | Optional | integrationTestTool |
-| AWS Deployment        | Conditional | awsAccountId, awsRegion |
+| AWS Deployment        | Conditional | awsAccountId, s3, cloudfront, ec2InstanceId, appExecutable |
 | Azure Deployment      | Conditional | azureSubscription, azureResourceGroup |
 
 ---
