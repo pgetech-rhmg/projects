@@ -2,7 +2,6 @@
   "appName": "paige",
   "appType": "dotnet",
   "codePath": "/Paige.Api",
-  "testPath": "/",
   "scanTool": "sonarqube",
   "unitTestTool": "xunit",
   "dotnetVersion": "10.x",

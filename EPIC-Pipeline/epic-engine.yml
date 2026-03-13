@@ -29,9 +29,6 @@ parameters:
   - name: codePath
     type: string
     default: ""
-  - name: testPath
-    type: string
-    default: ""
 
   # Build versions
   - name: nodeVersion
