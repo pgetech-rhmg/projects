@@ -12,7 +12,7 @@ Harness is a great platform. For PG&E, it is overkill at a significant cost. PG&
 
 ## What Harness Actually Is
 
-Harness bundles CI/CD, an Internal Developer Portal (built on open-source Backstage), security scanning, and progressive delivery into one SaaS product. Enterprise pricing is not public; however, buyer data from Vendr.com puts the range at $50,000 to $234,000 per year. That range reflects a base set of modules at a negotiated headcount. For PG&E's full scope, CI, CD, IDP, and security scanning each require a separate per-developer license, meaning the real number grows significantly from whatever lands in the initial sales conversation.
+Harness bundles CI/CD, an Internal Developer Portal (built on open-source Backstage), security scanning, and progressive delivery into one SaaS product. Enterprise pricing is not public; however, buyer data from Vendr.com puts the range at $50,000 to $234,000 per year. That range reflects a base set of modules at a negotiated headcount. Each module requires a separate per-developer license, so CI, CD, IDP, and security scanning are each billed independently across every developer who touches the platform. For an organization the size of PG&E, the real cost is almost certainly at the top of that range before any add-ons, and likely beyond it.
 
 Two things worth understanding before the comparison:
 
