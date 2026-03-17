@@ -1,0 +1,33 @@
+2026-03-17T17:48:25.8716130Z ##[section]Starting: Assume Target Account Role
+2026-03-17T17:48:25.8722582Z ==============================================================================
+2026-03-17T17:48:25.8722696Z Task         : AWS Shell Script
+2026-03-17T17:48:25.8722771Z Description  : Run a shell script using Bash with AWS credentials as environment variables
+2026-03-17T17:48:25.8722870Z Version      : 1.24.0
+2026-03-17T17:48:25.8722944Z Author       : Amazon Web Services
+2026-03-17T17:48:25.8723018Z Help         : Runs a shell script in Bash, setting AWS credentials and region information into the shell environment using the standard environment keys _AWS_ACCESS_KEY_ID_, _AWS_SECRET_ACCESS_KEY_, _AWS_SESSION_TOKEN_ and _AWS_REGION_.
+
+More information on this task can be found in the [task reference](https://docs.aws.amazon.com/vsts/latest/userguide/awsshell.html).
+
+####Task Permissions
+Permissions for this task to call AWS service APIs depend on the activities in the supplied script.
+2026-03-17T17:48:25.8723462Z ==============================================================================
+2026-03-17T17:48:26.3945512Z Configuring credentials for task
+2026-03-17T17:48:26.3979989Z ...configuring AWS credentials from service endpoint 'd4d1385c-1185-470a-8044-26d6400b4223'
+2026-03-17T17:48:26.3981583Z Skipping Instance profile, we have OIDC enabled
+2026-03-17T17:48:26.3982763Z ...configuring AWS credentials from service endpoint 'd4d1385c-1185-470a-8044-26d6400b4223'
+2026-03-17T17:48:26.3984727Z Getting OIDC Token...
+2026-03-17T17:48:26.6691871Z OIDC Token generated: issuer: {https://vstoken.dev.azure.com/24ec78d4-db96-44e7-ac11-88d89473d472} sub: {sc://pgetech/EPIC-Pipeline/AWS}, aud: {api://AzureADTokenExchange}
+2026-03-17T17:48:26.6720165Z Configuring region for task
+2026-03-17T17:48:26.6722323Z ...configured to use region us-west-2, defined in task.
+2026-03-17T17:48:26.6722723Z Assuming role via OIDC Token...
+2026-03-17T17:48:27.3626312Z ...role assumed via OIDC Token: arn:aws:sts::750713712981:assumed-role/pge-epic-service-role/***
+2026-03-17T17:48:27.3629147Z Configuring region for task
+2026-03-17T17:48:27.3629787Z ...configured to use region us-west-2, defined in task.
+2026-03-17T17:48:27.3630150Z [command]/usr/bin/bash /home/vsts/work/_temp/awsshellscript_2080.sh
+2026-03-17T17:48:31.2528096Z 
+2026-03-17T17:48:31.2532461Z aws: [ERROR]: An error occurred (AccessDenied) when calling the AssumeRole operation: User: arn:aws:sts::750713712981:assumed-role/pge-epic-service-role/*** is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::514712703977:role/pge-epic-deployment-role
+2026-03-17T17:48:31.2533076Z 
+2026-03-17T17:48:31.2533596Z Additional error details:
+2026-03-17T17:48:31.2534019Z Type: Sender
+2026-03-17T17:48:31.3670335Z 
+2026-03-17T17:48:31.3853047Z ##[section]Finishing: Assume Target Account Role
