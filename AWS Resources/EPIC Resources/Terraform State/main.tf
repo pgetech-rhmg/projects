@@ -154,7 +154,7 @@ data "aws_iam_policy_document" "s3_state_bucket_policy" {
 }
 
 resource "aws_s3_bucket_policy" "terraform_state" {
-	bucket = module.s3_terraform_state.bucket_id
+	bucket = module.s3_terraform_state.bucket_name
 	policy = data.aws_iam_policy_document.s3_state_bucket_policy.json
 }
 
