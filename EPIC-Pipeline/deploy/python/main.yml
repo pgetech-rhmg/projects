@@ -20,6 +20,23 @@ steps:
 
 
   #############################################################################
+  # Parse Output File (if available)
+  #############################################################################
+  - bash: |
+      if [ -f "${{ parameters.terraformOutputPath }}" ]; then
+        BUCKET_NAME=$(cat "${{ parameters.terraformOutputPath }}" | jq -r '.bucket_name.value // empty')
+        INSTANCE_ID=$(cat "${{ parameters.terraformOutputPath }}" | jq -r '.instance_id.value // empty')
+      fi
+
+      S3=${BUCKET_NAME:-${{ parameters.s3 }}}
+      EC2=${INSTANCE_ID:-${{ parameters.ec2InstanceId }}}
+
+      echo "##vso[task.setvariable variable=BUCKET_NAME]$S3"
+      echo "##vso[task.setvariable variable=INSTANCE_ID]$EC2"
+    displayName: 'Parse output file'
+
+
+  #############################################################################
   # Upload to S3
   #############################################################################
   - task: AWSShellScript@1
@@ -47,7 +64,7 @@ steps:
         echo "Deploying zip file..."
         
         ZIP_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/deploy.zip"
-        S3_BUCKET="${{ parameters.s3 }}"
+        S3_BUCKET="$(BUCKET_NAME)"
         
         aws s3 cp "$ZIP_PATH" "s3://$S3_BUCKET/${{ parameters.appName }}.zip"
     displayName: "Upload ZIP to S3"
@@ -80,8 +97,8 @@ steps:
         
         echo "Deploying ${{ parameters.appType }}..."
         
-        INSTANCE_ID="${{ parameters.ec2InstanceId }}"
-        S3_BUCKET="${{ parameters.s3 }}"
+        INSTANCE_ID="$(INSTANCE_ID)"
+        S3_BUCKET="$(BUCKET_NAME)"
         APP_NAME="${{ parameters.appName }}"
         
         echo "Deploying to EC2: $INSTANCE_ID"
