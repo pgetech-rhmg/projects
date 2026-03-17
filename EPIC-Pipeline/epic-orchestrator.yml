@@ -136,36 +136,15 @@ stages:
           - bash: |
               set -euo pipefail
 
-              echo ">> Downloading config file..."
-
-              mkdir -p .pipeline
-
-              # Clone repo to temp dir
-              git clone --depth 1 --branch "${{ parameters.branch }}" "https://${GITHUB_PAT}@github.com/${ORG}/${{ parameters.repo }}.git" /tmp/repo-temp
-
-              # Copy just the config file
-              cp /tmp/repo-temp/.pipeline/epic.json .pipeline/epic.json
-
-              # Clean up
-              rm -rf /tmp/repo-temp
-
-              echo ">> File downloaded:"
-              echo "-------------------------------------------------"
-              jq . .pipeline/epic.json
-              echo "-------------------------------------------------"
-            displayName: "Download config file"
-            env:
-              GITHUB_PAT: $(GITHUB_PAT)
-
-          - bash: |
-              set -euo pipefail
-
               echo ">> Building payload..."
 
-              CONFIG_FILE=".pipeline/epic.json"
+              # Clone repo to temp dir
+              git clone --depth 1 --branch "${{ parameters.branch }}" "https://${GITHUB_PAT}@github.com/${ORG}/${{ parameters.repo }}.git" /tmp/repo
+
+              CONFIG_FILE="/tmp/repo/.pipeline/epic.json"
               INFRA=false
 
-              if [ -d ".infra" ]; then
+              if [ -d "/tmp/repo/.infra" ]; then
                 INFRA=true
               fi
 
@@ -209,6 +188,7 @@ stages:
                         build: $build,
                         tests: $tests,
                         scan: $scan,
+                        infra: $infra,
                         deploy: $deploy,
                         integrations: $integrations
                       }
@@ -227,7 +207,12 @@ stages:
               echo "-------------------------------------------------"
 
               echo "$PAYLOAD" > payload.json
+
+              # Clean up
+              rm -rf /tmp/repo
             displayName: "Generate payload"
+            env:
+              GITHUB_PAT: $(GITHUB_PAT)
 
           - task: PublishPipelineArtifact@1
             displayName: "Publish payload artifact"

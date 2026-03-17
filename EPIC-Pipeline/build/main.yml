@@ -53,9 +53,10 @@ jobs:
     ###########################################################################
     # Dynamic Build (appType)
     ###########################################################################
-    - template: ${{ parameters.appType }}/main.yml
-      parameters:
-        ${{ insert }}: ${{ parameters }}
+    - ${{ if ne(parameters.appType, 'html') }}:
+      - template: ${{ parameters.appType }}/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
 
 
     ###########################################################################
