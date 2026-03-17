@@ -21,10 +21,47 @@ module "tags" {
 # KMS Key for State Encryption
 ###############################################################################
 
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_policy_document" "kms_key_policy" {
+	statement {
+		sid    = "Enable IAM User Permissions"
+		effect = "Allow"
+		principals {
+			type        = "AWS"
+			identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+		}
+		actions   = ["kms:*"]
+		resources = ["*"]
+	}
+
+	statement {
+		sid    = "Allow Deployment Roles"
+		effect = "Allow"
+		principals {
+			type        = "AWS"
+			identifiers = ["*"]
+		}
+		actions = [
+			"kms:Decrypt",
+			"kms:Encrypt",
+			"kms:GenerateDataKey",
+			"kms:DescribeKey"
+		]
+		resources = ["*"]
+		condition {
+			test     = "StringEquals"
+			variable = "aws:PrincipalArn"
+			values   = ["arn:aws:iam::*:role/pge-epic-deployment-role"]
+		}
+	}
+}
+
 resource "aws_kms_key" "terraform_state" {
 	description             = "KMS key for Terraform state encryption"
 	deletion_window_in_days = 30
 	enable_key_rotation     = true
+	policy                  = data.aws_iam_policy_document.kms_key_policy.json
 
 	tags = merge(module.tags.tags, {
 		Name = "pge-epic-terraform-state-key"
@@ -46,6 +83,7 @@ module "s3_terraform_state" {
 
 	app_name                   = "terraform-state"
 	environment                = var.environment
+	custom_bucket_name				 = "pge-epic-terraform-state"
 	tags                       = module.tags.tags
 	access_log_bucket          = var.access_log_bucket
 	access_log_prefix          = "terraform-state/"
@@ -71,11 +109,62 @@ module "s3_terraform_state" {
 
 
 ###############################################################################
+# S3 Bucket Policy for Cross-Account Access
+###############################################################################
+
+data "aws_iam_policy_document" "s3_state_bucket_policy" {
+	statement {
+		sid    = "AllowDeploymentRoles"
+		effect = "Allow"
+		principals {
+			type        = "AWS"
+			identifiers = ["*"]
+		}
+		actions = [
+			"s3:ListBucket",
+			"s3:GetBucketVersioning"
+		]
+		resources = [module.s3_terraform_state.bucket_arn]
+		condition {
+			test     = "StringEquals"
+			variable = "aws:PrincipalArn"
+			values   = ["arn:aws:iam::*:role/pge-epic-deployment-role"]
+		}
+	}
+
+	statement {
+		sid    = "AllowDeploymentRoleObjects"
+		effect = "Allow"
+		principals {
+			type        = "AWS"
+			identifiers = ["*"]
+		}
+		actions = [
+			"s3:GetObject",
+			"s3:PutObject",
+			"s3:DeleteObject"
+		]
+		resources = ["${module.s3_terraform_state.bucket_arn}/*"]
+		condition {
+			test     = "StringEquals"
+			variable = "aws:PrincipalArn"
+			values   = ["arn:aws:iam::*:role/pge-epic-deployment-role"]
+		}
+	}
+}
+
+resource "aws_s3_bucket_policy" "terraform_state" {
+	bucket = module.s3_terraform_state.bucket_id
+	policy = data.aws_iam_policy_document.s3_state_bucket_policy.json
+}
+
+
+###############################################################################
 # DynamoDB Lock Table
 ###############################################################################
 
 resource "aws_dynamodb_table" "terraform_locks" {
-	name         = "pge-epic-${var.environment}"
+	name         = "pge-epic-terraform-locks"
 	billing_mode = "PAY_PER_REQUEST"
 	hash_key     = "LockID"
 
@@ -94,7 +183,7 @@ resource "aws_dynamodb_table" "terraform_locks" {
 	}
 
 	tags = merge(module.tags.tags, {
-		Name = "pge-epic-terraform-locks-${var.environment}"
+		Name = "pge-epic-terraform-locks"
 	})
 }
 
@@ -124,8 +213,6 @@ resource "aws_iam_openid_connect_provider" "ado" {
 ###############################################################################
 # EPIC Service Role (ADO assumes this)
 ###############################################################################
-
-data "aws_caller_identity" "current" {}
 
 data "aws_iam_policy_document" "epic_service_assume_role" {
 	statement {

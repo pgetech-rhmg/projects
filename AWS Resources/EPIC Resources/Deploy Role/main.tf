@@ -361,3 +361,60 @@ resource "aws_iam_role_policy" "epic_application" {
   role   = aws_iam_role.epic_deployment.id
   policy = data.aws_iam_policy_document.epic_application.json
 }
+
+
+###############################################################################
+# State Backend Access Policy
+###############################################################################
+
+data "aws_iam_policy_document" "epic_state_backend" {
+	statement {
+		sid    = "S3StateAccess"
+		effect = "Allow"
+		actions = [
+			"s3:ListBucket",
+			"s3:GetBucketVersioning"
+		]
+		resources = ["arn:aws:s3:::pge-epic-terraform-state"]
+	}
+
+	statement {
+		sid    = "S3ObjectAccess"
+		effect = "Allow"
+		actions = [
+			"s3:GetObject",
+			"s3:PutObject",
+			"s3:DeleteObject"
+		]
+		resources = ["arn:aws:s3:::pge-epic-terraform-state/*"]
+	}
+
+	statement {
+		sid    = "DynamoDBLockAccess"
+		effect = "Allow"
+		actions = [
+			"dynamodb:GetItem",
+			"dynamodb:PutItem",
+			"dynamodb:DeleteItem"
+		]
+		resources = ["arn:aws:dynamodb:${var.aws_region}:750713712981:table/pge-epic-terraform-locks"]
+	}
+
+	statement {
+		sid    = "KMSAccess"
+		effect = "Allow"
+		actions = [
+			"kms:Decrypt",
+			"kms:Encrypt",
+			"kms:GenerateDataKey",
+			"kms:DescribeKey"
+		]
+		resources = ["arn:aws:kms:${var.aws_region}:750713712981:key/*"]
+	}
+}
+
+resource "aws_iam_role_policy" "epic_state_backend" {
+	name   = "pge-epic-state-backend-access"
+	role   = aws_iam_role.epic_deployment.id
+	policy = data.aws_iam_policy_document.epic_state_backend.json
+}
