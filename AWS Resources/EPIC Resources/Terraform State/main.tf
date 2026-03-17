@@ -119,7 +119,7 @@ module "s3_terraform_state" {
 
 data "aws_iam_policy_document" "s3_state_bucket_policy" {
   statement {
-    sid    = "AllowOrgAccess"
+    sid    = "AllowDeploymentRoles"
     effect = "Allow"
     principals {
       type        = "AWS"
@@ -152,35 +152,6 @@ data "aws_iam_policy_document" "s3_state_bucket_policy" {
 resource "aws_s3_bucket_policy" "terraform_state" {
   bucket = module.s3_terraform_state.bucket_name
   policy = data.aws_iam_policy_document.s3_state_bucket_policy.json
-}
-
-
-###############################################################################
-# DynamoDB Lock Table
-###############################################################################
-
-resource "aws_dynamodb_table" "terraform_locks" {
-  name         = "pge-epic-terraform-locks"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-
-  server_side_encryption {
-    enabled     = true
-    kms_key_arn = aws_kms_key.terraform_state.arn
-  }
-
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  tags = merge(module.tags.tags, {
-    Name = "pge-epic-terraform-locks"
-  })
 }
 
 
@@ -279,17 +250,6 @@ data "aws_iam_policy_document" "epic_state_access" {
       "s3:DeleteObject"
     ]
     resources = ["${module.s3_terraform_state.bucket_arn}/*"]
-  }
-
-  statement {
-    sid    = "DynamoDBLockAccess"
-    effect = "Allow"
-    actions = [
-      "dynamodb:GetItem",
-      "dynamodb:PutItem",
-      "dynamodb:DeleteItem"
-    ]
-    resources = [aws_dynamodb_table.terraform_locks.arn]
   }
 
   statement {

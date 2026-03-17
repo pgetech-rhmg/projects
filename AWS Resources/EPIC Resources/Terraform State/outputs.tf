@@ -12,16 +12,6 @@ output "state_bucket_arn" {
   value       = module.s3_terraform_state.bucket_arn
 }
 
-output "lock_table_name" {
-  description = "DynamoDB table for state locking"
-  value       = aws_dynamodb_table.terraform_locks.name
-}
-
-output "lock_table_arn" {
-  description = "DynamoDB table ARN"
-  value       = aws_dynamodb_table.terraform_locks.arn
-}
-
 output "kms_key_id" {
   description = "KMS key ID for state encryption"
   value       = aws_kms_key.terraform_state.key_id
