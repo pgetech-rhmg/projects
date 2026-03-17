@@ -32,7 +32,7 @@ jobs:
         regionName: ${{ parameters.awsRegion }}
         scriptType: 'inline'
         inlineScript: |
-          cd .infra
+          cd ${{ parameters.appName }}/.infra
 
           terraform init \
             -backend-config="bucket=pge-epic-terraform-state-${{ parameters.environment }}" \
@@ -48,7 +48,7 @@ jobs:
         regionName: ${{ parameters.awsRegion }}
         scriptType: 'inline'
         inlineScript: |
-          cd .infra
+          cd ${{ parameters.appName }}/.infra
 
           terraform validate
 
@@ -60,7 +60,7 @@ jobs:
         regionName: ${{ parameters.awsRegion }}
         scriptType: 'inline'
         inlineScript: |
-          cd .infra
+          cd ${{ parameters.appName }}/.infra
 
           terraform plan \
             -var="aws_account_id=${{ parameters.awsAccountId }}" \
@@ -76,7 +76,7 @@ jobs:
         regionName: ${{ parameters.awsRegion }}
         scriptType: 'inline'
         inlineScript: |
-          cd .infra
+          cd ${{ parameters.appName }}/.infra
 
           terraform apply -auto-approve tfplan
 
@@ -88,7 +88,7 @@ jobs:
         regionName: ${{ parameters.awsRegion }}
         scriptType: 'inline'
         inlineScript: |
-          cd .infra
+          cd ${{ parameters.appName }}/.infra
 
           terraform plan -destroy \
             -var="aws_account_id=${{ parameters.awsAccountId }}" \
@@ -104,6 +104,6 @@ jobs:
         regionName: ${{ parameters.awsRegion }}
         scriptType: 'inline'
         inlineScript: |
-          cd .infra
+          cd ${{ parameters.appName }}/.infra
 
           terraform apply -auto-approve tfplan-destroy
