@@ -1,8 +1,3 @@
-parameters:
-  stateS3Bucket: "pge-epic-terraform-state-${{ parameters.environment }}"
-  stateDynamoDBTable: "pge-epic-${{ parameters.environment }}"
-  stateKey: "${{ parameters.repoName }}/${{ parameters.environment }}/terraform.tfstate"
-
 jobs:
 - job: DeployInfraJob
   displayName: "Deploy Infrastructure"
@@ -35,15 +30,14 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
-        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
 
           terraform init \
-            -backend-config="bucket=${{ parameters.stateS3Bucket }}" \
-            -backend-config="dynamodb_table=${{ parameters.stateDynamoDBTable }}" \
-            -backend-config="key=${{ parameters.stateKey }}" \
+            -backend-config="bucket=pge-epic-terraform-state-${{ parameters.environment }}" \
+            -backend-config="dynamodb_table=pge-epic-${{ parameters.environment }}" \
+            -backend-config="key=${{ parameters.repoName }}/${{ parameters.environment }}/terraform.tfstate" \
             -backend-config="region=${{ parameters.awsRegion }}" \
             -backend-config="encrypt=true"
 
