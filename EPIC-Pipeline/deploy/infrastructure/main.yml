@@ -29,8 +29,18 @@ jobs:
       displayName: 'Install Terraform'
       inputs:
         terraformVersion: 'latest'
+
     
-      
+    ###########################################################################
+    # Configure Git Credentials for Terraform
+    ###########################################################################
+    - bash: |
+        git config --global url."https://$(GITHUB_PAT)@github.com/".insteadOf "https://github.com/"
+      displayName: 'Configure Git credentials for Terraform'
+      env:
+        GITHUB_PAT: $(GITHUB_PAT)
+
+
     ###########################################################################
     # Deploy Infrastructure with Terraform
     ###########################################################################
