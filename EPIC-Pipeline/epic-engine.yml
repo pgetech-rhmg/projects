@@ -197,6 +197,12 @@ stages:
       displayName: "Deploy Infrastructure"
       dependsOn: 
         - Download
+        - ${{ if eq(parameters.build, 'true') }}:
+          - Build
+        - ${{ if eq(parameters.tests, 'true') }}:
+          - UnitTest
+        - ${{ if eq(parameters.scan, 'true') }}:
+          - Scan
 
       jobs:
         - template: /deploy/infrastructure/main.yml
@@ -217,6 +223,8 @@ stages:
           - UnitTest
         - ${{ if eq(parameters.scan, 'true') }}:
           - Scan
+        - ${{ if eq(parameters.infra, 'true') }}:
+          - DeployInfra
 
       jobs:
         - template: /deploy/main.yml
@@ -234,6 +242,8 @@ stages:
         - Download
         - Build
         - Deploy
+        - ${{ if eq(parameters.infra, 'true') }}:
+          - DeployInfra
 
       jobs:
         - template: /test/main.yml
