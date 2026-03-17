@@ -1,5 +1,4 @@
 parameters:
-  terraformAction: "${{ parameters.terraformAction }}"
   stateS3Bucket: "pge-epic-terraform-state-${{ parameters.environment }}"
   stateDynamoDBTable: "pge-epic-${{ parameters.environment }}"
   stateKey: "${{ parameters.repoName }}/${{ parameters.environment }}/terraform.tfstate"
@@ -42,10 +41,10 @@ jobs:
           cd .infra
 
           terraform init \
-            -backend-config="bucket=$(stateS3Bucket)" \
-            -backend-config="key=$(stateKey)" \
+            -backend-config="bucket=${{ parameters.stateS3Bucket }}" \
+            -backend-config="dynamodb_table=${{ parameters.stateDynamoDBTable }}" \
+            -backend-config="key=${{ parameters.stateKey }}" \
             -backend-config="region=${{ parameters.awsRegion }}" \
-            -backend-config="dynamodb_table=$(stateDynamoDBTable)" \
             -backend-config="encrypt=true"
 
     - task: AWSShellScript@1
@@ -53,7 +52,6 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
-        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
@@ -66,7 +64,6 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
-        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
@@ -83,7 +80,6 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
-        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
@@ -96,7 +92,6 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
-        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
@@ -113,7 +108,6 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
-        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
