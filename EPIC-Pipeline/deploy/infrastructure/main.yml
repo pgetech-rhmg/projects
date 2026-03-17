@@ -77,7 +77,7 @@ jobs:
 
           terraform init \
             -backend-config="bucket=pge-epic-terraform-state" \
-            -backend-config="dynamodb_table=pge-epic-terraform-locks" \
+            -backend-config="use_lockfile=true" \
             -backend-config="key=${{ parameters.repoName }}/${{ parameters.environment }}/terraform.tfstate" \
             -backend-config="region=${{ parameters.awsRegion }}" \
             -backend-config="encrypt=true"
