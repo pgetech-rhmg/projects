@@ -4,6 +4,23 @@
 steps:
 
   #############################################################################
+  # Parse Output File (if available)
+  #############################################################################
+  - bash: |
+      if [ -f "${{ parameters.terraformOutputPath }}" ]; then
+        BUCKET_NAME=$(cat "${{ parameters.terraformOutputPath }}" | jq -r '.bucket_name.value // empty')
+        DISTRIBUTION_ID=$(cat "${{ parameters.terraformOutputPath }}" | jq -r '.distribution_id.value // empty')
+      fi
+
+      S3=${BUCKET_NAME:-${{ parameters.s3 }}}
+      CLOUDFRONT=${DISTRIBUTION_ID:-${{ parameters.cloudfront }}}
+
+      echo "##vso[task.setvariable variable=BUCKET_NAME]$S3"
+      echo "##vso[task.setvariable variable=DISTRIBUTION_ID]$CLOUDFRONT"
+    displayName: 'Parse output file'
+
+
+  #############################################################################
   # Deploy
   #############################################################################
   - task: AWSShellScript@1
@@ -31,8 +48,8 @@ steps:
         echo "Deploying ${{ parameters.appType }}..."
         
         BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
-        BUCKET_NAME="${{ parameters.s3 }}"
-        DISTRIBUTION_ID="${{ parameters.cloudfront }}"
+        BUCKET_NAME="$(BUCKET_NAME)"
+        DISTRIBUTION_ID="$(DISTRIBUTION_ID)"
         
         echo "Syncing to S3..."
         aws s3 sync "$BUILD_PATH" "s3://$BUCKET_NAME" --delete

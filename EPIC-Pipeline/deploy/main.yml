@@ -23,12 +23,23 @@ jobs:
 
 
     ###########################################################################
+    # Download Output File
+    ###########################################################################
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download output file"
+      inputs:
+        artifactName: terraform-outputs
+        targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform"
+
+
+    ###########################################################################
     # Deploy - HTML (static), Angular (node)
     ###########################################################################
     - ${{ if or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular')) }}:
       - template: basic/main.yml
         parameters:
           ${{ insert }}: ${{ parameters }}
+          terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
 
 
     ###########################################################################
@@ -38,3 +49,4 @@ jobs:
       - template: ${{ parameters.appType }}/main.yml
         parameters:
           ${{ insert }}: ${{ parameters }}
+          terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
