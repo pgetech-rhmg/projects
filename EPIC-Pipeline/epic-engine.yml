@@ -55,13 +55,18 @@ parameters:
     type: string
     default: ""
 
+  # Terraform
+  - name: terraformAction
+    type: string
+    default: "apply"
+
   # AWS
   - name: awsAccountId
     type: string
     default: ""
   - name: awsRegion
     type: string
-    default: ""
+    default: "us-west-2"
 
   # AWS Resources
   - name: s3
@@ -95,6 +100,9 @@ parameters:
   - name: scan
     type: boolean
     default: true
+  - name: infra
+    type: boolean
+    default: false
   - name: deploy
     type: boolean
     default: true
@@ -177,6 +185,21 @@ stages:
 
       jobs:
         - template: /scan/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+
+
+  #############################################################################
+  # Deploy Infrastructure
+  #############################################################################
+  - ${{ if eq(parameters.infra, 'true') }}:
+    - stage: DeployInfra
+      displayName: "Deploy Infrastructure"
+      dependsOn: 
+        - Download
+
+      jobs:
+        - template: /deploy/infrastructure/main.yml
           parameters:
             ${{ insert }}: ${{ parameters }}
 

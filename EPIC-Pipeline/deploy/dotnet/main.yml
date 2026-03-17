@@ -25,9 +25,9 @@ steps:
   - task: AWSShellScript@1
     inputs:
       awsCredentials: 'AWS'
-      regionName: 'us-west-2'
-      scriptType: 'inline'
       arguments: ${{ parameters.awsAccountId }}
+      regionName: ${{ parameters.awsRegion }}
+      scriptType: 'inline'
       inlineScript: |
         set -euo pipefail
         
@@ -59,9 +59,9 @@ steps:
   - task: AWSShellScript@1
     inputs:
       awsCredentials: 'AWS'
-      regionName: 'us-west-2'
-      scriptType: 'inline'
       arguments: ${{ parameters.awsAccountId }}
+      regionName: ${{ parameters.awsRegion }}
+      scriptType: 'inline'
       inlineScript: |
         set -euo pipefail
         

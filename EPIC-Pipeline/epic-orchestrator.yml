@@ -163,6 +163,11 @@ stages:
               echo ">> Building payload..."
 
               CONFIG_FILE=".pipeline/epic.json"
+              INFRA=false
+
+              if [ -d ".infra" ]; then
+                INFRA=true
+              fi
 
               REPO="${{ parameters.repo }}"
               BRANCH="${{ parameters.branch }}"
@@ -187,6 +192,7 @@ stages:
                 --argjson build "$BUILD" \
                 --argjson tests "$TESTS" \
                 --argjson scan "$SCAN" \
+                --argjson infra "$INFRA" \
                 --argjson deploy "$DEPLOY" \
                 --argjson integrations "$INTEGRATIONS" \
                 --slurpfile config "$CONFIG_FILE" \

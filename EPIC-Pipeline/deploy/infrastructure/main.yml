@@ -1,0 +1,115 @@
+parameters:
+  terraformAction: "${{ parameters.terraformAction }}"
+  stateS3Bucket: "pge-epic-terraform-state-${{ parameters.environment }}"
+  stateDynamoDBTable: "pge-epic-${{ parameters.environment }}"
+  stateKey: "${{ parameters.repoName }}/${{ parameters.environment }}/terraform.tfstate"
+
+jobs:
+- job: DeployInfraJob
+  displayName: "Deploy Infrastructure"
+  pool:
+    vmImage: ubuntu-latest
+    
+  workspace:
+    clean: all
+
+  #############################################################################
+  # Steps
+  #############################################################################
+  steps:
+
+    ###########################################################################
+    # Download App Artifact
+    ###########################################################################
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download infrastructure code"
+      inputs:
+        artifactName: epic-app
+        targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.appName }}
+
+
+    ###########################################################################
+    # Deploy - HTML (static), Angular (node)
+    ###########################################################################
+    - task: AWSShellScript@1
+      displayName: 'Terraform Init'
+      inputs:
+        awsCredentials: 'AWS'
+        regionName: ${{ parameters.awsRegion }}
+        scriptType: 'inline'
+        inlineScript: |
+          cd .infra
+
+          terraform init \
+            -backend-config="bucket=$(stateS3Bucket)" \
+            -backend-config="key=$(stateKey)" \
+            -backend-config="region=${{ parameters.awsRegion }}" \
+            -backend-config="dynamodb_table=$(stateDynamoDBTable)" \
+            -backend-config="encrypt=true"
+
+    - task: AWSShellScript@1
+      displayName: 'Terraform Validate'
+      inputs:
+        awsCredentials: 'AWS'
+        regionName: ${{ parameters.awsRegion }}
+        scriptType: 'inline'
+        inlineScript: |
+          cd .infra
+
+          terraform validate
+
+    - task: AWSShellScript@1
+      displayName: 'Terraform Plan'
+      condition: eq('${{ parameters.terraformAction }}', 'apply')
+      inputs:
+        awsCredentials: 'AWS'
+        regionName: ${{ parameters.awsRegion }}
+        scriptType: 'inline'
+        inlineScript: |
+          cd .infra
+
+          terraform plan \
+            -var="aws_account_id=${{ parameters.awsAccountId }}" \
+            -var="environment=${{ parameters.environment }}" \
+            -var="aws_region=${{ parameters.awsRegion }}" \
+            -out=tfplan
+
+    - task: AWSShellScript@1
+      displayName: 'Terraform Apply'
+      condition: eq('${{ parameters.terraformAction }}', 'apply')
+      inputs:
+        awsCredentials: 'AWS'
+        regionName: ${{ parameters.awsRegion }}
+        scriptType: 'inline'
+        inlineScript: |
+          cd .infra
+
+          terraform apply -auto-approve tfplan
+
+    - task: AWSShellScript@1
+      displayName: 'Terraform Plan Destroy'
+      condition: eq('${{ parameters.terraformAction }}', 'destroy')
+      inputs:
+        awsCredentials: 'AWS'
+        regionName: ${{ parameters.awsRegion }}
+        scriptType: 'inline'
+        inlineScript: |
+          cd .infra
+
+          terraform plan -destroy \
+            -var="aws_account_id=${{ parameters.awsAccountId }}" \
+            -var="environment=${{ parameters.environment }}" \
+            -var="aws_region=${{ parameters.awsRegion }}" \
+            -out=tfplan-destroy
+
+    - task: AWSShellScript@1
+      displayName: 'Terraform Destroy'
+      condition: eq('${{ parameters.terraformAction }}', 'destroy')
+      inputs:
+        awsCredentials: 'AWS'
+        regionName: ${{ parameters.awsRegion }}
+        scriptType: 'inline'
+        inlineScript: |
+          cd .infra
+
+          terraform apply -auto-approve tfplan-destroy
