@@ -1,0 +1,80 @@
+2026-03-17T17:15:54.8236178Z ##[section]Starting: Terraform Init
+2026-03-17T17:15:54.8242783Z ==============================================================================
+2026-03-17T17:15:54.8242903Z Task         : AWS Shell Script
+2026-03-17T17:15:54.8242979Z Description  : Run a shell script using Bash with AWS credentials as environment variables
+2026-03-17T17:15:54.8243078Z Version      : 1.24.0
+2026-03-17T17:15:54.8243155Z Author       : Amazon Web Services
+2026-03-17T17:15:54.8243227Z Help         : Runs a shell script in Bash, setting AWS credentials and region information into the shell environment using the standard environment keys _AWS_ACCESS_KEY_ID_, _AWS_SECRET_ACCESS_KEY_, _AWS_SESSION_TOKEN_ and _AWS_REGION_.
+
+More information on this task can be found in the [task reference](https://docs.aws.amazon.com/vsts/latest/userguide/awsshell.html).
+
+####Task Permissions
+Permissions for this task to call AWS service APIs depend on the activities in the supplied script.
+2026-03-17T17:15:54.8243549Z ==============================================================================
+2026-03-17T17:15:55.3200987Z Configuring credentials for task
+2026-03-17T17:15:55.3208917Z ...configuring AWS credentials from service endpoint 'd4d1385c-1185-470a-8044-26d6400b4223'
+2026-03-17T17:15:55.3210416Z Skipping Instance profile, we have OIDC enabled
+2026-03-17T17:15:55.3245465Z ...configuring AWS credentials from service endpoint 'd4d1385c-1185-470a-8044-26d6400b4223'
+2026-03-17T17:15:55.3246055Z Getting OIDC Token...
+2026-03-17T17:15:55.5531194Z OIDC Token generated: issuer: {https://vstoken.dev.azure.com/24ec78d4-db96-44e7-ac11-88d89473d472} sub: {sc://pgetech/EPIC-Pipeline/AWS}, aud: {api://AzureADTokenExchange}
+2026-03-17T17:15:55.5533436Z Configuring region for task
+2026-03-17T17:15:55.5536485Z ...configured to use region us-west-2, defined in task.
+2026-03-17T17:15:55.5555294Z Assuming role via OIDC Token...
+2026-03-17T17:15:56.2582140Z ...role assumed via OIDC Token: arn:aws:sts::750713712981:assumed-role/pge-epic-service-role/***
+2026-03-17T17:15:56.2585551Z Configuring region for task
+2026-03-17T17:15:56.2589245Z ...configured to use region us-west-2, defined in task.
+2026-03-17T17:15:56.2604043Z [command]/usr/bin/bash /home/vsts/work/_temp/awsshellscript_2095.sh
+2026-03-17T17:15:56.3154624Z [0m[1mInitializing the backend...[0m
+2026-03-17T17:15:56.3155308Z [0m[1mInitializing modules...[0m
+2026-03-17T17:15:56.3155710Z Downloading git::https://github.com/pgetech/epic-pipeline-module-aws-cloudfront.git?ref=main for cloudfront...
+2026-03-17T17:15:56.4337794Z Downloading git::https://github.com/pgetech/epic-pipeline-module-aws-s3.git?ref=main for s3...
+2026-03-17T17:15:56.5620858Z Downloading git::https://github.com/pgetech/epic-pipeline-module-aws-tags.git?ref=main for tags...
+2026-03-17T17:15:57.6811322Z [31m╷[0m[0m
+2026-03-17T17:15:57.6811805Z [31m│[0m [0m[1m[31mError: [0m[0m[1mFailed to download module[0m
+2026-03-17T17:15:57.6812180Z [31m│[0m [0m
+2026-03-17T17:15:57.6812525Z [31m│[0m [0m[0m  on main.tf line 5:
+2026-03-17T17:15:57.6812979Z [31m│[0m [0m   5: [4mmodule "tags"[0m {[0m
+2026-03-17T17:15:57.6813300Z [31m│[0m [0m
+2026-03-17T17:15:57.6813776Z [31m│[0m [0mCould not download module "tags" (main.tf:5) source code from
+2026-03-17T17:15:57.6814596Z [31m│[0m [0m"git::https://github.com/pgetech/epic-pipeline-module-aws-tags.git?ref=main":
+2026-03-17T17:15:57.6815033Z [31m│[0m [0merror downloading
+2026-03-17T17:15:57.6815506Z [31m│[0m [0m'https://github.com/pgetech/epic-pipeline-module-aws-tags.git?ref=main':
+2026-03-17T17:15:57.6816141Z [31m│[0m [0m/usr/bin/git exited with 128: Cloning into '.terraform/modules/tags'...
+2026-03-17T17:15:57.6816649Z [31m│[0m [0mfatal: could not read Username for 'https://github.com': terminal prompts
+2026-03-17T17:15:57.6817347Z [31m│[0m [0mdisabled
+2026-03-17T17:15:57.6817687Z [31m│[0m [0m
+2026-03-17T17:15:57.6817998Z [31m╵[0m[0m
+2026-03-17T17:15:57.6818288Z [31m╷[0m[0m
+2026-03-17T17:15:57.6818699Z [31m│[0m [0m[1m[31mError: [0m[0m[1mFailed to download module[0m
+2026-03-17T17:15:57.6819400Z [31m│[0m [0m
+2026-03-17T17:15:57.6819741Z [31m│[0m [0m[0m  on main.tf line 23:
+2026-03-17T17:15:57.6820220Z [31m│[0m [0m  23: [4mmodule "s3"[0m {[0m
+2026-03-17T17:15:57.6820535Z [31m│[0m [0m
+2026-03-17T17:15:57.6820993Z [31m│[0m [0mCould not download module "s3" (main.tf:23) source code from
+2026-03-17T17:15:57.6821513Z [31m│[0m [0m"git::https://github.com/pgetech/epic-pipeline-module-aws-s3.git?ref=main":
+2026-03-17T17:15:57.6821942Z [31m│[0m [0merror downloading
+2026-03-17T17:15:57.6822410Z [31m│[0m [0m'https://github.com/pgetech/epic-pipeline-module-aws-s3.git?ref=main':
+2026-03-17T17:15:57.6822914Z [31m│[0m [0m/usr/bin/git exited with 128: Cloning into '.terraform/modules/s3'...
+2026-03-17T17:15:57.6823514Z [31m│[0m [0mfatal: could not read Username for 'https://github.com': terminal prompts
+2026-03-17T17:15:57.6823906Z [31m│[0m [0mdisabled
+2026-03-17T17:15:57.6824800Z [31m│[0m [0m
+2026-03-17T17:15:57.6825257Z [31m╵[0m[0m
+2026-03-17T17:15:57.6833102Z [31m╷[0m[0m
+2026-03-17T17:15:57.6833826Z [31m│[0m [0m[1m[31mError: [0m[0m[1mFailed to download module[0m
+2026-03-17T17:15:57.6835488Z [31m│[0m [0m
+2026-03-17T17:15:57.6843838Z [31m│[0m [0m[0m  on main.tf line 50:
+2026-03-17T17:15:57.6845356Z [31m│[0m [0m  50: [4mmodule "cloudfront"[0m {[0m
+2026-03-17T17:15:57.6845692Z [31m│[0m [0m
+2026-03-17T17:15:57.6846142Z [31m│[0m [0mCould not download module "cloudfront" (main.tf:50) source code from
+2026-03-17T17:15:57.6846710Z [31m│[0m [0m"git::https://github.com/pgetech/epic-pipeline-module-aws-cloudfront.git?ref=main":
+2026-03-17T17:15:57.6847127Z [31m│[0m [0merror downloading
+2026-03-17T17:15:57.6847601Z [31m│[0m [0m'https://github.com/pgetech/epic-pipeline-module-aws-cloudfront.git?ref=main':
+2026-03-17T17:15:57.6848087Z [31m│[0m [0m/usr/bin/git exited with 128: Cloning into
+2026-03-17T17:15:57.6848490Z [31m│[0m [0m'.terraform/modules/cloudfront'...
+2026-03-17T17:15:57.6849130Z [31m│[0m [0mfatal: could not read Username for 'https://github.com': terminal prompts
+2026-03-17T17:15:57.6849516Z [31m│[0m [0mdisabled
+2026-03-17T17:15:57.6849809Z [31m│[0m [0m
+2026-03-17T17:15:57.6850191Z [31m╵[0m[0m
+2026-03-17T17:15:57.6878790Z 
+2026-03-17T17:15:57.6927845Z ##[error]Error: The process '/usr/bin/bash' failed with exit code 1
+2026-03-17T17:15:57.7077892Z ##[section]Finishing: Terraform Init
