@@ -54,8 +54,8 @@ jobs:
           cd ${{ parameters.appName }}/.infra
 
           terraform init \
-            -backend-config="bucket=pge-epic-terraform-state-${{ parameters.environment }}" \
-            -backend-config="dynamodb_table=pge-epic-${{ parameters.environment }}" \
+            -backend-config="bucket=pge-epic-terraform-state" \
+            -backend-config="dynamodb_table=pge-epic-terraform-locks" \
             -backend-config="key=${{ parameters.repoName }}/${{ parameters.environment }}/terraform.tfstate" \
             -backend-config="region=${{ parameters.awsRegion }}" \
             -backend-config="encrypt=true"
@@ -87,42 +87,42 @@ jobs:
             -var="aws_region=${{ parameters.awsRegion }}" \
             -out=tfplan
 
-    # - task: AWSShellScript@1
-    #   displayName: 'Terraform Apply'
-    #   condition: eq('${{ parameters.terraformAction }}', 'apply')
-    #   inputs:
-    #     awsCredentials: 'AWS'
-    #     regionName: ${{ parameters.awsRegion }}
-    #     scriptType: 'inline'
-    #     inlineScript: |
-    #       cd ${{ parameters.appName }}/.infra
+    - task: AWSShellScript@1
+      displayName: 'Terraform Apply'
+      condition: eq('${{ parameters.terraformAction }}', 'apply')
+      inputs:
+        awsCredentials: 'AWS'
+        regionName: ${{ parameters.awsRegion }}
+        scriptType: 'inline'
+        inlineScript: |
+          cd ${{ parameters.appName }}/.infra
 
-    #       terraform apply -auto-approve tfplan
+          terraform apply -auto-approve tfplan
 
-    # - task: AWSShellScript@1
-    #   displayName: 'Terraform Plan Destroy'
-    #   condition: eq('${{ parameters.terraformAction }}', 'destroy')
-    #   inputs:
-    #     awsCredentials: 'AWS'
-    #     regionName: ${{ parameters.awsRegion }}
-    #     scriptType: 'inline'
-    #     inlineScript: |
-    #       cd ${{ parameters.appName }}/.infra
+    - task: AWSShellScript@1
+      displayName: 'Terraform Plan Destroy'
+      condition: eq('${{ parameters.terraformAction }}', 'destroy')
+      inputs:
+        awsCredentials: 'AWS'
+        regionName: ${{ parameters.awsRegion }}
+        scriptType: 'inline'
+        inlineScript: |
+          cd ${{ parameters.appName }}/.infra
 
-    #       terraform plan -destroy \
-    #         -var="aws_account_id=${{ parameters.awsAccountId }}" \
-    #         -var="environment=${{ parameters.environment }}" \
-    #         -var="aws_region=${{ parameters.awsRegion }}" \
-    #         -out=tfplan-destroy
+          terraform plan -destroy \
+            -var="aws_account_id=${{ parameters.awsAccountId }}" \
+            -var="environment=${{ parameters.environment }}" \
+            -var="aws_region=${{ parameters.awsRegion }}" \
+            -out=tfplan-destroy
 
-    # - task: AWSShellScript@1
-    #   displayName: 'Terraform Destroy'
-    #   condition: eq('${{ parameters.terraformAction }}', 'destroy')
-    #   inputs:
-    #     awsCredentials: 'AWS'
-    #     regionName: ${{ parameters.awsRegion }}
-    #     scriptType: 'inline'
-    #     inlineScript: |
-    #       cd ${{ parameters.appName }}/.infra
+    - task: AWSShellScript@1
+      displayName: 'Terraform Destroy'
+      condition: eq('${{ parameters.terraformAction }}', 'destroy')
+      inputs:
+        awsCredentials: 'AWS'
+        regionName: ${{ parameters.awsRegion }}
+        scriptType: 'inline'
+        inlineScript: |
+          cd ${{ parameters.appName }}/.infra
 
-    #       terraform apply -auto-approve tfplan-destroy
+          terraform apply -auto-approve tfplan-destroy
