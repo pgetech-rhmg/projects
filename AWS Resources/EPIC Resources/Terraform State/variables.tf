@@ -32,6 +32,11 @@ variable "ado_project" {
 	type        = string
 }
 
+variable "org_id" {
+	description = "AWS Organizations ID for PGE"
+	type        = string
+}
+
 
 ###############################################################################
 # Tagging & Compliance
