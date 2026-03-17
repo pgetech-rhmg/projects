@@ -17,6 +17,11 @@ variable "aws_region" {
 	type        = string
 }
 
+variable "epic_service_account" {
+  description = "ARN of the EPIC service account in the EPIC account that will assume this role"
+  type        = string
+}
+
 variable "epic_service_role_arn" {
   description = "ARN of the EPIC service role in the EPIC account that will assume this role"
   type        = string

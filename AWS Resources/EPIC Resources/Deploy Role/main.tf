@@ -26,9 +26,14 @@ data "aws_iam_policy_document" "epic_assume_role" {
     effect = "Allow"
     principals {
       type        = "AWS"
-      identifiers = [var.epic_service_role_arn]
+      identifiers = [var.epic_service_account]
     }
     actions = ["sts:AssumeRole"]
+    condition {
+      test     = "ArnLike"
+      variable = "aws:PrincipalArn"
+      values   = [var.epic_service_role_arn]
+    }
   }
 }
 
