@@ -88,7 +88,6 @@ module "s3_terraform_state" {
 	access_log_bucket          = var.access_log_bucket
 	access_log_prefix          = "terraform-state/"
 	enable_access_logging      = var.enable_access_logging
-	enable_public_access_block = true
 	enable_versioning          = true
 	force_destroy              = false
 	kms_key_arn                = aws_kms_key.terraform_state.arn
