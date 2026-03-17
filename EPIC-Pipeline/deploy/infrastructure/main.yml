@@ -23,7 +23,7 @@ jobs:
 
 
     ###########################################################################
-    # Deploy - HTML (static), Angular (node)
+    # Deploy Infrastructure with Terraform
     ###########################################################################
     - task: AWSShellScript@1
       displayName: 'Terraform Init'
