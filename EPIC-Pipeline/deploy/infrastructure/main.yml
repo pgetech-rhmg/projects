@@ -36,6 +36,7 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
+        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
@@ -52,6 +53,7 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
+        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
@@ -64,6 +66,7 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
+        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
@@ -80,6 +83,7 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
+        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
@@ -92,6 +96,7 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
+        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
@@ -108,6 +113,7 @@ jobs:
       inputs:
         awsCredentials: 'AWS'
         regionName: ${{ parameters.awsRegion }}
+        arguments: ${{ parameters.awsAccountId }}
         scriptType: 'inline'
         inlineScript: |
           cd .infra
