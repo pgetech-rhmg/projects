@@ -92,54 +92,52 @@ jobs:
 
           terraform validate
 
-    - task: AWSShellScript@1
-      displayName: 'Terraform Plan'
-      condition: eq('${{ parameters.terraformAction }}', 'apply')
-      inputs:
-        regionName: ${{ parameters.awsRegion }}
-        scriptType: 'inline'
-        inlineScript: |
-          cd ${{ parameters.appName }}/.infra
+    - ${{ if eq(parameters.terraformAction, 'apply') }}:
+      - task: AWSShellScript@1
+        displayName: 'Terraform Plan'
+        inputs:
+          regionName: ${{ parameters.awsRegion }}
+          scriptType: 'inline'
+          inlineScript: |
+            cd ${{ parameters.appName }}/.infra
 
-          terraform plan \
-            -var="aws_account_id=${{ parameters.awsAccountId }}" \
-            -var="environment=${{ parameters.environment }}" \
-            -var="aws_region=${{ parameters.awsRegion }}" \
-            -out=tfplan
+            terraform plan \
+              -var="aws_account_id=${{ parameters.awsAccountId }}" \
+              -var="environment=${{ parameters.environment }}" \
+              -var="aws_region=${{ parameters.awsRegion }}" \
+              -out=tfplan
 
-    - task: AWSShellScript@1
-      displayName: 'Terraform Apply'
-      condition: eq('${{ parameters.terraformAction }}', 'apply')
-      inputs:
-        regionName: ${{ parameters.awsRegion }}
-        scriptType: 'inline'
-        inlineScript: |
-          cd ${{ parameters.appName }}/.infra
+      - task: AWSShellScript@1
+        displayName: 'Terraform Apply'
+        inputs:
+          regionName: ${{ parameters.awsRegion }}
+          scriptType: 'inline'
+          inlineScript: |
+            cd ${{ parameters.appName }}/.infra
 
-          terraform apply -auto-approve tfplan
+            terraform apply -auto-approve tfplan
 
-    - task: AWSShellScript@1
-      displayName: 'Terraform Plan Destroy'
-      condition: eq('${{ parameters.terraformAction }}', 'destroy')
-      inputs:
-        regionName: ${{ parameters.awsRegion }}
-        scriptType: 'inline'
-        inlineScript: |
-          cd ${{ parameters.appName }}/.infra
+    - ${{ if eq(parameters.terraformAction, 'destroy') }}:
+      - task: AWSShellScript@1
+        displayName: 'Terraform Plan Destroy'
+        inputs:
+          regionName: ${{ parameters.awsRegion }}
+          scriptType: 'inline'
+          inlineScript: |
+            cd ${{ parameters.appName }}/.infra
 
-          terraform plan -destroy \
-            -var="aws_account_id=${{ parameters.awsAccountId }}" \
-            -var="environment=${{ parameters.environment }}" \
-            -var="aws_region=${{ parameters.awsRegion }}" \
-            -out=tfplan-destroy
+            terraform plan -destroy \
+              -var="aws_account_id=${{ parameters.awsAccountId }}" \
+              -var="environment=${{ parameters.environment }}" \
+              -var="aws_region=${{ parameters.awsRegion }}" \
+              -out=tfplan-destroy
 
-    - task: AWSShellScript@1
-      displayName: 'Terraform Destroy'
-      condition: eq('${{ parameters.terraformAction }}', 'destroy')
-      inputs:
-        regionName: ${{ parameters.awsRegion }}
-        scriptType: 'inline'
-        inlineScript: |
-          cd ${{ parameters.appName }}/.infra
+      - task: AWSShellScript@1
+        displayName: 'Terraform Destroy'
+        inputs:
+          regionName: ${{ parameters.awsRegion }}
+          scriptType: 'inline'
+          inlineScript: |
+            cd ${{ parameters.appName }}/.infra
 
-          terraform apply -auto-approve tfplan-destroy
+            terraform apply -auto-approve tfplan-destroy
