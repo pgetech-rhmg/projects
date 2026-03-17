@@ -82,6 +82,10 @@ jobs:
             -backend-config="region=${{ parameters.awsRegion }}" \
             -backend-config="encrypt=true"
 
+
+    ###########################################################################
+    # Validate the Terraform code
+    ###########################################################################
     - task: AWSShellScript@1
       displayName: 'Terraform Validate'
       inputs:
@@ -92,7 +96,15 @@ jobs:
 
           terraform validate
 
+
+    ###########################################################################
+    # Create the AWS resources
+    ###########################################################################
     - ${{ if eq(parameters.terraformAction, 'apply') }}:
+
+      #########################################################################
+      # Plan
+      #########################################################################
       - task: AWSShellScript@1
         displayName: 'Terraform Plan'
         inputs:
@@ -107,6 +119,9 @@ jobs:
               -var="aws_region=${{ parameters.awsRegion }}" \
               -out=tfplan
 
+      #########################################################################
+      # Apply
+      #########################################################################
       - task: AWSShellScript@1
         displayName: 'Terraform Apply'
         inputs:
@@ -117,7 +132,27 @@ jobs:
 
             terraform apply -auto-approve tfplan
 
+            terraform output -json > $(System.DefaultWorkingDirectory)/output.json
+
+      #########################################################################
+      # Upload Outputs
+      #########################################################################
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish Terraform Outputs'
+        inputs:
+          targetPath: $(System.DefaultWorkingDirectory)/output.json
+          artifact: terraform-outputs
+          publishLocation: pipeline
+
+
+    ###########################################################################
+    # Destory the AWS resources
+    ###########################################################################
     - ${{ if eq(parameters.terraformAction, 'destroy') }}:
+
+      #########################################################################
+      # Plan
+      #########################################################################
       - task: AWSShellScript@1
         displayName: 'Terraform Plan Destroy'
         inputs:
@@ -132,6 +167,9 @@ jobs:
               -var="aws_region=${{ parameters.awsRegion }}" \
               -out=tfplan-destroy
 
+      #########################################################################
+      # Apply
+      #########################################################################
       - task: AWSShellScript@1
         displayName: 'Terraform Destroy'
         inputs:
