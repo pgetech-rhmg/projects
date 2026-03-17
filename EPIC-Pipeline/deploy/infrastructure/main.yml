@@ -23,6 +23,15 @@ jobs:
 
 
     ###########################################################################
+    # Install Terraform
+    ###########################################################################
+    - task: TerraformInstaller@1
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: 'latest'
+    
+      
+    ###########################################################################
     # Deploy Infrastructure with Terraform
     ###########################################################################
     - task: AWSShellScript@1
