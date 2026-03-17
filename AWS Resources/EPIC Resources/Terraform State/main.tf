@@ -50,7 +50,7 @@ data "aws_iam_policy_document" "kms_key_policy" {
 		]
 		resources = ["*"]
 		condition {
-			test     = "StringEquals"
+			test     = "StringLike"
 			variable = "aws:PrincipalArn"
 			values   = ["arn:aws:iam::*:role/pge-epic-deployment-role"]
 		}
@@ -126,7 +126,7 @@ data "aws_iam_policy_document" "s3_state_bucket_policy" {
 		]
 		resources = [module.s3_terraform_state.bucket_arn]
 		condition {
-			test     = "StringEquals"
+			test     = "StringLike"
 			variable = "aws:PrincipalArn"
 			values   = ["arn:aws:iam::*:role/pge-epic-deployment-role"]
 		}
@@ -146,7 +146,7 @@ data "aws_iam_policy_document" "s3_state_bucket_policy" {
 		]
 		resources = ["${module.s3_terraform_state.bucket_arn}/*"]
 		condition {
-			test     = "StringEquals"
+			test     = "StringLike"
 			variable = "aws:PrincipalArn"
 			values   = ["arn:aws:iam::*:role/pge-epic-deployment-role"]
 		}
