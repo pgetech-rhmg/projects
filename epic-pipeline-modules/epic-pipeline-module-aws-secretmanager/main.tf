@@ -16,6 +16,8 @@ resource "aws_secretsmanager_secret" "sm" {
   tags = var.tags
 
   lifecycle {
+    ignore_changes = all
+
     precondition {
       condition = !(
         var.tags["DataClassification"] != "Internal" &&
@@ -32,6 +34,10 @@ resource "aws_secretsmanager_secret_version" "sm_secret_version" {
 
   secret_id     = aws_secretsmanager_secret.sm.id
   secret_string = jsonencode(var.secrets)
+
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 resource "aws_secretsmanager_secret_rotation" "sm_secret_rotation" {
