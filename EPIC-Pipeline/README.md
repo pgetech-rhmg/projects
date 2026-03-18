@@ -2,12 +2,11 @@
 
 ## Overview
 
-The **EPIC Pipeline** is a modular, enterprise-grade Azure DevOps (ADO) pipeline framework designed to **build, test, scan, and deploy applications** in a cloud-agnostic and security-first manner.
+EPIC is an enterprise-grade Azure DevOps pipeline framework for building, testing, scanning, and deploying applications — and optionally provisioning the infrastructure they run on.
 
-It is intended to be **orchestrated by an upstream engine or IDP**, and executed consistently across projects using a **standardized pipeline contract**.
+It is designed to be orchestrated by an upstream engine or IDP and executed consistently across projects using a standardized pipeline contract.
 
-This repository focuses exclusively on **application CI/CD**.  
-Infrastructure provisioning is handled upstream (via Terraform / TFC).
+Applications define their intent in a single config file. EPIC handles execution.
 
 ---
 
@@ -18,12 +17,13 @@ Infrastructure provisioning is handled upstream (via Terraform / TFC).
 ## High-Level Flow
 
 1. Orchestrator triggers EPIC (via pipeline run or REST)
-2. Application source is downloaded
-3. Build is executed based on project type
-4. Tests are executed
-5. Security and quality scans are performed
-6. Application is deployed
-7. Optional integration tests are run
+2. Infrastructure is provisioned if `/.infra` is present (independent stage)
+3. Application source is downloaded
+4. Build is executed based on project type
+5. Tests are executed
+6. Security and quality scans are performed
+7. Application is deployed
+8. Optional integration tests are run
 
 ---
 
@@ -35,6 +35,8 @@ EPIC-Pipeline/
 ├── epic-engine.yml              # Engine-facing pipeline entry
 ├── common/
 │   └── download.yml             # Shared download logic
+├── infra/
+│   └── main.yml                 # Infrastructure provisioning (Terraform)
 ├── build/
 │   ├── main.yml                 # Build dispatcher
 │   ├── angular/
@@ -67,19 +69,19 @@ EPIC-Pipeline/
 
 ## Design Principles
 
-- **Modular** – Everything is a template
-- **Cloud-agnostic** – No hard dependency on AWS or Azure
-- **Engine-driven** – Designed for orchestration, not manual runs
-- **Secure by default** – Scanning and testing are first-class citizens
-- **Enterprise-ready** – Predictable, repeatable, auditable
+- **Modular** — Everything is a template
+- **Cloud-agnostic** — No hard dependency on AWS or Azure
+- **Engine-driven** — Designed for orchestration, not manual runs
+- **Secure by default** — Scanning and testing are first-class citizens
+- **Infrastructure-aware** — Can provision and manage cloud resources directly
+- **Enterprise-ready** — Predictable, repeatable, auditable
 
 ---
 
 ## Intended Usage
 
-This pipeline is not meant to be copied and modified per application.
+Applications are not expected to copy or modify this pipeline. Instead:
 
-Instead:
 - Applications conform to the EPIC contract
 - Orchestrators supply configuration
 - EPIC executes consistently across teams
@@ -90,26 +92,48 @@ Instead:
 
 ### `epic-orchestrator.yml`
 
-This pipeline is designed to be invoked by an **external engine** (REST or pipeline-to-pipeline).
-
-Typical use cases:
-- IDP / Wizard driven deployments
-- Engine-driven pipeline orchestration
-- Dynamic execution based on JSON payloads
-
----
+Designed to be invoked by an external engine via REST or pipeline-to-pipeline trigger. Typical use cases include IDP or wizard-driven deployments and dynamic execution based on JSON payloads.
 
 ### `epic-engine.yml`
 
-This is the **primary ADO pipeline** that controls execution flow and is invoked by the EPIC Orchestrator.
+The primary ADO pipeline that controls execution flow. It accepts parameters from the calling system, determines which stages are required, calls modular templates, and enforces ordering and gating. It contains no business logic — it wires stages together.
 
-Responsibilities:
-- Accepts parameters from the calling system
-- Determines which stages are required
-- Calls modular templates (build, test, scan, deploy)
-- Enforces ordering and gating
+---
 
-This file **does not contain business logic** — it wires stages together.
+## Infrastructure Stage
+
+### Overview
+
+EPIC supports automated infrastructure provisioning via Terraform. This stage is independent — it does not block or gate the build stage, and runs as a separate concern.
+
+When a `/.infra` folder is present in the application repository, EPIC will automatically run `terraform init`, `terraform plan`, and `terraform apply` against it. If `/.infra` is absent, the infra stage is skipped and EPIC uses the resource values provided directly in `epic.json`.
+
+### `/.infra` Folder Structure
+
+EPIC expects a standard Terraform layout (example shown below):
+
+```
+.infra/
+├── versions.tf                 # Verions declarations
+├── main.tf                     # Resource definitions
+├── data.tf                     # Data declarations
+├── variables.tf                # Input variable declarations
+├── terraform.auto.tfvars.tf    # Input variable values
+└── outputs.tf                  # Output values (used by EPIC for deployment)
+```
+
+EPIC handles backend configuration, state management, and credential injection automatically. Applications should not define backend configuration in their Terraform code.
+
+### Behavior
+
+| Condition | EPIC Behavior |
+|-----------|---------------|
+| `/.infra` present | Runs `terraform init`, `plan`, and `apply` automatically |
+| `/.infra` absent | Skips infra stage; uses resource values from `epic.json` |
+
+### Outputs
+
+Terraform outputs defined in `outputs.tf` are captured by EPIC and made available to the deploy stage. If you are managing your own infrastructure and skipping `/.infra`, you must supply the equivalent values directly in `epic.json`.
 
 ---
 
@@ -117,12 +141,7 @@ This file **does not contain business logic** — it wires stages together.
 
 ### `common/download.yml`
 
-Shared logic used across stages to:
-- Download application source
-- Retrieve artifacts
-- Normalize working directories
-
-This avoids duplication and ensures consistent behavior.
+Shared logic used across stages to download application source, retrieve artifacts, and normalize working directories.
 
 ---
 
@@ -130,19 +149,9 @@ This avoids duplication and ensures consistent behavior.
 
 ### `build/main.yml`
 
-Acts as a **dispatcher** that selects the correct build implementation based on project type.
+Dispatcher that selects the correct build implementation based on `appType`. Responsibilities include installing tooling and dependencies, running the build, and normalizing output into a `build` folder.
 
-Supported patterns:
-- Angular
-- .NET (Core/Framework)
-- Python
-- Extensible by design
-
-Responsibilities:
-- Install tooling
-- Install dependencies
-- Run build
-- Normalize output into a `build` folder
+**Supported types:** Angular, .NET Core, .NET Framework, Python, Java
 
 ---
 
@@ -150,19 +159,9 @@ Responsibilities:
 
 ### `test/main.yml`
 
-Test execution dispatcher.
+Executes unit tests, generates reports, and fails the pipeline on test failure (configurable). Output is normalized into a `reports` folder.
 
-Supported scanners:
-- Jest
-- playwright
-- pytest
-- xUnit
-
-Responsibilities:
-- Execute unit tests
-- Generate reports
-- Fail pipeline on test failure (configurable)
-- Normalize output into a `reports` folder
+**Supported frameworks:** Jest, Playwright, pytest, xUnit
 
 ---
 
@@ -170,19 +169,9 @@ Responsibilities:
 
 ### `scan/main.yml`
 
-Security and quality scan dispatcher.
+Security and quality scan dispatcher. Scanner selection is data-driven, not hard-coded. Enforces quality gates when configured.
 
-Supported scanners:
-- SonarQube
-- JFrog
-- Wiz
-
-Scanner selection is **data-driven**, not hard-coded.
-
-Responsibilities:
-- Execute scanner
-- Publish reports
-- Enforce quality gates when configured
+**Supported scanners:** SonarQube, JFrog, Wiz
 
 ---
 
@@ -190,35 +179,25 @@ Responsibilities:
 
 ### `deploy/main.yml`
 
-Handles application deployment to the target runtime environment.
-
-Design principles:
-- No infrastructure creation
-- No environment coupling
-- Assumes infrastructure already exists
-
-Deployment strategy is intentionally abstract to support:
-- AWS
-- Azure
-- Hybrid environments
+Handles application deployment to the target runtime environment. No infrastructure creation occurs here — the infra stage handles that. Assumes infrastructure already exists, whether provisioned by EPIC or provided externally.
 
 ---
 
 ## Pipeline Contract
 
-Each application must include a configuration file located at:
+Each application must include a configuration file at:
 
 ```
 .pipeline/epic.json
 ```
 
-This file defines how EPIC builds, tests, scans, and deploys the application.
+This file defines how EPIC builds, tests, scans, and deploys the application. If `/.infra` is absent, all AWS or Azure resource values must also be provided here.
 
 ---
 
-## Example epic.json
+## Example `epic.json`
 
-```
+```json
 {
   "appName": "my-app",
   "appType": "angular",
@@ -230,367 +209,95 @@ This file defines how EPIC builds, tests, scans, and deploys the application.
   "unitTestTool": "jest",
   "integrationTestTool": "playwright",
 
-  // AWS resource information based on app
   "awsAccountId": "999999999999",
   "s3": "pge-epic-my-app-web-dev",
   "cloudfront": "X9X9X9XX99XX9X"
 }
 ```
 
+If `/.infra` is present and outputs `s3` and `cloudfront`, those values do not need to be hardcoded in `epic.json` — EPIC will resolve them from Terraform output automatically.
+
 ---
 
 ## Contract Parameters
 
----
+### Application Configuration
 
-## Application Configuration
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `appName` | Yes | Logical application name. Alphanumeric, hyphens, or underscores. No spaces. |
+| `appType` | Yes | Determines build implementation. See allowed values below. |
+| `codePath` | Yes | Relative path from repo root to application source (e.g., `/src`, `.`). |
+| `buildType` | No | Defines packaging behavior. Omit for standard build. |
 
----
+**`appType` allowed values:**
 
-### appName (Required)
-
-**Description**  
-Logical application name used for logging, artifact naming, and deployment labeling.
-
-**Type**  
-string
-
-**Constraints**
-- Alphanumeric
-- Underscores or hyphens allowed
-- No spaces
-
----
-
-### appType (Required)
-
-**Description**  
-Determines which build implementation EPIC executes.
-
-**Type**  
-string
-
-**Allowed Values**
-
-| Value              | Description                          |
-|--------------------|--------------------------------------|
-| angular            | Angular frontend application         |
-| dotnet             | .NET Core / .NET 6+ application      |
-| dotnet_framework   | .NET Framework application           |
-| java               | Java application                     |
-| python             | Python application                   |
+| Value | Description |
+|-------|-------------|
+| `angular` | Angular frontend application |
+| `dotnet` | .NET Core / .NET 6+ application |
+| `dotnet_framework` | .NET Framework application |
+| `java` | Java application |
+| `python` | Python application |
 
 ---
 
-### buildType (Optional – Contextual)
+### Build Runtime Versions
 
-**Description**  
-Defines packaging behavior after build.
-
-If omitted, EPIC performs a standard build without packaging.
-
-**Type**  
-string
-
-### dotnet / dotnet_framework
-
-| Value   | Description |
-|---------|-------------|
-| package | Produce deployable package (zip / publish output) |
-| ommited | Standard build |
-
-### Python
-
-| Value   | Description |
-|---------|-------------|
-| egg     | Build Python egg artifact |
-| wheel   | Build wheel package |
-| sdist   | Build source distribution |
-| omitted | Validated source |
-
-### java
-
-| Value   | Description  |
-|---------|--------------|
-| maven   | Maven build  | 
-| gradle  | Gradle build |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `dotnetVersion` | `9.x` | .NET SDK version |
+| `javaVersion` | `17` | Java version |
+| `nodeVersion` | `18` | Node.js version |
+| `pythonVersion` | `3.11` | Python version |
 
 ---
 
-### codePath (Required)
+### Tool Configuration
 
-**Description**  
-Relative path from repository root to the application source directory.
-
-**Type**  
-string
-
-**Examples**
-```
-"."
-"/"
-"/src"
-"/app"
-```
-
-Supports mono-repo and nested application structures.
+| Parameter | Description | Allowed Values |
+|-----------|-------------|----------------|
+| `scanTool` | Scan tool to execute | `sonarqube`, `jfrog`, `wiz`, omit to skip |
+| `unitTestTool` | Unit test framework | `jest`, `junit`, `pytest`, `xunit`, omit to skip |
+| `integrationTestTool` | Integration test framework | `playwright`, omit to skip |
 
 ---
 
-## Build Runtime Versions
+### AWS Deployment Parameters
+
+Required when deploying to AWS and `/.infra` is absent. If `/.infra` is present, EPIC resolves these from Terraform outputs automatically.
+
+| Parameter | Description |
+|-----------|-------------|
+| `awsAccountId` | Target AWS account ID (12 digits) |
+| `s3` | Target S3 bucket name |
+| `cloudfront` | CloudFront distribution ID (static/Angular apps) |
+| `ec2InstanceId` | EC2 instance ID (.NET, Python, Java apps) |
+| `appExecutable` | Executable name (.NET, Python, Java apps) |
 
 ---
 
-### dotnetVersion (Optional)
+### Azure Deployment Parameters
 
-**Default:** `"9.x"`
-
-**Description**  
-.NET SDK version used during build.
-
-**Type**  
-string
-
-**Examples**
-```
-"8.x"
-"9.x"
-"10.x"
-```
+| Parameter | Description |
+|-----------|-------------|
+| `azureSubscription` | Azure subscription name or service connection reference |
+| `azureResourceGroup` | Azure resource group for deployment |
 
 ---
 
-### javaVersion (Optional)
-
-**Default:** `"17"`
-
-**Description**  
-Node.js version used for Angular or Node-based builds.
-
-**Type**  
-string
-
-**Examples**
-```
-"17"
-"18"
-```
-
----
-
-### nodeVersion (Optional)
-
-**Default:** `"18"`
-
-**Description**  
-Node.js version used for Angular or Node-based builds.
-
-**Type**  
-string
-
-**Examples**
-```
-"18"
-"20"
-```
-
----
-
-### pythonVersion (Optional)
-
-**Default:** `"3.11"`
-
-**Description**  
-Python runtime version used during build.
-
-**Type**  
-string
-
-**Examples**
-```
-"3.10"
-"3.11"
-```
-
----
-
-## Tool Configuration
-
----
-
-### scanTool (Optional)
-
-**Description**  
-Security or quality scanning tool to execute.
-
-**Type**  
-string
-
-**Allowed Values**
-
-| Value       | Description                            |
-|-------------|----------------------------------------|
-| sonarqube   | Code quality and coverage scanning     |
-| jfrog       | Artifact scanning (comming soon)       |
-| wiz         | Cloud security scanning (comming soon) |
-| omitted     | Skip scanning                          |
-
----
-
-### unitTestTool (Optional)
-
-**Description**  
-Unit testing framework to execute.
-
-**Type**  
-string
-
-**Allowed Values**
-
-| Value   | Description                     |
-|---------|---------------------------------|
-| jest    | JavaScript / Angular tests      |
-| junit   | Java (Maven / Gradle)           |
-| pytest  | Python tests                    |
-| xunit   | .NET tests                      |
-| omitted | Skip unit tests                 |
-
----
-
-### integrationTestTool (Optional)
-
-**Description**  
-Integration or end-to-end testing framework executed after deployment.
-
-**Type**  
-string
-
-**Allowed Values**
-
-| Value      | Description                         |
-|------------|-------------------------------------|
-| playwright | Browser automation (comming soon)   |
-| omitted    | Skip integration tests              |
-
----
-
-## AWS Deployment Parameters (Conditional)
-
-Used only when deploying to AWS.
-
----
-
-### awsAccountId
-
-**Description**  
-Target AWS account.
-
-**Type**  
-string
-
-**Constraints**
-- Must be a valid 12-digit AWS account ID
-
----
-
-### s3
-
-**Description**  
-Target S3 bucket. Used to store app files or deployment (zip) files.
-
-**Type**  
-string
-
-**Example**
-```
-"pge-epic-myapp-dev"
-```
-
----
-
-### cloudfront
-
-**Description**  
-CloudFront instance id used with static and node-based web apps.
-
-**Type**  
-string
-
-**Example**
-```
-"X9X9X9XX99XX9X"
-```
-
----
-
-### ec2InstanceId
-
-**Description**  
-EC2 instance id used with .net, python, java apps.
-
-**Type**  
-string
-
-**Example**
-```
-"i-99x999xxx999xxxx9"
-```
-
----
-
-### appExecutable
-
-**Description**  
-Executable name used with .net, python, java apps.
-
-**Type**  
-string
-
-**Example**
-```
-"My.App"
-```
-
----
-
-## Azure Deployment Parameters (Conditional)
-
-Used only when deploying to Azure.
-
----
-
-### azureSubscription
-
-**Description**  
-Azure subscription name or service connection reference used for deployment.
-
-**Type**  
-string
-
----
-
-### azureResourceGroup
-
-**Description**  
-Azure resource group where the application will be deployed.
-
-**Type**  
-string
-
----
-
-# Parameter Categories Summary
-
-| Category              | Required | Notes |
-|-----------------------|----------|-------|
-| Application Identity  | Yes      | appName, appType, codePath |
-| Packaging             | Optional | buildType |
-| Runtime Versions      | Optional | nodeVersion, pythonVersion, dotnetVersion, javaVersion |
-| Scanning              | Optional | scanTool |
-| Unit Testing          | Optional | unitTestTool |
-| Integration Testing   | Optional | integrationTestTool |
-| AWS Deployment        | Conditional | awsAccountId, s3, cloudfront, ec2InstanceId, appExecutable |
-| Azure Deployment      | Conditional | azureSubscription, azureResourceGroup |
+## Parameter Categories Summary
+
+| Category | Required | Parameters |
+|----------|----------|------------|
+| Application Identity | Yes | `appName`, `appType`, `codePath` |
+| Packaging | Optional | `buildType` |
+| Runtime Versions | Optional | `nodeVersion`, `pythonVersion`, `dotnetVersion`, `javaVersion` |
+| Scanning | Optional | `scanTool` |
+| Unit Testing | Optional | `unitTestTool` |
+| Integration Testing | Optional | `integrationTestTool` |
+| AWS Deployment | Conditional | `awsAccountId`, `s3`, `cloudfront`, `ec2InstanceId`, `appExecutable` |
+| Azure Deployment | Conditional | `azureSubscription`, `azureResourceGroup` |
 
 ---
 
@@ -601,30 +308,23 @@ EPIC enforces validation at runtime:
 - Missing required fields fail early
 - Unsupported values fail during stage dispatch
 - Version fields default if omitted
-- Deployment-specific parameters are validated only when deployment stage executes
+- Deployment parameters are validated only when the deploy stage executes
+- If `/.infra` is present, Terraform outputs are validated before the deploy stage runs
 
 ---
 
 ## Contract Philosophy
 
-The EPIC contract is:
+The EPIC contract is declarative, modular, cloud-agnostic, engine-driven, and version-controllable.
 
-- Declarative
-- Modular
-- Cloud-agnostic
-- Engine-driven
-- Version-controllable
-
-Applications define intent.  
-EPIC determines execution flow.
-
-This ensures predictable enterprise behavior, strong governance, and scalable CI/CD across teams.
+Applications define intent. EPIC determines execution flow.
 
 ---
 
 ## Extending EPIC
 
-To add support for a new build, scan, or test type:
+To add support for a new build, scan, test, or infrastructure type:
+
 1. Add a new folder under the appropriate stage
 2. Implement the script or template
 3. Register it in the stage dispatcher (`main.yml`)
@@ -635,12 +335,12 @@ No changes to the orchestrator are required.
 
 ## Summary
 
-EPIC provides a **standardized CI/CD backbone** for enterprise application delivery.
+EPIC provides a standardized CI/CD backbone for enterprise application delivery.
 
 It separates:
-- Infrastructure provisioning
-- Application lifecycle
-- Orchestration logic
 
-This keeps pipelines **clean, scalable, and governable** — exactly what you want in a regulated enterprise environment.
+- Infrastructure provisioning (`/.infra` + Terraform)
+- Application lifecycle (build, test, scan, deploy)
+- Orchestration logic (engine + orchestrator)
 
+This keeps pipelines clean, scalable, and governable across teams.
