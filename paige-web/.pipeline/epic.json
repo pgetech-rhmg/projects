@@ -6,7 +6,6 @@
   "unitTestTool": "jest",
   "nodeVersion": "20",
 
-  "terraformAction": "apply",
   "awsAccountId": "514712703977",
   "awsRegion": "us-west-2"
 }
