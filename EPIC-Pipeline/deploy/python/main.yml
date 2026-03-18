@@ -109,19 +109,19 @@ steps:
           --comment "Deploy $APP_NAME" \
           --parameters commands="[
             \"set -e\",
-            \"sudo mkdir -p /opt/${{ parameters.appName }}\",
-            \"cd /opt/${{ parameters.appName }}\",
+            \"sudo mkdir -p /opt/$APP_NAME\",
+            \"cd /opt/$APP_NAME\",
             \"sudo rm -rf app venv\",
             \"sudo mkdir -p app\",
             \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
             \"sudo unzip -o $APP_NAME.zip -d app\",
-            \"sudo python3.11 -m venv /opt/${{ parameters.appName }}/venv\",
-            \"sudo /opt/${{ parameters.appName }}/venv/bin/pip install --upgrade pip\",
-            \"if [ -f /opt/${{ parameters.appName }}/app/requirements.txt ]; then sudo /opt/${{ parameters.appName }}/venv/bin/pip install -r /opt/${{ parameters.appName }}/app/requirements.txt; fi\",
-            \"sudo /opt/${{ parameters.appName }}/venv/bin/pip install /opt/${{ parameters.appName }}/app\",
+            \"sudo python3.11 -m venv /opt/$APP_NAME/venv\",
+            \"sudo /opt/$APP_NAME/venv/bin/pip install --upgrade pip\",
+            \"if [ -f /opt/$APP_NAME/app/requirements.txt ]; then sudo /opt/$APP_NAME/venv/bin/pip install -r /opt/$APP_NAME/app/requirements.txt; fi\",
+            \"sudo /opt/$APP_NAME/venv/bin/pip install /opt/$APP_NAME/app\",
             \"sudo systemctl daemon-reload\",
-            \"sudo systemctl stop ${{ parameters.appName }} || true\",
-            \"sudo systemctl start ${{ parameters.appName }}\"
+            \"sudo systemctl stop $APP_NAME || true\",
+            \"sudo systemctl start $APP_NAME\"
           ]"
         
         echo "Deployment complete."

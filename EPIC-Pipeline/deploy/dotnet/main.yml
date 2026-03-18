@@ -109,16 +109,16 @@ steps:
           --comment "Deploy $APP_NAME" \
           --parameters commands="[
             \"set -e\",
-            \"sudo mkdir -p /opt/${{ parameters.appName }}\",
-            \"cd /opt/${{ parameters.appName }}\",
+            \"sudo mkdir -p /opt/$APP_NAME\",
+            \"cd /opt/$APP_NAME\",
             \"sudo rm -rf app\",
             \"sudo mkdir -p app\",
             \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
             \"sudo unzip -o $APP_NAME.zip -d app\",
-            \"sudo chmod +x /opt/${{ parameters.appName }}/app/${{ parameters.appExecutable }}\",
+            \"sudo chmod +x /opt/$APP_NAME/app/$APP_EXECUTABLE\",
             \"sudo systemctl daemon-reload\",
-            \"sudo systemctl stop ${{ parameters.appName }} || true\",
-            \"sudo systemctl start ${{ parameters.appName }}\"
+            \"sudo systemctl stop $APP_NAME || true\",
+            \"sudo systemctl start $APP_NAME\"
           ]"
         
         echo "Deployment complete."
