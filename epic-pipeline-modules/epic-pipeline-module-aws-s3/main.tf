@@ -82,10 +82,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
 
     content {
       id     = rule.value.id
-      status = rule.value.enabled ? "Enabled" : "Disabled"
-
+      status = rule.value.status
       dynamic "filter" {
-        for_each = try([rule.value.filter], [])
+        for_each = try([rule.value.filter], try(rule.value.prefix, null) != null ? [{prefix = rule.value.prefix}] : [])
         content {
           # Pass-through structure; caller must provide valid filter shape for AWS provider.
           # Common patterns: { prefix = "logs/" } or { and = { ... } }
@@ -110,16 +109,16 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
       }
 
       dynamic "expiration" {
-        for_each = try([rule.value.expiration], [])
+        for_each = try(rule.value.expiration != null && rule.value.expiration.days != null ? [rule.value.expiration] : [], [])
         content {
-          days = try(expiration.value.days, null)
+          days = expiration.value.days
         }
       }
 
       dynamic "noncurrent_version_expiration" {
-        for_each = try([rule.value.noncurrent_version_expiration], [])
+        for_each = try(rule.value.noncurrent_version_expiration != null && rule.value.noncurrent_version_expiration.noncurrent_days != null ? [rule.value.noncurrent_version_expiration] : [], [])
         content {
-          noncurrent_days = try(noncurrent_version_expiration.value.noncurrent_days, null)
+          noncurrent_days = noncurrent_version_expiration.value.noncurrent_days
         }
       }
     }

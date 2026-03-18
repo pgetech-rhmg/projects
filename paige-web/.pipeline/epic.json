@@ -1,11 +1,12 @@
 {
-  "appName": "Paige_Web",
+  "appName": "paige-web",
   "appType": "angular",
   "codePath": "/",
   "scanTool": "sonarqube",
   "unitTestTool": "jest",
   "nodeVersion": "20",
 
-  "s3": "pge-epic-paige-web-dev",
-  "cloudfront": "E3P8DOGZX0L1A1"
+  "terraformAction": "apply",
+  "awsAccountId": "514712703977",
+  "awsRegion": "us-west-2"
 }

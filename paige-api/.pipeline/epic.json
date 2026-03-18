@@ -1,12 +1,13 @@
 {
-  "appName": "paige",
+  "appName": "paige-api",
   "appType": "dotnet",
   "codePath": "/Paige.Api",
   "scanTool": "sonarqube",
   "unitTestTool": "xunit",
   "dotnetVersion": "10.x",
   
-  "s3": "pge-epic-paige-api-deploy-dev",
-  "ec2InstanceId": "i-011d7765d12ab435c",
+  "terraformAction": "apply",
+  "awsAccountId": "514712703977",
+  "awsRegion": "us-west-2",
   "appExecutable": "Paige.Api"
 }

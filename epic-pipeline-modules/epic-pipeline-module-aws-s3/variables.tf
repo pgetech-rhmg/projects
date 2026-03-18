@@ -96,7 +96,7 @@ Lifecycle rules for the bucket.
 
 Each rule object supports:
 - id (string, required)
-- enabled (bool, required)
+- status (string, required) - Either "Enabled" or "Disabled"
 - prefix (string, optional) [deprecated by AWS, but still accepted]
 - filter (object, optional) - passed through to aws_s3_bucket_lifecycle_configuration
 - transitions (list(object), optional): [{ days = number, storage_class = string }]
