@@ -268,7 +268,7 @@ dnf install -y libicu unzip jq awscli git
 
 mkdir -p /opt/${var.app_name}-api/app
 
-cat > /etc/systemd/system/${var.app_name}-api.service <<SERVICE
+cat > /etc/systemd/system/${var.app_name}-api.service <<-SERVICE
 [Unit]
 Description=${var.app_name}-api
 After=network.target
