@@ -1,0 +1,35 @@
+2026-03-18T14:04:12.3403467Z ##[section]Starting: Terraform Apply
+2026-03-18T14:04:12.3412877Z ==============================================================================
+2026-03-18T14:04:12.3413103Z Task         : AWS Shell Script
+2026-03-18T14:04:12.3413250Z Description  : Run a shell script using Bash with AWS credentials as environment variables
+2026-03-18T14:04:12.3413440Z Version      : 1.24.0
+2026-03-18T14:04:12.3413573Z Author       : Amazon Web Services
+2026-03-18T14:04:12.3413720Z Help         : Runs a shell script in Bash, setting AWS credentials and region information into the shell environment using the standard environment keys _AWS_ACCESS_KEY_ID_, _AWS_SECRET_ACCESS_KEY_, _AWS_SESSION_TOKEN_ and _AWS_REGION_.
+
+More information on this task can be found in the [task reference](https://docs.aws.amazon.com/vsts/latest/userguide/awsshell.html).
+
+####Task Permissions
+Permissions for this task to call AWS service APIs depend on the activities in the supplied script.
+2026-03-18T14:04:12.3414334Z ==============================================================================
+2026-03-18T14:04:12.7537766Z Configuring credentials for task
+2026-03-18T14:04:12.7551302Z ...configuring AWS credentials from task variables
+2026-03-18T14:04:12.7552403Z ...endpoint defines standard access/secret key credentials
+2026-03-18T14:04:12.7555816Z Configuring region for task
+2026-03-18T14:04:12.7556875Z ...configured to use region us-west-2, defined in task.
+2026-03-18T14:04:12.7573709Z [command]/usr/bin/bash /home/vsts/work/_temp/awsshellscript_2535.sh
+2026-03-18T14:04:16.4035496Z [0m[1mmodule.secretmanager.aws_secretsmanager_secret.sm: Creating...[0m[0m
+2026-03-18T14:04:17.1293044Z [0m[1mmodule.secretmanager.aws_secretsmanager_secret.sm: Creation complete after 1s [id=arn:aws:secretsmanager:us-west-2:514712703977:secret:pge-epic-paige-dev-secrets-y121tt][0m
+2026-03-18T14:04:17.1326059Z [0m[1mmodule.secretmanager.aws_secretsmanager_secret_version.sm_secret_version[0]: Creating...[0m[0m
+2026-03-18T14:04:17.1348866Z [0m[1mmodule.secretmanager.aws_iam_policy.secret_read: Creating...[0m[0m
+2026-03-18T14:04:17.4309003Z [0m[1mmodule.secretmanager.aws_secretsmanager_secret_version.sm_secret_version[0]: Creation complete after 0s [id=arn:aws:secretsmanager:us-west-2:514712703977:secret:pge-epic-paige-dev-secrets-y121tt|terraform-20260318140417133300000002][0m
+2026-03-18T14:04:17.6451698Z [31m╷[0m[0m
+2026-03-18T14:04:17.6459935Z [31m│[0m [0m[1m[31mError: [0m[0m[1mcreating IAM Policy (pge-epic-paige-dev-secret-read): operation error IAM: CreatePolicy, https response error StatusCode: 403, RequestID: 076e539f-17c2-48c3-98ef-78c1e2b49ead, api error AccessDenied: User: arn:aws:sts::514712703977:assumed-role/pge-epic-deployment-role/epic-terraform-deploy is not authorized to perform: iam:CreatePolicy on resource: policy pge-epic-paige-dev-secret-read because no identity-based policy allows the iam:CreatePolicy action[0m
+2026-03-18T14:04:17.6464836Z [31m│[0m [0m
+2026-03-18T14:04:17.6466110Z [31m│[0m [0m[0m  with module.secretmanager.aws_iam_policy.secret_read,
+2026-03-18T14:04:17.6466550Z [31m│[0m [0m  on .terraform/modules/secretmanager/main.tf line 53, in resource "aws_iam_policy" "secret_read":
+2026-03-18T14:04:17.6467150Z [31m│[0m [0m  53: resource "aws_iam_policy" "secret_read" [4m{[0m[0m
+2026-03-18T14:04:17.6467364Z [31m│[0m [0m
+2026-03-18T14:04:17.6467552Z [31m╵[0m[0m
+2026-03-18T14:04:17.8212323Z 
+2026-03-18T14:04:17.8271739Z ##[error]Error: The process '/usr/bin/bash' failed with exit code 1
+2026-03-18T14:04:17.8414673Z ##[section]Finishing: Terraform Apply
