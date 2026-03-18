@@ -117,7 +117,16 @@ data "aws_iam_policy_document" "epic_infrastructure" {
 			"iam:RemoveRoleFromInstanceProfile",
 			"iam:PassRole",
 			"iam:TagRole",
-			"iam:UntagRole"
+			"iam:UntagRole",
+			"iam:CreatePolicy",
+			"iam:DeletePolicy",
+			"iam:GetPolicy",
+			"iam:GetPolicyVersion",
+			"iam:ListPolicyVersions",
+			"iam:CreatePolicyVersion",
+			"iam:DeletePolicyVersion",
+			"iam:TagPolicy",
+			"iam:UntagPolicy"
 		]
 		resources = ["*"]
 	}
