@@ -6,7 +6,6 @@
   "unitTestTool": "xunit",
   "dotnetVersion": "10.x",
   
-  "terraformAction": "apply",
   "awsAccountId": "514712703977",
   "awsRegion": "us-west-2",
   "appExecutable": "Paige.Api"

@@ -4,7 +4,6 @@
   "codePath": "/",
   "pythonVersion": "3.12",
   
-  "terraformAction": "apply",
   "awsAccountId": "514712703977",
   "awsRegion": "us-west-2",
   "appExecutable": "terraform_kb.server"

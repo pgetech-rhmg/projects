@@ -83,6 +83,15 @@ parameters:
     type: boolean
     default: false
 
+  - name: deployInfra
+    displayName: "Infrastructure Deployment"
+    type: string
+    default: none
+    values:
+      - none
+      - apply
+      - destroy
+
 
 ###############################################################################
 # Global Variables (pipeline IDs, org, project)
@@ -142,11 +151,6 @@ stages:
               git clone --depth 1 --branch "${{ parameters.branch }}" "https://${GITHUB_PAT}@github.com/${ORG}/${{ parameters.repo }}.git" /tmp/repo
 
               CONFIG_FILE="/tmp/repo/.pipeline/epic.json"
-              INFRA=false
-
-              if [ -d "/tmp/repo/.infra" ]; then
-                INFRA=true
-              fi
 
               REPO="${{ parameters.repo }}"
               BRANCH="${{ parameters.branch }}"
@@ -156,6 +160,11 @@ stages:
               SCAN="${{ parameters.scan }}"
               DEPLOY="${{ parameters.deploy }}"
               INTEGRATIONS="${{ parameters.integrations }}"
+              TERRAFORM="${{ parameters.deployInfra }}"
+
+              if [ ! -d "/tmp/repo/.infra" ]; then
+                TERRAFORM="none"
+              fi
 
               # Normalize ADO boolean strings -> JSON booleans
               BUILD=$(echo "$BUILD" | tr '[:upper:]' '[:lower:]')
@@ -168,10 +177,10 @@ stages:
                 --arg repo "$REPO" \
                 --arg branch "$BRANCH" \
                 --arg environment "$ENVIRONMENT" \
+                --arg terraformAction "$TERRAFORM" \
                 --argjson build "$BUILD" \
                 --argjson tests "$TESTS" \
                 --argjson scan "$SCAN" \
-                --argjson infra "$INFRA" \
                 --argjson deploy "$DEPLOY" \
                 --argjson integrations "$INTEGRATIONS" \
                 --slurpfile config "$CONFIG_FILE" \
@@ -185,10 +194,10 @@ stages:
                         repo: $repo,
                         branch: $branch,
                         environment: $environment,
+                        terraformAction: $terraformAction,
                         build: $build,
                         tests: $tests,
                         scan: $scan,
-                        infra: $infra,
                         deploy: $deploy,
                         integrations: $integrations
                       }

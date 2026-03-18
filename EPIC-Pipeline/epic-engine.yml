@@ -55,11 +55,6 @@ parameters:
     type: string
     default: ""
 
-  # Terraform
-  - name: terraformAction
-    type: string
-    default: "apply"
-
   # AWS
   - name: awsAccountId
     type: string
@@ -100,15 +95,17 @@ parameters:
   - name: scan
     type: boolean
     default: true
-  - name: infra
-    type: boolean
-    default: false
   - name: deploy
     type: boolean
     default: true
   - name: integrations
     type: boolean
     default: true
+
+  # Infrastructure stage
+  - name: terraformAction
+    type: string
+    default: "none"
 
 
 ###############################################################################
@@ -192,7 +189,7 @@ stages:
   #############################################################################
   # Deploy Infrastructure
   #############################################################################
-  - ${{ if eq(parameters.infra, 'true') }}:
+  - ${{ if ne(parameters.terraformAction, 'none') }}:
     - stage: DeployInfra
       displayName: "Deploy Infrastructure"
       dependsOn: 
@@ -223,7 +220,7 @@ stages:
           - UnitTest
         - ${{ if eq(parameters.scan, 'true') }}:
           - Scan
-        - ${{ if eq(parameters.infra, 'true') }}:
+        - ${{ if ne(parameters.terraformAction, 'none') }}:
           - DeployInfra
 
       jobs:
@@ -242,7 +239,7 @@ stages:
         - Download
         - Build
         - Deploy
-        - ${{ if eq(parameters.infra, 'true') }}:
+        - ${{ if ne(parameters.terraformAction, 'none') }}:
           - DeployInfra
 
       jobs:

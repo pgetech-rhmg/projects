@@ -265,7 +265,7 @@ server {
     
     location / {
         proxy_pass http://127.0.0.1:8001;
-        proxy_set_header Host paige-mcp-dev.nonprod.pge.com;
+        proxy_set_header Host ${var.app_name}-mcp-dev.nonprod.pge.com;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         
@@ -279,16 +279,16 @@ NGINX
 systemctl enable nginx
 systemctl start nginx
 
-mkdir -p /opt/${var.app_name}/app
+mkdir -p /opt/${var.app_name}-mcp/app
 
-cat > /etc/systemd/system/${var.app_name}.service <<SERVICE
+cat > /etc/systemd/system/${var.app_name}-mcp.service <<SERVICE
 [Unit]
-Description=${var.app_name}
+Description=${var.app_name}-mcp
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/${var.app_name}/app
-ExecStart=/opt/${var.app_name}/venv/bin/python -m ${var.app_executable}
+WorkingDirectory=/opt/${var.app_name}-mcp/app
+ExecStart=/opt/${var.app_name}-mcp/venv/bin/python -m ${var.app_executable}
 Restart=always
 RestartSec=5
 User=ec2-user
@@ -299,7 +299,7 @@ WantedBy=multi-user.target
 SERVICE
 
 systemctl daemon-reload
-systemctl enable ${var.app_name}
+systemctl enable ${var.app_name}-mcp
 EOF
 
 	tags = module.tags.tags

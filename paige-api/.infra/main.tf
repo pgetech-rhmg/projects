@@ -236,7 +236,7 @@ module "s3_api" {
 module "ec2" {
   source = "git::https://github.com/pgetech/epic-pipeline-module-aws-ec2.git?ref=main"
 
-  app_name      = var.app_name
+  app_name      = "${var.app_name}-api"
   environment   = var.environment
   ami           = data.aws_ami.amazon_linux.id
   instance_type = var.instance_type
@@ -266,16 +266,16 @@ set -e
 dnf update -y
 dnf install -y libicu unzip jq awscli git
 
-mkdir -p /opt/${var.app_name}/app
+mkdir -p /opt/${var.app_name}-api/app
 
-cat > /etc/systemd/system/${var.app_name}.service <<SERVICE
+cat > /etc/systemd/system/${var.app_name}-api.service <<SERVICE
 [Unit]
-Description=${var.app_name}
+Description=${var.app_name}-api
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/${var.app_name}/app
-ExecStart=/opt/${var.app_name}/app/${var.app_executable}
+WorkingDirectory=/opt/${var.app_name}-api/app
+ExecStart=/opt/${var.app_name}-api/app/${var.app_executable}
 Restart=always
 RestartSec=5
 User=ec2-user
@@ -287,7 +287,7 @@ WantedBy=multi-user.target
 SERVICE
 
 systemctl daemon-reload
-systemctl enable ${var.app_name}
+systemctl enable ${var.app_name}-api
 EOF
 
   tags = module.tags.tags
@@ -301,7 +301,7 @@ EOF
 module "load_balancer_api" {
   source = "git::https://github.com/pgetech/epic-pipeline-module-aws-load-balancer.git?ref=main"
 
-  app_name          = var.app_name
+  app_name          = "${var.app_name}-api"
   environment       = var.environment
   tags              = module.tags.tags
   vpc_id            = var.network.vpc_id
