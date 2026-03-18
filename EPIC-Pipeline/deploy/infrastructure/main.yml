@@ -51,6 +51,8 @@ jobs:
         regionName: ${{ parameters.awsRegion }}
         scriptType: 'inline'
         inlineScript: |
+          set -euo pipefail
+        
           aws sts assume-role \
             --role-arn "arn:aws:iam::${{ parameters.awsAccountId }}:role/pge-epic-deployment-role" \
             --role-session-name "epic-terraform-deploy" \
@@ -73,6 +75,8 @@ jobs:
         regionName: ${{ parameters.awsRegion }}
         scriptType: 'inline'
         inlineScript: |
+          set -euo pipefail
+        
           cd ${{ parameters.appName }}/.infra
 
           terraform init \
@@ -92,6 +96,8 @@ jobs:
         regionName: ${{ parameters.awsRegion }}
         scriptType: 'inline'
         inlineScript: |
+          set -euo pipefail
+        
           cd ${{ parameters.appName }}/.infra
 
           terraform validate
@@ -111,6 +117,8 @@ jobs:
           regionName: ${{ parameters.awsRegion }}
           scriptType: 'inline'
           inlineScript: |
+            set -euo pipefail
+        
             cd ${{ parameters.appName }}/.infra
 
             terraform plan \
@@ -128,6 +136,8 @@ jobs:
           regionName: ${{ parameters.awsRegion }}
           scriptType: 'inline'
           inlineScript: |
+            set -euo pipefail
+        
             cd ${{ parameters.appName }}/.infra
 
             terraform apply -auto-approve tfplan
@@ -159,6 +169,8 @@ jobs:
           regionName: ${{ parameters.awsRegion }}
           scriptType: 'inline'
           inlineScript: |
+            set -euo pipefail
+        
             cd ${{ parameters.appName }}/.infra
 
             terraform plan -destroy \
@@ -176,6 +188,8 @@ jobs:
           regionName: ${{ parameters.awsRegion }}
           scriptType: 'inline'
           inlineScript: |
+            set -euo pipefail
+        
             cd ${{ parameters.appName }}/.infra
 
             terraform apply -auto-approve tfplan-destroy
