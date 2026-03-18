@@ -103,26 +103,34 @@ steps:
         
         echo "Deploying to EC2: $INSTANCE_ID"
         
-        aws ssm send-command \
+        COMMAND_ID=$(aws ssm send-command \
           --instance-ids "$INSTANCE_ID" \
           --document-name "AWS-RunShellScript" \
           --comment "Deploy $APP_NAME" \
           --parameters commands="[
             \"set -e\",
             \"sudo mkdir -p /opt/$APP_NAME\",
-            \"cd /opt/$APP_NAME\",
-            \"sudo rm -rf app venv\",
-            \"sudo mkdir -p app\",
-            \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip .\",
-            \"sudo unzip -o $APP_NAME.zip -d app\",
+            \"cd /opt/$APP_NAME && sudo rm -rf app venv\",
+            \"sudo mkdir -p /opt/$APP_NAME/app\",
+            \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip /opt/$APP_NAME/\",
+            \"sudo unzip -o /opt/$APP_NAME/$APP_NAME.zip -d /opt/$APP_NAME/app\",
             \"sudo python3.11 -m venv /opt/$APP_NAME/venv\",
             \"sudo /opt/$APP_NAME/venv/bin/pip install --upgrade pip\",
             \"if [ -f /opt/$APP_NAME/app/requirements.txt ]; then sudo /opt/$APP_NAME/venv/bin/pip install -r /opt/$APP_NAME/app/requirements.txt; fi\",
             \"sudo /opt/$APP_NAME/venv/bin/pip install /opt/$APP_NAME/app\",
             \"sudo systemctl daemon-reload\",
             \"sudo systemctl stop $APP_NAME || true\",
-            \"sudo systemctl start $APP_NAME\"
-          ]"
-        
+            \"sudo systemctl start $APP_NAME\",
+            \"sudo systemctl is-active $APP_NAME\"
+          ]" \
+          --query 'Command.CommandId' \
+          --output text)
+
+        echo "SSM Command ID: $COMMAND_ID"
+
+        aws ssm wait command-executed \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$INSTANCE_ID"
+
         echo "Deployment complete."
     displayName: "Deploy to EC2 via SSM (Python)"

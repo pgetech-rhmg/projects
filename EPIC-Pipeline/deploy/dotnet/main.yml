@@ -103,7 +103,7 @@ steps:
         
         echo "Deploying to EC2: $INSTANCE_ID"
         
-        aws ssm send-command \
+        COMMAND_ID=$(aws ssm send-command \
           --instance-ids "$INSTANCE_ID" \
           --document-name "AWS-RunShellScript" \
           --comment "Deploy $APP_NAME" \
@@ -119,7 +119,15 @@ steps:
             \"sudo systemctl daemon-reload\",
             \"sudo systemctl stop $APP_NAME || true\",
             \"sudo systemctl start $APP_NAME\"
-          ]"
-        
+          ]" \
+          --query 'Command.CommandId' \
+          --output text)
+
+        echo "SSM Command ID: $COMMAND_ID"
+
+        aws ssm wait command-executed \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$INSTANCE_ID"
+
         echo "Deployment complete."
     displayName: "Deploy to EC2 via SSM (.NET)"
