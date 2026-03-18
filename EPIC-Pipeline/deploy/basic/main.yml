@@ -24,6 +24,7 @@ steps:
   # Deploy
   #############################################################################
   - task: AWSShellScript@1
+    displayName: "Deploy ${{ parameters.appType }}"
     inputs:
       awsCredentials: 'AWS'
       arguments: ${{ parameters.awsAccountId }}
@@ -60,4 +61,3 @@ steps:
           --paths "/*"
         
         echo "Deployment complete."
-    displayName: "Deploy ${{ parameters.appType }}"
