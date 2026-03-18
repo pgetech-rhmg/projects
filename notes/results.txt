@@ -1,0 +1,41 @@
+2026-03-18T14:09:53.3500027Z ##[section]Starting: Terraform Apply
+2026-03-18T14:09:53.3506223Z ==============================================================================
+2026-03-18T14:09:53.3506333Z Task         : AWS Shell Script
+2026-03-18T14:09:53.3506417Z Description  : Run a shell script using Bash with AWS credentials as environment variables
+2026-03-18T14:09:53.3506516Z Version      : 1.24.0
+2026-03-18T14:09:53.3506589Z Author       : Amazon Web Services
+2026-03-18T14:09:53.3506664Z Help         : Runs a shell script in Bash, setting AWS credentials and region information into the shell environment using the standard environment keys _AWS_ACCESS_KEY_ID_, _AWS_SECRET_ACCESS_KEY_, _AWS_SESSION_TOKEN_ and _AWS_REGION_.
+
+More information on this task can be found in the [task reference](https://docs.aws.amazon.com/vsts/latest/userguide/awsshell.html).
+
+####Task Permissions
+Permissions for this task to call AWS service APIs depend on the activities in the supplied script.
+2026-03-18T14:09:53.3506968Z ==============================================================================
+2026-03-18T14:09:53.7483616Z Configuring credentials for task
+2026-03-18T14:09:53.7485941Z ...configuring AWS credentials from task variables
+2026-03-18T14:09:53.7488563Z ...endpoint defines standard access/secret key credentials
+2026-03-18T14:09:53.7491614Z Configuring region for task
+2026-03-18T14:09:53.7493339Z ...configured to use region us-west-2, defined in task.
+2026-03-18T14:09:53.7509297Z [command]/usr/bin/bash /home/vsts/work/_temp/awsshellscript_2657.sh
+2026-03-18T14:09:57.0286465Z [0m[1mmodule.secretmanager.aws_iam_policy.secret_read: Creating...[0m[0m
+2026-03-18T14:09:57.6204791Z [0m[1mmodule.secretmanager.aws_iam_policy.secret_read: Creation complete after 1s [id=arn:aws:iam::514712703977:policy/pge-epic-paige-dev-secret-read][0m
+2026-03-18T14:09:57.6255647Z [0m[1mmodule.ec2.aws_iam_role.this[0]: Creating...[0m[0m
+2026-03-18T14:09:58.0955356Z [0m[1mmodule.ec2.aws_iam_role.this[0]: Creation complete after 0s [id=pge-epic-paige-dev-ec2-role][0m
+2026-03-18T14:09:58.1012523Z [0m[1mmodule.ec2.aws_iam_role_policy_attachment.custom["1"]: Creating...[0m[0m
+2026-03-18T14:09:58.1013140Z [0m[1mmodule.ec2.aws_iam_instance_profile.this[0]: Creating...[0m[0m
+2026-03-18T14:09:58.1014002Z [0m[1mmodule.ec2.aws_iam_role_policy_attachment.custom["0"]: Creating...[0m[0m
+2026-03-18T14:09:58.1014569Z [0m[1mmodule.ec2.aws_iam_role_policy_attachment.default_ssm[0]: Creating...[0m[0m
+2026-03-18T14:09:58.4057135Z [0m[1mmodule.ec2.aws_iam_role_policy_attachment.custom["1"]: Creation complete after 0s [id=pge-epic-paige-dev-ec2-role-20260318140958237900000001][0m
+2026-03-18T14:09:58.5470707Z [0m[1mmodule.ec2.aws_iam_role_policy_attachment.custom["0"]: Creation complete after 1s [id=pge-epic-paige-dev-ec2-role-20260318140958441100000002][0m
+2026-03-18T14:09:58.5837819Z [0m[1mmodule.ec2.aws_iam_role_policy_attachment.default_ssm[0]: Creation complete after 1s [id=pge-epic-paige-dev-ec2-role-20260318140958468500000003][0m
+2026-03-18T14:09:58.8119925Z [31m╷[0m[0m
+2026-03-18T14:09:58.8121788Z [31m│[0m [0m[1m[31mError: [0m[0m[1mcreating IAM Instance Profile (pge-epic-paige-dev-instance-profile): operation error IAM: CreateInstanceProfile, https response error StatusCode: 403, RequestID: 67245476-c57a-4380-90e2-0918688dc33e, api error AccessDenied: User: arn:aws:sts::514712703977:assumed-role/pge-epic-deployment-role/epic-terraform-deploy is not authorized to perform: iam:TagInstanceProfile on resource: arn:aws:iam::514712703977:instance-profile/pge-epic-paige-dev-instance-profile because no identity-based policy allows the iam:TagInstanceProfile action[0m
+2026-03-18T14:09:58.8122832Z [31m│[0m [0m
+2026-03-18T14:09:58.8123279Z [31m│[0m [0m[0m  with module.ec2.aws_iam_instance_profile.this[0],
+2026-03-18T14:09:58.8123844Z [31m│[0m [0m  on .terraform/modules/ec2/main.tf line 32, in resource "aws_iam_instance_profile" "this":
+2026-03-18T14:09:58.8124365Z [31m│[0m [0m  32: resource "aws_iam_instance_profile" "this" [4m{[0m[0m
+2026-03-18T14:09:58.8125158Z [31m│[0m [0m
+2026-03-18T14:09:58.8125481Z [31m╵[0m[0m
+2026-03-18T14:09:58.9368517Z 
+2026-03-18T14:09:58.9420504Z ##[error]Error: The process '/usr/bin/bash' failed with exit code 1
+2026-03-18T14:09:58.9566582Z ##[section]Finishing: Terraform Apply
