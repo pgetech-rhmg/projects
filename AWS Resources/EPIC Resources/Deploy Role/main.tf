@@ -95,38 +95,12 @@ data "aws_iam_policy_document" "epic_infrastructure" {
 		resources = ["*"]
 	}
 
-	# IAM (limited)
+	# IAM
 	statement {
 		sid    = "IAMManagement"
 		effect = "Allow"
 		actions = [
-			"iam:CreateRole",
-			"iam:DeleteRole",
-			"iam:GetRole",
-			"iam:ListRolePolicies",
-			"iam:ListAttachedRolePolicies",
-			"iam:AttachRolePolicy",
-			"iam:DetachRolePolicy",
-			"iam:PutRolePolicy",
-			"iam:DeleteRolePolicy",
-			"iam:GetRolePolicy",
-			"iam:CreateInstanceProfile",
-			"iam:DeleteInstanceProfile",
-			"iam:GetInstanceProfile",
-			"iam:AddRoleToInstanceProfile",
-			"iam:RemoveRoleFromInstanceProfile",
-			"iam:PassRole",
-			"iam:TagRole",
-			"iam:UntagRole",
-			"iam:CreatePolicy",
-			"iam:DeletePolicy",
-			"iam:GetPolicy",
-			"iam:GetPolicyVersion",
-			"iam:ListPolicyVersions",
-			"iam:CreatePolicyVersion",
-			"iam:DeletePolicyVersion",
-			"iam:TagPolicy",
-			"iam:UntagPolicy"
+			"iam:*"
 		]
 		resources = ["*"]
 	}
