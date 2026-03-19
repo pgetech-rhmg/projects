@@ -1,177 +1,283 @@
-################################################################################
-# Step Function - AMI Build Orchestrator with Parallel Execution
-################################################################################
-
-resource "random_string" "name_randamizer" {
-  length  = 4
-  special = false
-  upper   = false
-  lower   = true
-  numeric = false
-}
-
-# IAM Role for Step Function
-module "step_function_iam_role" {
-  source  = "app.terraform.io/pgetech/iam/aws"
-  version = "0.1.0"
-
-  name        = "amipipeline-step-function-role-${random_string.name_randamizer.result}"
-  description = "IAM role for Step Function to orchestrate AMI builds"
-  aws_service = ["states.amazonaws.com"]
-
-  inline_policy = [
-    jsonencode({
-      Version = "2012-10-17"
-      Statement = [
-        {
-          Sid    = "ImagebuilderAccess"
-          Effect = "Allow"
-          Action = [
-            "imagebuilder:StartImagePipelineExecution",
-            "imagebuilder:GetImage",
-            "imagebuilder:GetImagePipeline",
-            "imagebuilder:ListImageBuildVersions",
-            "imagebuilder:ListImagePipelineImages"
-          ]
-          Resource = "*"
+{
+  "Comment": "AMI Factory Build Pipeline",
+  "StartAt": "BuildAMIs",
+  "States": {
+    "BuildAMIs": {
+      "Type": "Map",
+      "ItemsPath": "$.components",
+      "MaxConcurrency": 4,
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
         },
-        # EC2 permissions for 'describe AMIs'
-        {
-          Sid    = "EC2DescribeAccess"
-          Effect = "Allow"
-          Action = [
-            "ec2:DescribeImages"
-          ]
-          Resource = "*"
-        },
-        # Lambda invocation permissions
-        {
-          Sid    = "LambdaInvoke"
-          Effect = "Allow"
-          Action = [
-            "lambda:InvokeFunction"
-          ]
-          Resource = [
-            module.ami_writer_lambda.lambda_arn,
-            module.tfc_runner_lambda.lambda_arn,
-            module.config_manager_lambda.lambda_arn
-          ]
-        },
-        # SSM parameter permissions
-        {
-          Sid    = "SSMParameterAccess"
-          Effect = "Allow"
-          Action = [
-            "ssm:DeleteParameter",
-            "ssm:GetParameter",
-            "ssm:PutParameter",
-          ]
-          Resource = "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter/ami_factory/*"
-        },
-        # CloudWatch log permissions
-        {
-          Sid    = "CloudWatchLogAccess"
-          Effect = "Allow"
-          Action = [
-            "logs:CreateLogDelivery",
-            "logs:GetLogDelivery",
-            "logs:UpdateLogDelivery",
-            "logs:ListLogDeliveries",
-            "logs:PutResourcePolicy",
-            "logs:DescribeResourcePolicies",
-            "logs:DescribeLogGroups"
-          ]
-          Resource = "*"
-        },
-        # Events for state machine execution
-        {
-          Sid    = "EventsAccess"
-          Effect = "Allow"
-          Action = [
-            "events:PutTargets",
-            "events:PutRule",
-            "events:DescribeRule",
-          ]
-          Resource = "arn:aws:events:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule"
+        "StartAt": "ConstructPipelineArn",
+        "States": {
+          "ConstructPipelineArn": {
+            "Type": "Pass",
+            "Parameters": {
+              "component.$": "$",
+              "pipeline_arn.$": "States.Format('arn:aws:imagebuilder:${aws_region}:${account_id}:image-pipeline/ami-factory-{}-${environment}', $)"
+            },
+            "Next": "StartImagePipeline"
+          },
+          "StartImagePipeline": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::aws-sdk:imagebuilder:startImagePipelineExecution",
+            "Parameters": {
+              "ImagePipelineArn.$": "$.pipeline_arn",
+              "ClientToken.$": "States.UUID()"
+            },
+            "ResultPath": "$.execution",
+            "Next": "WaitForBuild"
+          },
+          "WaitForBuild": {
+            "Type": "Wait",
+            "Seconds": 60,
+            "Next": "CheckBuildStatus"
+          },
+          "CheckBuildStatus": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::aws-sdk:imagebuilder:getImage",
+            "Parameters": {
+              "ImageBuildVersionArn.$": "$.execution.ImageBuildVersionArn"
+            },
+            "ResultPath": "$.build_status",
+            "Next": "IsBuildComplete"
+          },
+          "IsBuildComplete": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.build_status.Image.State.Status",
+                "StringEquals": "AVAILABLE",
+                "Next": "BuildSuccess"
+              },
+              {
+                "Variable": "$.build_status.Image.State.Status",
+                "StringEquals": "FAILED",
+                "Next": "BuildFailed"
+              }
+            ],
+            "Default": "WaitForBuild"
+          },
+          "BuildSuccess": {
+            "Type": "Pass",
+            "Parameters": {
+              "component.$": "$.component",
+              "ami_id.$": "$.build_status.Image.OutputResources.Amis[0].Image",
+              "ami_name.$": "$.build_status.Image.OutputResources.Amis[0].Name",
+              "region.$": "$.build_status.Image.OutputResources.Amis[0].Region"
+            },
+            "End": true
+          },
+          "BuildFailed": {
+            "Type": "Fail",
+            "Error": "BuildFailed",
+            "Cause": "Image build failed"
+          }
         }
-      ]
-    })
-  ]
-
-  tags = local.merged_tags
-}
-
-# CloudWatch Log Group for Step Function using PGE module
-module "step_function_logs" {
-  source  = "app.terraform.io/pgetech/cloudwatch/aws//modules/log-group"
-  version = "0.1.3"
-
-  name              = "/aws/stepfunctions/arcgis-enterprise-amipipeline-orchestrator-${var.environment}"
-  retention_in_days = 180
-  kms_key_id        = module.cloudwatch_logs_kms.key_arn
-
-  tags = merge(
-    local.merged_tags,
-    {
-      Name = "arcgis-enterprise-amipipeline-orchestrator-${var.environment}-logs"
+      },
+      "ResultPath": "$.build_results",
+      "Next": "WriteAMIsToSSM"
+    },
+    "WriteAMIsToSSM": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ami_writer_lambda_arn}",
+        "Payload": {
+          "ami_builds.$": "$.build_results"
+        }
+      },
+      "ResultPath": "$.ami_write_result",
+      "Next": "DeleteSandboxStateParameter"
+    },
+    "DeleteSandboxStateParameter": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ssm:deleteParameter",
+      "Parameters": {
+        "Name": "/ami_factory/sandbox_state"
+      },
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": ["Ssm.ParameterNotFoundException"],
+          "ResultPath": "$.delete_error",
+          "Next": "RunTerraformCloud"
+        }
+      ],
+      "Next": "RunTerraformCloud"
+    },
+    "RunTerraformCloud": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${tfc_runner_lambda_arn}",
+        "Payload": {
+          "workspace_path": "${tfc_workspace_path}",
+          "ami_builds.$": "$.build_results"
+        }
+      },
+      "ResultPath": "$.tfc_result",
+      "Next": "WaitForConfigReady"
+    },
+    "WaitForConfigReady": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${config_manager_lambda_arn}",
+        "Payload": {
+          "action": "is_config_apply_ready",
+          "run_id.$": "$.tfc_result.Payload.run_id"
+        }
+      },
+      "ResultPath": "$.ready_check",
+      "Next": "IsConfigReady"
+    },
+    "IsConfigReady": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.ready_check.Payload.ready",
+          "BooleanEquals": true,
+          "Next": "RunConfigDoc"
+        }
+      ],
+      "Default": "WaitBeforeRetryReady"
+    },
+    "WaitBeforeRetryReady": {
+      "Type": "Wait",
+      "Seconds": 120,
+      "Next": "WaitForConfigReady"
+    },
+    "RunConfigDoc": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${config_manager_lambda_arn}",
+        "Payload": {
+          "action": "run_doc",
+          "doc_name_prefix": "ConfigDoc"
+        }
+      },
+      "ResultPath": "$.config_run",
+      "Next": "WaitForConfigComplete"
+    },
+    "WaitForConfigComplete": {
+      "Type": "Wait",
+      "Seconds": 30,
+      "Next": "CheckConfigStatus"
+    },
+    "CheckConfigStatus": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${config_manager_lambda_arn}",
+        "Payload": {
+          "action": "get_command_status",
+          "doc_name_prefix": "ConfigDoc"
+        }
+      },
+      "ResultPath": "$.config_status",
+      "Next": "IsConfigComplete"
+    },
+    "IsConfigComplete": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.config_status.Payload.all_complete",
+          "BooleanEquals": true,
+          "Next": "CheckConfigSuccess"
+        }
+      ],
+      "Default": "WaitBeforeRetryConfig"
+    },
+    "CheckConfigSuccess": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.config_status.Payload.all_success",
+          "BooleanEquals": false,
+          "Next": "ConfigFailed"
+        }
+      ],
+      "Default": "RunTestDoc"
+    },
+    "WaitBeforeRetryConfig": {
+      "Type": "Wait",
+      "Seconds": 120,
+      "Next": "CheckConfigStatus"
+    },
+    "ConfigFailed": {
+      "Type": "Fail",
+      "Error": "ConfigFailed",
+      "Cause": "Configuration apply failed"
+    },
+    "RunTestDoc": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${config_manager_lambda_arn}",
+        "Payload": {
+          "action": "run_doc",
+          "doc_name_prefix": "TestDoc"
+        }
+      },
+      "ResultPath": "$.test_run",
+      "Next": "WaitForTestComplete"
+    },
+    "WaitForTestComplete": {
+      "Type": "Wait",
+      "Seconds": 30,
+      "Next": "CheckTestStatus"
+    },
+    "CheckTestStatus": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${config_manager_lambda_arn}",
+        "Payload": {
+          "action": "get_command_status",
+          "doc_name_prefix": "TestDoc"
+        }
+      },
+      "ResultPath": "$.test_status",
+      "Next": "IsTestComplete"
+    },
+    "IsTestComplete": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.test_status.Payload.all_complete",
+          "BooleanEquals": true,
+          "Next": "CheckTestSuccess"
+        }
+      ],
+      "Default": "WaitBeforeRetryTest"
+    },
+    "CheckTestSuccess": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.test_status.Payload.all_success",
+          "BooleanEquals": false,
+          "Next": "TestFailed"
+        }
+      ],
+      "Default": "PipelineSuccess"
+    },
+    "WaitBeforeRetryTest": {
+      "Type": "Wait",
+      "Seconds": 120,
+      "Next": "CheckTestStatus"
+    },
+    "TestFailed": {
+      "Type": "Fail",
+      "Error": "TestFailed",
+      "Cause": "Testing failed"
+    },
+    "PipelineSuccess": {
+      "Type": "Succeed"
     }
-  )
-}
-
-# Render State Machine Definition
-locals {
-  # Choose template based on test_mode
-  state_machine_template = var.test_mode ? "${path.module}/step_functions/build_pipeline_test.json.tpl" : "${path.module}/step_functions/build_pipeline.json.tpl"
-
-  state_machine_definition = templatefile(local.state_machine_template, {
-    ami_writer_lambda_arn     = module.ami_writer_lambda.lambda_arn
-    tfc_runner_lambda_arn     = module.tfc_runner_lambda.lambda_arn
-    config_manager_lambda_arn = module.config_manager_lambda.lambda_arn
-    tfc_workspace_path        = var.tfc_workspace_path
-    account_id                = data.aws_caller_identity.current.account_id
-    aws_region                = data.aws_region.current.region
-    environment               = lower(var.environment)
-  })
-}
-
-# Step Function State Machine using the module
-module "arcgis-enterprise-amibuild_orchestrator" {
-  source  = "app.terraform.io/pgetech/step-functions/aws"
-  version = "0.1.4"
-
-  state_machine_name       = "argis-enterprise-amibuild-pipeline-${var.environment}"
-  state_machine_definition = local.state_machine_definition
-  state_machine_role_arn   = module.step_function_iam_role.arn
-  state_machine_type       = "STANDARD"
-
-  include_execution_data        = true
-  level                         = "ALL"
-  log_destination               = module.step_function_logs.cloudwatch_log_group_arn
-  tracing_configuration_enabled = true
-
-  tags = local.merged_tags
-}
-
-################################################################################
-# Outputs
-################################################################################
-
-output "step_function_arn" {
-  value       = module.arcgis-enterprise-amibuild_orchestrator.state_machine_arn
-  description = "ARN of the Step Function"
-}
-
-output "step_function_name" {
-  value       = module.arcgis-enterprise-amibuild_orchestrator.state_machine_id
-  description = "Name/ID of the Step Function"
-}
-
-output "step_function_role_arn" {
-  value       = module.step_function_iam_role.arn
-  description = "ARN of the Step Function IAM role"
-}
-
-output "step_function_log_group" {
-  value       = module.step_function_logs.cloudwatch_log_group_name
-  description = "CloudWatch Log Group for Step Function"
+  }
 }
