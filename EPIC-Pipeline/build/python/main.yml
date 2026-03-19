@@ -65,6 +65,60 @@ steps:
     displayName: "Create venv"
 
 
+  # #############################################################################
+  # # Check requirements files
+  # #############################################################################
+  # - bash: |
+  #     set -euo pipefail
+
+  #     cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+  #     if [ -f requirements.txt ]; then
+  #       echo "##vso[task.setvariable variable=hasRequirements]true"
+  #       echo ">> requirements.txt found"
+  #     else
+  #       echo "##vso[task.setvariable variable=hasRequirements]false"
+  #       echo ">> requirements.txt not found, skipping"
+  #     fi
+
+  #     if [ -f requirements-dev.txt ]; then
+  #       echo "##vso[task.setvariable variable=hasRequirementsDev]true"
+  #       echo ">> requirements-dev.txt found"
+  #     else
+  #       echo "##vso[task.setvariable variable=hasRequirementsDev]false"
+  #       echo ">> requirements-dev.txt not found, skipping"
+  #     fi
+  #   displayName: "Check requirements files"
+
+
+  # #############################################################################
+  # # Install Runtime Dependencies
+  # #############################################################################
+  # - task: JFrogPipInstall@1
+  #   displayName: "Install runtime dependencies"
+  #   condition: eq(variables['hasRequirements'], 'true')
+  #   inputs:
+  #     artifactoryService: "JFrog"
+  #     targetRepoName: "ccoe-cicd-prod-pypi-virtual"
+  #     virtualEnvActivation: ". $(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.venv/bin/activate"
+  #     arguments: "-r requirements.txt"
+  #     workingDirectory: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+
+  # #############################################################################
+  # # Install Dev Dependencies
+  # #############################################################################
+  # - task: JFrogPipInstall@1
+  #   displayName: "Install dev dependencies"
+  #   condition: eq(variables['hasRequirementsDev'], 'true')
+  #   inputs:
+  #     artifactoryService: "JFrog"
+  #     targetRepoName: "ccoe-cicd-prod-pypi-virtual"
+  #     virtualEnvActivation: ". $(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.venv/bin/activate"
+  #     arguments: "-r requirements-dev.txt"
+  #     workingDirectory: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+
   #############################################################################
   # Install Dependencies
   #############################################################################
@@ -181,4 +235,3 @@ steps:
         rm -rf .build
         cp -R dist/. .build/
       displayName: "Build sdist"
-

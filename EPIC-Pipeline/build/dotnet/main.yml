@@ -39,6 +39,37 @@ steps:
     displayName: "Verify .NET SDK"
 
 
+  # #############################################################################
+  # # Configure NuGet registry
+  # #############################################################################
+  # - bash: |
+  #     set -euo pipefail
+
+  #     PROJECT_DIR="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+  #     cat > "$PROJECT_DIR/nuget.config" <<EOF
+  #     <?xml version="1.0" encoding="utf-8"?>
+  #     <configuration>
+  #       <packageSources>
+  #         <clear />
+  #         <add key="JFrog" value="https://jfrog.io.pge.com/artifactory/ccoe-cicd-prod-nuget-virtual/index.json" />
+  #       </packageSources>
+  #     </configuration>
+  #     EOF
+
+  #     echo ">> nuget.config written"
+  #   displayName: "Configure NuGet registry"
+
+
+  # #############################################################################
+  # # Authenticate with JFrog NuGet
+  # #############################################################################
+  # - task: NuGetAuthenticate@1
+  #   displayName: "Authenticate with JFrog NuGet"
+  #   inputs:
+  #     nuGetServiceConnections: "JFrog"
+
+
   #############################################################################
   # Restore
   #############################################################################

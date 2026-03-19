@@ -32,10 +32,20 @@ steps:
       ${{ endif }}
     displayName: "Verify Java & Build Tool"
 
+
   #############################################################################
   # Build JAR (Maven)
   #############################################################################
   - ${{ if eq(parameters.buildType, 'maven') }}:
+    # - task: JFrogMaven@1
+    #   displayName: "Build JAR (Maven)"
+    #   inputs:
+    #     mavenPomFile: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/pom.xml"
+    #     goals: "clean package -DskipTests"
+    #     artifactoryResolverService: "JFrog"
+    #     targetResolveReleaseRepo: "ccoe-cicd-prod-maven-virtual"
+    #     targetResolveSnapshotRepo: "ccoe-cicd-prod-maven-virtual"
+
     - bash: |
         set -euo pipefail
 
@@ -54,6 +64,14 @@ steps:
   # Build JAR (Gradle)
   #############################################################################
   - ${{ if eq(parameters.buildType, 'gradle') }}:
+    # - task: JFrogGradle@1
+    #   displayName: "Build JAR (Gradle)"
+    #   inputs:
+    #     gradleBuildFile: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/build.gradle"
+    #     tasks: "clean build -x test"
+    #     artifactoryResolverService: "JFrog"
+    #     targetResolveRepo: "ccoe-cicd-prod-maven-virtual"
+
     - bash: |
         set -euo pipefail
 

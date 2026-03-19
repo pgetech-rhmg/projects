@@ -32,6 +32,41 @@ steps:
   - task: NuGetToolInstaller@1
     displayName: "Install NuGet"
 
+
+  # #############################################################################
+  # # Configure NuGet registry
+  # #############################################################################
+  # - powershell: |
+  #     $ProjectDir = "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+  #     $nugetConfig = @"
+  #     <?xml version="1.0" encoding="utf-8"?>
+  #     <configuration>
+  #       <packageSources>
+  #         <clear />
+  #         <add key="JFrog" value="https://jfrog.io.pge.com/artifactory/ccoe-cicd-prod-nuget-virtual/index.json" />
+  #       </packageSources>
+  #     </configuration>
+  #     "@
+
+  #     $nugetConfig | Set-Content "$ProjectDir\nuget.config"
+
+  #     Write-Host ">> nuget.config written"
+  #   displayName: "Configure NuGet registry"
+
+
+  # #############################################################################
+  # # Authenticate with JFrog NuGet
+  # #############################################################################
+  # - task: NuGetAuthenticate@1
+  #   displayName: "Authenticate with JFrog NuGet"
+  #   inputs:
+  #     nuGetServiceConnections: "JFrog"
+
+
+  #############################################################################
+  # Restore (NuGet)
+  #############################################################################
   - task: NuGetCommand@2
     displayName: "Restore packages"
     inputs:
@@ -117,4 +152,3 @@ steps:
         targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.scan"
         artifact: "epic-scan"
         publishLocation: "pipeline"
-

@@ -23,6 +23,31 @@ steps:
     displayName: "Verify Node"
 
 
+  # #############################################################################
+  # # Configure npm registry
+  # #############################################################################
+  # - bash: |
+  #     set -euo pipefail
+
+  #     NPMRC="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.npmrc"
+
+  #     echo "registry=https://jfrog.io.pge.com/artifactory/ccoe-cicd-prod-npm-virtual/" > "$NPMRC"
+  #     echo "always-auth=true" >> "$NPMRC"
+
+  #     echo ">> .npmrc written"
+  #   displayName: "Configure npm registry"
+
+
+  # #############################################################################
+  # # Authenticate with JFrog npm
+  # #############################################################################
+  # - task: npmAuthenticate@0
+  #   displayName: "Authenticate with JFrog npm"
+  #   inputs:
+  #     workingFile: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.npmrc"
+  #     customEndpoint: "JFrog"
+
+
   #############################################################################
   # Install Dependencies
   #############################################################################
