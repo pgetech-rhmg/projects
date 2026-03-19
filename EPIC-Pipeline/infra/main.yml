@@ -82,7 +82,7 @@ jobs:
           terraform init \
             -backend-config="bucket=pge-epic-terraform-state" \
             -backend-config="use_lockfile=true" \
-            -backend-config="key=${{ parameters.appName }}/${{ parameters.environment }}/terraform.tfstate" \
+            -backend-config="key=${{ parameters.awsAccountId }}/${{ parameters.appName }}-${{ parameters.appType }}/${{ parameters.environment }}/terraform.tfstate" \
             -backend-config="region=${{ parameters.awsRegion }}" \
             -backend-config="encrypt=true"
 
