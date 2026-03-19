@@ -1,0 +1,3 @@
+https://jfrog.io.pge.com/artifactory/ccoe-cicd-prod-npm-virtual/
+https://jfrog.io.pge.com/artifactory/ccoe-cicd-prod-pypi-virtual/
+https://jfrog.io.pge.com/artifactory/ccoe-cicd-prod-nuget-virtual/
