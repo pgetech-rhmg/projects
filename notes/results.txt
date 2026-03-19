@@ -5,3 +5,4 @@ https://us-west-2.signin.aws.amazon.com/platform/saml/acs/4a642bb5-ffd1-4bbe-86f
 Login URL: https://login.microsoftonline.com/44ae661a-ece6-41aa-bc96-7c2c85a08941/saml2
 Microsoft Entra Identifier: https://sts.windows.net/44ae661a-ece6-41aa-bc96-7c2c85a08941/
 Logout URL: https://login.microsoftonline.com/44ae661a-ece6-41aa-bc96-7c2c85a08941/saml2
+Issuer URL: https://identitycenter.amazonaws.com/ssoins-790743cf4254527a
