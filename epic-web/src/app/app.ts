@@ -64,11 +64,25 @@ export class App {
     },
   ]);
 
+  protected showAddModal = signal(false);
+  protected showManageModal = signal(false);
+  protected selectedApp = signal<ManagedApp | null>(null);
+
   protected onAddApp(): void {
-    console.log('Add new app');
+    this.showAddModal.set(true);
   }
 
-  protected onEdit(app: ManagedApp): void {
-    console.log('Manage:', app.name);
+  protected closeAddModal(): void {
+    this.showAddModal.set(false);
+  }
+
+  protected onManageApp(app: ManagedApp): void {
+    this.selectedApp.set(app);
+    this.showManageModal.set(true);
+  }
+
+  protected closeManageModal(): void {
+    this.showManageModal.set(false);
+    this.selectedApp.set(null);
   }
 }
