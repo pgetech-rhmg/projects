@@ -1,7 +1,7 @@
 {
   "appName": "epic-web",
   "appType": "angular",
-  "codePath": ".",
+  "codePath": "/",
 
   "nodeVersion": "20",
 
