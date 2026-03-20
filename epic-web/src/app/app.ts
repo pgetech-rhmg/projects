@@ -206,6 +206,12 @@ export class App implements OnInit {
     this.appService.getApp(app.name).subscribe(detail => this.appDetail.set(detail));
   }
 
+  protected onNewRun(): void {
+    const name = this.appDetail()?.displayName ?? this.selectedApp()?.name;
+    this.closeManageModal();
+    this.showToast(`A new pipeline run for "${name}" has been queued — check back shortly for status updates.`);
+  }
+
   protected closeManageModal(): void {
     this.showManageModal.set(false);
     this.selectedApp.set(null);
