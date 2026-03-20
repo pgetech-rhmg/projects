@@ -1,2 +1,0 @@
-the ami build is ec2 image builder, not codebuild. oidc is off the table here.
-jfrog auth happens inside the image builder component scripts via the ec2 instance profile. configure jfrog's aws iam auth to trust that role and the build instances authenticate automatically. no tokens, no secrets manager, nothing to pass between stages.
