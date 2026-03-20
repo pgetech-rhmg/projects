@@ -1,0 +1,221 @@
+// ── Layout ─────────────────────────────────────────────────────────────────
+
+.page {
+  min-height: 100vh;
+  background: #f5f6f8;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #1a1a2e;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1a1a2e;
+  color: #fff;
+  padding: 20px 40px;
+
+  h1 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .subtitle {
+    margin: 4px 0 0;
+    font-size: 0.85rem;
+    color: #a0aec0;
+  }
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #2b6cb0;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+
+  .welcome {
+    font-size: 0.75rem;
+    color: #a0aec0;
+  }
+
+  .user-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+  }
+}
+
+.page-content {
+  padding: 32px 40px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2d3748;
+  }
+}
+
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #2b6cb0;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: #2c5282;
+  }
+}
+
+// ── Table ───────────────────────────────────────────────────────────────────
+
+.table-wrapper {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+thead {
+  background: #f0f2f5;
+
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #718096;
+    border-bottom: 1px solid #e2e8f0;
+  }
+}
+
+tbody {
+  tr {
+    border-bottom: 1px solid #edf2f7;
+    transition: background 0.15s;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: #f7fafc;
+    }
+  }
+
+  td {
+    padding: 14px 16px;
+    vertical-align: middle;
+  }
+}
+
+.app-name {
+  font-weight: 600;
+  color: #2b6cb0;
+}
+
+.timestamp {
+  color: #718096;
+  font-size: 0.85rem;
+}
+
+.actions {
+  width: 48px;
+  text-align: center;
+}
+
+// ── Icon Button ─────────────────────────────────────────────────────────────
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #718096;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: #ebf4ff;
+    color: #2b6cb0;
+  }
+}
+
+// ── Badges ──────────────────────────────────────────────────────────────────
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+// Technology
+.badge--tech {
+  background: #edf2f7;
+  color: #4a5568;
+}
+
+// Cloud
+.badge--cloud {
+  &-aws   { background: #fff3cd; color: #7d5a00; }
+  &-azure { background: #cce5ff; color: #004085; }
+}
+
+// Environment
+.badge--env {
+  &-prod { background: #d4edda; color: #155724; }
+  &-qa   { background: #d1ecf1; color: #0c5460; }
+  &-test { background: #fff3cd; color: #7d5a00; }
+  &-dev  { background: #e2e8f0; color: #4a5568; }
+}

@@ -1,0 +1,15 @@
+{
+  "appName": "epic-web",
+  "appType": "angular",
+  "codePath": ".",
+
+  "nodeVersion": "20",
+
+  "scanTool": "sonarqube",
+  "unitTestTool": "jest",
+  "integrationTestTool": "playwright",
+
+  "awsAccountId": "",
+  "s3": "",
+  "cloudfront": ""
+}
