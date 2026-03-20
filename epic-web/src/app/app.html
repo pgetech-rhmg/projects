@@ -26,6 +26,64 @@
       </button>
     </div>
 
+    <div class="toolbar">
+      <div class="toolbar-filters">
+        <select [(ngModel)]="filterTechnology" [ngModelOptions]="{standalone: true}">
+          <option value="">All Technologies</option>
+          @for (opt of techOptions(); track opt) {
+            <option [value]="opt">{{ opt }}</option>
+          }
+        </select>
+
+        <select [(ngModel)]="filterCloud" [ngModelOptions]="{standalone: true}">
+          <option value="">All Clouds</option>
+          @for (opt of cloudOptions(); track opt) {
+            <option [value]="opt">{{ opt }}</option>
+          }
+        </select>
+
+        <select [(ngModel)]="filterEnvironment" [ngModelOptions]="{standalone: true}">
+          <option value="">All Environments</option>
+          @for (opt of envOptions(); track opt) {
+            <option [value]="opt">{{ opt }}</option>
+          }
+        </select>
+
+        <select [(ngModel)]="filterRunStatus" [ngModelOptions]="{standalone: true}">
+          <option value="">All Statuses</option>
+          @for (opt of statusOptions(); track opt) {
+            <option [value]="opt">{{ opt }}</option>
+          }
+        </select>
+
+        <select [(ngModel)]="filterTriggeredBy" [ngModelOptions]="{standalone: true}">
+          <option value="">All Users</option>
+          @for (opt of triggeredByOptions(); track opt) {
+            <option [value]="opt">{{ opt }}</option>
+          }
+        </select>
+
+        @if (hasActiveFilters) {
+          <button class="clear-btn" (click)="clearFilters()">Clear</button>
+        }
+      </div>
+
+      <div class="toolbar-search">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          type="text"
+          placeholder="Search apps..."
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+          [ngModelOptions]="{standalone: true}"
+        />
+      </div>
+    </div>
+
     <div class="table-wrapper">
       <table>
         <thead>
@@ -41,7 +99,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (app of apps(); track app.name) {
+          @for (app of filteredApps(); track app.name) {
             <tr>
               <td class="app-name">{{ app.name }}</td>
               <td>
@@ -64,9 +122,10 @@
                 </span>
               </td>
               <td>
-                <span class="triggered-by" [class.triggered-by--system]="app.triggeredBy === 'System'">
-                  {{ app.triggeredBy }}
-                </span>
+                <div class="user-chip" [class.user-chip--you]="app.triggeredBy === currentUser" [class.user-chip--system]="app.triggeredBy === 'System'">
+                  <span class="user-chip__avatar">{{ initialsFor(app.triggeredBy) }}</span>
+                  <span class="user-chip__name">{{ app.triggeredBy === currentUser ? 'You' : app.triggeredBy }}</span>
+                </div>
               </td>
               <td class="actions">
                 <button class="icon-btn" (click)="onManageApp(app)" title="Manage {{ app.name }}">
@@ -77,6 +136,10 @@
                   </svg>
                 </button>
               </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="8" class="no-results">No apps match your search or filters.</td>
             </tr>
           }
         </tbody>

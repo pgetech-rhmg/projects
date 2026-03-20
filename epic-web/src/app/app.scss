@@ -104,13 +104,100 @@
   }
 }
 
+// ── Toolbar ──────────────────────────────────────────────────────────────────
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  select {
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    color: #4a5568;
+    font-size: 0.82rem;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s;
+
+    &:focus { border-color: #2b6cb0; }
+  }
+}
+
+.clear-btn {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #718096;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: #f7fafc;
+    color: #2d3748;
+  }
+}
+
+.toolbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0 12px;
+  height: 34px;
+  color: #a0aec0;
+  transition: border-color 0.15s;
+
+  &:focus-within {
+    border-color: #2b6cb0;
+    color: #2b6cb0;
+  }
+
+  input {
+    border: none;
+    outline: none;
+    font-size: 0.88rem;
+    color: #2d3748;
+    width: 200px;
+    background: transparent;
+
+    &::placeholder { color: #a0aec0; }
+  }
+}
+
+.no-results {
+  text-align: center;
+  padding: 40px 16px;
+  color: #a0aec0;
+  font-size: 0.9rem;
+}
+
 // ── Table ───────────────────────────────────────────────────────────────────
 
 .table-wrapper {
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
 }
 
 table {
@@ -121,6 +208,9 @@ table {
 
 thead {
   background: #f0f2f5;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 
   th {
     padding: 12px 16px;
@@ -164,12 +254,48 @@ tbody {
   font-size: 0.85rem;
 }
 
-.triggered-by {
-  font-size: 0.88rem;
-  color: #2d3748;
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 
-  &--system {
-    color: #718096;
+  &__avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #cbd5e0;
+    color: #4a5568;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  &__name {
+    font-size: 0.88rem;
+    color: #2d3748;
+  }
+
+  &--you &__avatar {
+    background: #2b6cb0;
+    color: #fff;
+  }
+
+  &--you &__name {
+    font-weight: 600;
+    color: #2b6cb0;
+  }
+
+  &--system &__avatar {
+    background: #edf2f7;
+    color: #a0aec0;
+    font-size: 0.8rem;
+  }
+
+  &--system &__name {
+    color: #a0aec0;
     font-style: italic;
   }
 }
