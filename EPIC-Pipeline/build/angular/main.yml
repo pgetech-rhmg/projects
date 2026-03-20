@@ -71,7 +71,21 @@ steps:
 
       echo ">> Building app"
       npm run build
-      
+
       rm -rf .build/*
-      cp -R dist/. .build/
+
+      # Angular 17+ (application builder) outputs to dist/{project}/browser/
+      # Angular <17 (browser builder) outputs flat to dist/
+      # Locate index.html to find the actual browser output regardless of structure.
+      INDEX_HTML=$(find dist -name "index.html" | head -1)
+
+      if [ -z "$INDEX_HTML" ]; then
+        echo "ERROR: index.html not found under dist/ — build may have failed"
+        exit 1
+      fi
+
+      OUTPUT_DIR=$(dirname "$INDEX_HTML")
+      echo ">> Detected build output at: $OUTPUT_DIR"
+
+      cp -R "$OUTPUT_DIR"/. .build/
     displayName: "Build app"
