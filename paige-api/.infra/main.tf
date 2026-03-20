@@ -30,7 +30,7 @@ module "secretmanager" {
   secrets                 = var.secrets
   secrets_description     = var.secrets_description
   secret_version_enabled  = true
-  recovery_window_in_days = 30
+  recovery_window_in_days = 0
 }
 
 

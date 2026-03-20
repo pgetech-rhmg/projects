@@ -1,0 +1,9 @@
+{
+  "appName": "pge-website-example",
+  "appType": "html",
+  "codePath": "/",
+  "scanTool": "sonarqube",
+
+  "awsAccountId": "514712703977",
+  "awsRegion": "us-west-2"
+}

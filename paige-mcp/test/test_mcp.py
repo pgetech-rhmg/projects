@@ -4,7 +4,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 async def test():
-	async with streamable_http_client("http://localhost:8000/mcp") as (read, write, _):
+	async with streamable_http_client("https://paige-mcp-dev.nonprod.pge.com/mcp") as (read, write, _):
 		async with ClientSession(read, write) as session:
 			await session.initialize()
 			

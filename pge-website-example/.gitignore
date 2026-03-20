@@ -1,0 +1,119 @@
+###############################################################
+# TERRAFORM — SAFE FOR ENTERPRISE + APP REPOS
+###############################################################
+
+# Local terraform directories
+.terraform/
+**/.terraform/
+**/.terraform/*
+
+# Terraform state files (never commit!)
+terraform.tfstate
+terraform.tfstate.*
+*.tfstate
+*.tfstate.backup
+*.lock.hcl
+
+# Terraform plan files (output of 'terraform plan')
+tfplan
+*.plan
+*.tfplan
+*.tfplan.*
+
+# # Terraform variable files (sensitive)
+# *.tfvars
+# *.tfvars.json
+# *.auto.tfvars
+# *.auto.tfvars.json
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Local override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Temporary files
+*.bak
+*.tmp
+
+###############################################################
+# AZURE DEVOPS PIPELINE ARTIFACTS
+###############################################################
+
+# Agent workspace folders
+/_work/
+/_work/
+**/_work/
+
+# ADO artifact downloads
+.azure-pipelines/*/download
+**/.tasktmp/
+.tasktmp/
+
+###############################################################
+# SECURITY SENSITIVE
+###############################################################
+
+# AWS Credentials
+.aws/
+**/.aws/
+credentials
+config
+
+# Environment files
+.env
+.env.*
+*.env
+
+###############################################################
+# OS & EDITOR NOISE
+###############################################################
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# VS Code
+.vscode/
+.vscode/*
+!*.code-workspace
+
+# JetBrains / IntelliJ
+.idea/
+*.iml
+
+# Logs / temp
+*.log
+logs/
+tmp/
+temp/
+
+###############################################################
+# NODE / ANGULAR (if present)
+###############################################################
+
+node_modules/
+**/node_modules/
+dist/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+###############################################################
+# OPTIONAL — COMMIT THIS IN APP REPOS (NOT BACKEND BOOTSTRAP)
+###############################################################
+
+# Provider lock file recommended in application repos:
+# .terraform.lock.hcl
+

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 clear
+cd /Users/RHMG/Documents/Projects/ccoe/paige-web || exit
 
 # Check for "update" parameter
 if [[ "$1" == "update" ]]; then

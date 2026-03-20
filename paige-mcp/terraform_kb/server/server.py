@@ -107,9 +107,7 @@ mcp = FastMCP(
 	stateless_http=True,
 	json_response=True,
 	transport_security=TransportSecuritySettings(
-		enable_dns_rebinding_protection=True,
-		allowed_hosts=["localhost:*", "127.0.0.1:*", "paige-mcp-dev.nonprod.pge.com:*"],
-		allowed_origins=["https://paige-mcp-dev.nonprod.pge.com"]
+		enable_dns_rebinding_protection=False
 	)
 )
 # mcp = FastMCP(
