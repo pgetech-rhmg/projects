@@ -138,6 +138,11 @@ export class App implements OnInit {
   protected selectedApp = signal<ManagedApp | null>(null);
   protected appDetail = signal<AppDetail | null>(null);
 
+  // New Run modal
+  protected showNewRunModal = signal(false);
+  protected newRunApp = signal<AppDetail | null>(null);
+  protected newRunBranch = '';
+
   protected newAppRepo = '';
   protected newAppBranch = '';
   protected repoCheckStatus = signal<'idle' | 'checking' | 'available' | 'in-epic-not-mine' | 'already-mine' | 'not-found'>('idle');
@@ -207,9 +212,25 @@ export class App implements OnInit {
   }
 
   protected onNewRun(): void {
-    const name = this.appDetail()?.displayName ?? this.selectedApp()?.name;
+    const detail = this.appDetail();
+    if (!detail) return;
+    this.newRunApp.set(detail);
+    this.newRunBranch = detail.github.branch;
     this.closeManageModal();
-    this.showToast(`A new pipeline run for "${name}" has been queued — check back shortly for status updates.`);
+    this.showNewRunModal.set(true);
+  }
+
+  protected closeNewRunModal(): void {
+    this.showNewRunModal.set(false);
+    this.newRunApp.set(null);
+  }
+
+  protected onConfirmNewRun(): void {
+    const name = this.newRunApp()?.displayName;
+    const branch = this.newRunBranch.trim();
+    if (!name || !branch) return;
+    this.closeNewRunModal();
+    this.showToast(`A new pipeline run for "${name}" on branch "${branch}" has been queued — check back shortly for status updates.`);
   }
 
   protected closeManageModal(): void {

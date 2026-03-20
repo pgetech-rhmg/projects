@@ -354,6 +354,62 @@
   </div>
 }
 
+@if (showNewRunModal() && newRunApp()) {
+  <div class="modal-overlay" (click)="closeNewRunModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div>
+          <h3>New Pipeline Run</h3>
+          <p class="modal-subtitle">Trigger a new run for {{ newRunApp()!.displayName }}.</p>
+        </div>
+        <button class="modal-close" (click)="closeNewRunModal()" title="Close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="new-run-meta">
+          <div class="detail-item">
+            <span class="detail-label">GitHub Repo</span>
+            <span class="detail-value">{{ newRunApp()!.github.repo }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Technology</span>
+            <span class="detail-value">{{ newRunApp()!.technology }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Environment</span>
+            <span class="detail-value">{{ newRunApp()!.environment }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Cloud</span>
+            <span class="detail-value">{{ newRunApp()!.cloud }}</span>
+          </div>
+        </div>
+        <div class="onboard-form">
+          <div class="form-field">
+            <label for="new-run-branch">Branch <span class="form-required">*</span></label>
+            <input
+              id="new-run-branch"
+              type="text"
+              placeholder="e.g. main"
+              [(ngModel)]="newRunBranch"
+              [ngModelOptions]="{ standalone: true }"
+            />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeNewRunModal()">Cancel</button>
+        <button class="btn-primary" (click)="onConfirmNewRun()" [disabled]="!newRunBranch.trim()">Run</button>
+      </div>
+    </div>
+  </div>
+}
+
 @if (toastMessage()) {
   <div class="toast" (mouseenter)="pauseToast()" (mouseleave)="resumeToast()">
     <span>{{ toastMessage() }}</span>

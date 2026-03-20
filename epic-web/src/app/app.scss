@@ -836,6 +836,15 @@ tbody {
 
 .field-hint--info { color: #2b6cb0; }
 
+// ── New Run modal meta grid ──────────────────────────────────────────────────
+
+.new-run-meta {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
 .input--info {
   border-color: #2b6cb0 !important;
   &:focus { box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.15) !important; }
