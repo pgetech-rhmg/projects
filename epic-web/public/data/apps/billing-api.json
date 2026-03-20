@@ -10,26 +10,302 @@
   "team": "Billing & Payments",
   "lastUpdatedBy": "Maxine Bailey",
   "domain": "billing-api.internal.pge.com",
-  "github": { "repo": "billing-api", "branch": "main" },
-  "aws": { "accountId": "514712703977", "ec2InstanceId": "i-0a1b2c3d4e5f6a7b8" },
+  "github": {
+    "repo": "billing-api",
+    "branch": "main"
+  },
+  "aws": {
+    "accountId": "514712703977",
+    "ec2InstanceId": "i-0a1b2c3d4e5f6a7b8"
+  },
   "runs": [
-    { "id": 3102, "status": "Running",   "triggeredBy": "System",        "branch": "main",                    "environment": "prod", "startedAt": "2026-03-20 09:15", "duration": null,     "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Running"  } },
-    { "id": 3101, "status": "Success",   "triggeredBy": "System",        "branch": "main",                    "environment": "prod", "startedAt": "2026-03-19 02:00", "duration": "6m 14s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3100, "status": "Failed",    "triggeredBy": "Maxine Bailey", "branch": "fix/invoice-rounding",    "environment": "test", "startedAt": "2026-03-18 10:22", "duration": "3m 50s", "stages": { "build": "Success",   "test": "Success", "scan": "Failed",  "deploy": "Skipped"  } },
-    { "id": 3099, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "fix/invoice-rounding",    "environment": "dev",  "startedAt": "2026-03-18 09:45", "duration": "5m 58s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3098, "status": "Success",   "triggeredBy": "System",        "branch": "main",                    "environment": "prod", "startedAt": "2026-03-18 02:00", "duration": "6m 02s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3097, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "feature/tax-calculation",  "environment": "qa",   "startedAt": "2026-03-17 11:30", "duration": "6m 20s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3096, "status": "Failed",    "triggeredBy": "Robb Morgan",   "branch": "feature/tax-calculation",  "environment": "dev",  "startedAt": "2026-03-17 10:50", "duration": "2m 11s", "stages": { "build": "Success",   "test": "Failed",  "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 3095, "status": "Success",   "triggeredBy": "System",        "branch": "main",                    "environment": "prod", "startedAt": "2026-03-17 02:00", "duration": "6m 08s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3094, "status": "Cancelled", "triggeredBy": "Maxine Bailey", "branch": "experiment/new-engine",   "environment": "dev",  "startedAt": "2026-03-16 15:40", "duration": "0m 55s", "stages": { "build": "Cancelled", "test": "Skipped", "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 3093, "status": "Success",   "triggeredBy": "System",        "branch": "main",                    "environment": "prod", "startedAt": "2026-03-16 02:00", "duration": "6m 17s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3092, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "feature/pdf-export",      "environment": "test", "startedAt": "2026-03-15 13:10", "duration": "6m 33s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3091, "status": "Failed",    "triggeredBy": "Maxine Bailey", "branch": "feature/pdf-export",      "environment": "test", "startedAt": "2026-03-15 12:30", "duration": "4m 02s", "stages": { "build": "Success",   "test": "Success", "scan": "Failed",  "deploy": "Skipped"  } },
-    { "id": 3090, "status": "Success",   "triggeredBy": "System",        "branch": "main",                    "environment": "prod", "startedAt": "2026-03-15 02:00", "duration": "6m 11s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3089, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "hotfix/payment-timeout",  "environment": "prod", "startedAt": "2026-03-14 08:45", "duration": "5m 58s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3088, "status": "Success",   "triggeredBy": "System",        "branch": "main",                    "environment": "prod", "startedAt": "2026-03-14 02:00", "duration": "6m 05s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3087, "status": "Cancelled", "triggeredBy": "Robb Morgan",   "branch": "feature/bulk-invoice",    "environment": "dev",  "startedAt": "2026-03-13 17:00", "duration": "0m 40s", "stages": { "build": "Cancelled", "test": "Skipped", "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 3086, "status": "Success",   "triggeredBy": "System",        "branch": "main",                    "environment": "prod", "startedAt": "2026-03-13 02:00", "duration": "6m 22s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 3085, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "feature/bulk-invoice",    "environment": "qa",   "startedAt": "2026-03-12 11:20", "duration": "6m 14s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } }
+    {
+      "id": 3102,
+      "status": "Running",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-20 09:15",
+      "duration": null,
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Running"
+      }
+    },
+    {
+      "id": 3101,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-19 02:00",
+      "duration": "6m 14s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3100,
+      "status": "Failed",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "fix/invoice-rounding",
+      "environment": "test",
+      "startedAt": "2026-03-18 10:22",
+      "duration": "3m 50s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Failed",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 3099,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "fix/invoice-rounding",
+      "environment": "dev",
+      "startedAt": "2026-03-18 09:45",
+      "duration": "5m 58s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3098,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-18 02:00",
+      "duration": "6m 02s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3097,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/tax-calculation",
+      "environment": "qa",
+      "startedAt": "2026-03-17 11:30",
+      "duration": "6m 20s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3096,
+      "status": "Failed",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/tax-calculation",
+      "environment": "dev",
+      "startedAt": "2026-03-17 10:50",
+      "duration": "2m 11s",
+      "stages": {
+        "build": "Success",
+        "test": "Failed",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 3095,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-17 02:00",
+      "duration": "6m 08s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3094,
+      "status": "Cancelled",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "experiment/new-engine",
+      "environment": "dev",
+      "startedAt": "2026-03-16 15:40",
+      "duration": "0m 55s",
+      "stages": {
+        "build": "Cancelled",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 3093,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-16 02:00",
+      "duration": "6m 17s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3092,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/pdf-export",
+      "environment": "test",
+      "startedAt": "2026-03-15 13:10",
+      "duration": "6m 33s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3091,
+      "status": "Failed",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/pdf-export",
+      "environment": "test",
+      "startedAt": "2026-03-15 12:30",
+      "duration": "4m 02s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Failed",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 3090,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-15 02:00",
+      "duration": "6m 11s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3089,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "hotfix/payment-timeout",
+      "environment": "prod",
+      "startedAt": "2026-03-14 08:45",
+      "duration": "5m 58s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3088,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-14 02:00",
+      "duration": "6m 05s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3087,
+      "status": "Cancelled",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/bulk-invoice",
+      "environment": "dev",
+      "startedAt": "2026-03-13 17:00",
+      "duration": "0m 40s",
+      "stages": {
+        "build": "Cancelled",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 3086,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-13 02:00",
+      "duration": "6m 22s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 3085,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/bulk-invoice",
+      "environment": "qa",
+      "startedAt": "2026-03-12 11:20",
+      "duration": "6m 14s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    }
   ]
 }

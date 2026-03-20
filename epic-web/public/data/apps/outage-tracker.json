@@ -10,25 +10,286 @@
   "team": "Grid Operations",
   "lastUpdatedBy": "Maxine Bailey",
   "domain": "outage-tracker-test.nonprod.pge.com",
-  "github": { "repo": "outage-tracker", "branch": "develop" },
-  "azure": { "subscription": "pge-nonprod", "resourceGroup": "rg-epic-outage-tracker-test" },
+  "github": {
+    "repo": "outage-tracker",
+    "branch": "develop"
+  },
+  "azure": {
+    "subscription": "pge-nonprod",
+    "resourceGroup": "rg-epic-outage-tracker-test"
+  },
   "runs": [
-    { "id": 2244, "status": "Failed",    "triggeredBy": "Maxine Bailey", "branch": "develop",                      "environment": "test", "startedAt": "2026-03-19 14:30", "duration": "5m 12s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Failed"   } },
-    { "id": 2243, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "develop",                      "environment": "test", "startedAt": "2026-03-19 11:05", "duration": "7m 38s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2242, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "feature/restoration-workflow", "environment": "dev",  "startedAt": "2026-03-17 09:20", "duration": "7m 14s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2241, "status": "Failed",    "triggeredBy": "Robb Morgan",   "branch": "feature/restoration-workflow", "environment": "dev",  "startedAt": "2026-03-17 08:55", "duration": "1m 30s", "stages": { "build": "Failed",    "test": "Skipped", "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 2240, "status": "Cancelled", "triggeredBy": "System",        "branch": "develop",                      "environment": "test", "startedAt": "2026-03-16 02:00", "duration": "0m 22s", "stages": { "build": "Cancelled", "test": "Skipped", "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 2239, "status": "Success",   "triggeredBy": "System",        "branch": "develop",                      "environment": "test", "startedAt": "2026-03-15 02:00", "duration": "7m 55s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2238, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "feature/alert-thresholds",     "environment": "dev",  "startedAt": "2026-03-14 16:10", "duration": "7m 30s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2237, "status": "Failed",    "triggeredBy": "Maxine Bailey", "branch": "feature/alert-thresholds",     "environment": "dev",  "startedAt": "2026-03-14 15:30", "duration": "3m 44s", "stages": { "build": "Success",   "test": "Failed",  "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 2236, "status": "Success",   "triggeredBy": "System",        "branch": "develop",                      "environment": "test", "startedAt": "2026-03-14 02:00", "duration": "7m 48s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2235, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "feature/crew-dispatch",        "environment": "qa",   "startedAt": "2026-03-13 10:00", "duration": "8m 02s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2234, "status": "Cancelled", "triggeredBy": "Robb Morgan",   "branch": "feature/crew-dispatch",        "environment": "dev",  "startedAt": "2026-03-13 09:30", "duration": "0m 48s", "stages": { "build": "Cancelled", "test": "Skipped", "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 2233, "status": "Success",   "triggeredBy": "System",        "branch": "develop",                      "environment": "test", "startedAt": "2026-03-13 02:00", "duration": "7m 52s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2232, "status": "Failed",    "triggeredBy": "System",        "branch": "develop",                      "environment": "test", "startedAt": "2026-03-12 02:00", "duration": "6m 05s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Failed"   } },
-    { "id": 2231, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "hotfix/null-grid-ref",         "environment": "test", "startedAt": "2026-03-11 14:55", "duration": "7m 44s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2230, "status": "Success",   "triggeredBy": "System",        "branch": "develop",                      "environment": "test", "startedAt": "2026-03-11 02:00", "duration": "7m 38s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2229, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "feature/mobile-alerts",        "environment": "dev",  "startedAt": "2026-03-10 13:20", "duration": "7m 50s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 2228, "status": "Success",   "triggeredBy": "System",        "branch": "develop",                      "environment": "test", "startedAt": "2026-03-10 02:00", "duration": "7m 41s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } }
+    {
+      "id": 2244,
+      "status": "Failed",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "develop",
+      "environment": "test",
+      "startedAt": "2026-03-19 14:30",
+      "duration": "5m 12s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Failed"
+      }
+    },
+    {
+      "id": 2243,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "develop",
+      "environment": "test",
+      "startedAt": "2026-03-19 11:05",
+      "duration": "7m 38s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2242,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/restoration-workflow",
+      "environment": "dev",
+      "startedAt": "2026-03-17 09:20",
+      "duration": "7m 14s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2241,
+      "status": "Failed",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/restoration-workflow",
+      "environment": "dev",
+      "startedAt": "2026-03-17 08:55",
+      "duration": "1m 30s",
+      "stages": {
+        "build": "Failed",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 2240,
+      "status": "Cancelled",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "test",
+      "startedAt": "2026-03-16 02:00",
+      "duration": "0m 22s",
+      "stages": {
+        "build": "Cancelled",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 2239,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "test",
+      "startedAt": "2026-03-15 02:00",
+      "duration": "7m 55s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2238,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/alert-thresholds",
+      "environment": "dev",
+      "startedAt": "2026-03-14 16:10",
+      "duration": "7m 30s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2237,
+      "status": "Failed",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/alert-thresholds",
+      "environment": "dev",
+      "startedAt": "2026-03-14 15:30",
+      "duration": "3m 44s",
+      "stages": {
+        "build": "Success",
+        "test": "Failed",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 2236,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "test",
+      "startedAt": "2026-03-14 02:00",
+      "duration": "7m 48s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2235,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/crew-dispatch",
+      "environment": "qa",
+      "startedAt": "2026-03-13 10:00",
+      "duration": "8m 02s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2234,
+      "status": "Cancelled",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/crew-dispatch",
+      "environment": "dev",
+      "startedAt": "2026-03-13 09:30",
+      "duration": "0m 48s",
+      "stages": {
+        "build": "Cancelled",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 2233,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "test",
+      "startedAt": "2026-03-13 02:00",
+      "duration": "7m 52s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2232,
+      "status": "Failed",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "test",
+      "startedAt": "2026-03-12 02:00",
+      "duration": "6m 05s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Failed"
+      }
+    },
+    {
+      "id": 2231,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "hotfix/null-grid-ref",
+      "environment": "test",
+      "startedAt": "2026-03-11 14:55",
+      "duration": "7m 44s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2230,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "test",
+      "startedAt": "2026-03-11 02:00",
+      "duration": "7m 38s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2229,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/mobile-alerts",
+      "environment": "dev",
+      "startedAt": "2026-03-10 13:20",
+      "duration": "7m 50s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 2228,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "test",
+      "startedAt": "2026-03-10 02:00",
+      "duration": "7m 41s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    }
   ]
 }

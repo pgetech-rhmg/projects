@@ -10,25 +10,286 @@
   "team": "Grid Operations",
   "lastUpdatedBy": "Robb Morgan",
   "domain": "grid-dashboard-dev.nonprod.pge.com",
-  "github": { "repo": "grid-dashboard", "branch": "develop" },
-  "aws": { "accountId": "514712703977", "ec2InstanceId": "i-0b2c3d4e5f6a7b8c9" },
+  "github": {
+    "repo": "grid-dashboard",
+    "branch": "develop"
+  },
+  "aws": {
+    "accountId": "514712703977",
+    "ec2InstanceId": "i-0b2c3d4e5f6a7b8c9"
+  },
   "runs": [
-    { "id": 1587, "status": "Success",   "triggeredBy": "System",        "branch": "develop",             "environment": "dev",  "startedAt": "2026-03-18 16:55", "duration": "8m 02s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1586, "status": "Failed",    "triggeredBy": "Robb Morgan",   "branch": "feature/dark-mode",   "environment": "dev",  "startedAt": "2026-03-17 13:40", "duration": "4m 17s", "stages": { "build": "Success",   "test": "Failed",  "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 1585, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "feature/dark-mode",   "environment": "dev",  "startedAt": "2026-03-16 10:30", "duration": "8m 45s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1584, "status": "Cancelled", "triggeredBy": "Robb Morgan",   "branch": "feature/dark-mode",   "environment": "dev",  "startedAt": "2026-03-16 10:05", "duration": "1m 02s", "stages": { "build": "Cancelled", "test": "Skipped", "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 1583, "status": "Success",   "triggeredBy": "System",        "branch": "develop",             "environment": "dev",  "startedAt": "2026-03-15 02:00", "duration": "7m 58s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1582, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "feature/gauges",      "environment": "qa",   "startedAt": "2026-03-14 15:00", "duration": "8m 20s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1581, "status": "Failed",    "triggeredBy": "Maxine Bailey", "branch": "feature/gauges",      "environment": "dev",  "startedAt": "2026-03-14 14:25", "duration": "3m 55s", "stages": { "build": "Success",   "test": "Success", "scan": "Failed",  "deploy": "Skipped"  } },
-    { "id": 1580, "status": "Success",   "triggeredBy": "System",        "branch": "develop",             "environment": "dev",  "startedAt": "2026-03-14 02:00", "duration": "8m 10s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1579, "status": "Cancelled", "triggeredBy": "Maxine Bailey", "branch": "experiment/websocket","environment": "dev",  "startedAt": "2026-03-13 11:45", "duration": "0m 38s", "stages": { "build": "Cancelled", "test": "Skipped", "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 1578, "status": "Success",   "triggeredBy": "System",        "branch": "develop",             "environment": "dev",  "startedAt": "2026-03-13 02:00", "duration": "7m 55s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1577, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "feature/export-pdf",  "environment": "test", "startedAt": "2026-03-12 14:30", "duration": "8m 32s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1576, "status": "Failed",    "triggeredBy": "Robb Morgan",   "branch": "feature/export-pdf",  "environment": "dev",  "startedAt": "2026-03-12 13:55", "duration": "2m 18s", "stages": { "build": "Failed",    "test": "Skipped", "scan": "Skipped", "deploy": "Skipped"  } },
-    { "id": 1575, "status": "Success",   "triggeredBy": "System",        "branch": "develop",             "environment": "dev",  "startedAt": "2026-03-12 02:00", "duration": "8m 05s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1574, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "hotfix/memory-leak",  "environment": "dev",  "startedAt": "2026-03-11 09:40", "duration": "7m 48s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1573, "status": "Success",   "triggeredBy": "System",        "branch": "develop",             "environment": "dev",  "startedAt": "2026-03-11 02:00", "duration": "8m 12s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1572, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "feature/heatmap",     "environment": "qa",   "startedAt": "2026-03-10 16:20", "duration": "8m 28s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } },
-    { "id": 1571, "status": "Success",   "triggeredBy": "System",        "branch": "develop",             "environment": "dev",  "startedAt": "2026-03-10 02:00", "duration": "7m 59s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Success"  } }
+    {
+      "id": 1587,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "dev",
+      "startedAt": "2026-03-18 16:55",
+      "duration": "8m 02s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1586,
+      "status": "Failed",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/dark-mode",
+      "environment": "dev",
+      "startedAt": "2026-03-17 13:40",
+      "duration": "4m 17s",
+      "stages": {
+        "build": "Success",
+        "test": "Failed",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 1585,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/dark-mode",
+      "environment": "dev",
+      "startedAt": "2026-03-16 10:30",
+      "duration": "8m 45s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1584,
+      "status": "Cancelled",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/dark-mode",
+      "environment": "dev",
+      "startedAt": "2026-03-16 10:05",
+      "duration": "1m 02s",
+      "stages": {
+        "build": "Cancelled",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 1583,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "dev",
+      "startedAt": "2026-03-15 02:00",
+      "duration": "7m 58s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1582,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/gauges",
+      "environment": "qa",
+      "startedAt": "2026-03-14 15:00",
+      "duration": "8m 20s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1581,
+      "status": "Failed",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/gauges",
+      "environment": "dev",
+      "startedAt": "2026-03-14 14:25",
+      "duration": "3m 55s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Failed",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 1580,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "dev",
+      "startedAt": "2026-03-14 02:00",
+      "duration": "8m 10s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1579,
+      "status": "Cancelled",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "experiment/websocket",
+      "environment": "dev",
+      "startedAt": "2026-03-13 11:45",
+      "duration": "0m 38s",
+      "stages": {
+        "build": "Cancelled",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 1578,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "dev",
+      "startedAt": "2026-03-13 02:00",
+      "duration": "7m 55s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1577,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/export-pdf",
+      "environment": "test",
+      "startedAt": "2026-03-12 14:30",
+      "duration": "8m 32s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1576,
+      "status": "Failed",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/export-pdf",
+      "environment": "dev",
+      "startedAt": "2026-03-12 13:55",
+      "duration": "2m 18s",
+      "stages": {
+        "build": "Failed",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 1575,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "dev",
+      "startedAt": "2026-03-12 02:00",
+      "duration": "8m 05s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1574,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "hotfix/memory-leak",
+      "environment": "dev",
+      "startedAt": "2026-03-11 09:40",
+      "duration": "7m 48s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1573,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "dev",
+      "startedAt": "2026-03-11 02:00",
+      "duration": "8m 12s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1572,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/heatmap",
+      "environment": "qa",
+      "startedAt": "2026-03-10 16:20",
+      "duration": "8m 28s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 1571,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "develop",
+      "environment": "dev",
+      "startedAt": "2026-03-10 02:00",
+      "duration": "7m 59s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "Success",
+        "appDeploy": "Success"
+      }
+    }
   ]
 }

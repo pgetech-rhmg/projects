@@ -246,7 +246,8 @@
                   <th>Build</th>
                   <th>Test</th>
                   <th>Scan</th>
-                  <th>Deploy</th>
+                  <th>Infra Deploy</th>
+                  <th>App Deploy</th>
                 </tr>
               </thead>
               <tbody>
@@ -262,7 +263,8 @@
                     <td><span class="stage-dot stage-dot--{{ run.stages.build | lowercase }}"></span></td>
                     <td><span class="stage-dot stage-dot--{{ run.stages.test | lowercase }}"></span></td>
                     <td><span class="stage-dot stage-dot--{{ run.stages.scan | lowercase }}"></span></td>
-                    <td><span class="stage-dot stage-dot--{{ run.stages.deploy | lowercase }}"></span></td>
+                    <td><span class="stage-dot stage-dot--{{ run.stages.infraDeploy | lowercase }}" [title]="run.stages.infraDeploy === 'External' ? 'Infrastructure provided' : run.stages.infraDeploy"></span></td>
+                    <td><span class="stage-dot stage-dot--{{ run.stages.appDeploy | lowercase }}"></span></td>
                   </tr>
                 }
               </tbody>

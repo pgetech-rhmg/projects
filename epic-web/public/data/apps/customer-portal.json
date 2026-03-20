@@ -10,28 +10,335 @@
   "team": "Digital Experience",
   "lastUpdatedBy": "Robb Morgan",
   "domain": "portal.pge.com",
-  "github": { "repo": "customer-portal", "branch": "main" },
-  "aws": { "accountId": "514712703977", "s3": "pge-epic-customer-portal-web-prod", "cloudfront": "E1A2B3C4D5E6F7" },
+  "github": {
+    "repo": "customer-portal",
+    "branch": "main"
+  },
+  "aws": {
+    "accountId": "514712703977",
+    "s3": "pge-epic-customer-portal-web-prod",
+    "cloudfront": "E1A2B3C4D5E6F7"
+  },
   "runs": [
-    { "id": 4821, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "main",                      "environment": "prod", "startedAt": "2026-03-20 08:42", "duration": "4m 32s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4820, "status": "Success",   "triggeredBy": "System",        "branch": "main",                      "environment": "prod", "startedAt": "2026-03-19 02:00", "duration": "4m 18s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4819, "status": "Failed",    "triggeredBy": "Robb Morgan",   "branch": "feature/account-redesign",  "environment": "qa",   "startedAt": "2026-03-18 14:10", "duration": "2m 05s", "stages": { "build": "Success",   "test": "Failed",  "scan": "Skipped",   "deploy": "Skipped"   } },
-    { "id": 4818, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "feature/account-redesign",  "environment": "qa",   "startedAt": "2026-03-18 11:30", "duration": "4m 44s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4817, "status": "Cancelled", "triggeredBy": "Robb Morgan",   "branch": "feature/account-redesign",  "environment": "dev",  "startedAt": "2026-03-17 16:55", "duration": "0m 48s", "stages": { "build": "Cancelled", "test": "Skipped", "scan": "Skipped",   "deploy": "Skipped"   } },
-    { "id": 4816, "status": "Success",   "triggeredBy": "System",        "branch": "main",                      "environment": "prod", "startedAt": "2026-03-17 02:00", "duration": "4m 21s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4815, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "feature/usage-charts",      "environment": "dev",  "startedAt": "2026-03-16 15:20", "duration": "4m 08s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4814, "status": "Failed",    "triggeredBy": "Maxine Bailey", "branch": "feature/usage-charts",      "environment": "dev",  "startedAt": "2026-03-16 14:45", "duration": "1m 52s", "stages": { "build": "Failed",    "test": "Skipped", "scan": "Skipped",   "deploy": "Skipped"   } },
-    { "id": 4813, "status": "Success",   "triggeredBy": "System",        "branch": "main",                      "environment": "prod", "startedAt": "2026-03-16 02:00", "duration": "4m 29s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4812, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "hotfix/login-timeout",      "environment": "prod", "startedAt": "2026-03-15 09:15", "duration": "4m 11s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4811, "status": "Success",   "triggeredBy": "System",        "branch": "main",                      "environment": "prod", "startedAt": "2026-03-15 02:00", "duration": "4m 35s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4810, "status": "Success",   "triggeredBy": "Maxine Bailey", "branch": "feature/notifications",     "environment": "qa",   "startedAt": "2026-03-14 13:40", "duration": "4m 22s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4809, "status": "Failed",    "triggeredBy": "Maxine Bailey", "branch": "feature/notifications",     "environment": "qa",   "startedAt": "2026-03-14 11:05", "duration": "3m 18s", "stages": { "build": "Success",   "test": "Success", "scan": "Failed",    "deploy": "Skipped"   } },
-    { "id": 4808, "status": "Success",   "triggeredBy": "System",        "branch": "main",                      "environment": "prod", "startedAt": "2026-03-14 02:00", "duration": "4m 17s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4807, "status": "Cancelled", "triggeredBy": "Robb Morgan",   "branch": "experiment/new-nav",        "environment": "dev",  "startedAt": "2026-03-13 16:30", "duration": "0m 31s", "stages": { "build": "Cancelled", "test": "Skipped", "scan": "Skipped",   "deploy": "Skipped"   } },
-    { "id": 4806, "status": "Success",   "triggeredBy": "System",        "branch": "main",                      "environment": "prod", "startedAt": "2026-03-13 02:00", "duration": "4m 40s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4805, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "feature/payment-methods",   "environment": "test", "startedAt": "2026-03-12 10:55", "duration": "4m 28s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4804, "status": "Success",   "triggeredBy": "System",        "branch": "main",                      "environment": "prod", "startedAt": "2026-03-12 02:00", "duration": "4m 19s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },
-    { "id": 4803, "status": "Failed",    "triggeredBy": "Robb Morgan",   "branch": "feature/payment-methods",   "environment": "dev",  "startedAt": "2026-03-11 14:22", "duration": "2m 44s", "stages": { "build": "Success",   "test": "Failed",  "scan": "Skipped",   "deploy": "Skipped"   } },
-    { "id": 4802, "status": "Success",   "triggeredBy": "System",        "branch": "main",                      "environment": "prod", "startedAt": "2026-03-11 02:00", "duration": "4m 25s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } }
+    {
+      "id": 4821,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-20 08:42",
+      "duration": "4m 32s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4820,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-19 02:00",
+      "duration": "4m 18s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4819,
+      "status": "Failed",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/account-redesign",
+      "environment": "qa",
+      "startedAt": "2026-03-18 14:10",
+      "duration": "2m 05s",
+      "stages": {
+        "build": "Success",
+        "test": "Failed",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 4818,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/account-redesign",
+      "environment": "qa",
+      "startedAt": "2026-03-18 11:30",
+      "duration": "4m 44s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4817,
+      "status": "Cancelled",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/account-redesign",
+      "environment": "dev",
+      "startedAt": "2026-03-17 16:55",
+      "duration": "0m 48s",
+      "stages": {
+        "build": "Cancelled",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 4816,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-17 02:00",
+      "duration": "4m 21s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4815,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/usage-charts",
+      "environment": "dev",
+      "startedAt": "2026-03-16 15:20",
+      "duration": "4m 08s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4814,
+      "status": "Failed",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/usage-charts",
+      "environment": "dev",
+      "startedAt": "2026-03-16 14:45",
+      "duration": "1m 52s",
+      "stages": {
+        "build": "Failed",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 4813,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-16 02:00",
+      "duration": "4m 29s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4812,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "hotfix/login-timeout",
+      "environment": "prod",
+      "startedAt": "2026-03-15 09:15",
+      "duration": "4m 11s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4811,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-15 02:00",
+      "duration": "4m 35s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4810,
+      "status": "Success",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/notifications",
+      "environment": "qa",
+      "startedAt": "2026-03-14 13:40",
+      "duration": "4m 22s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4809,
+      "status": "Failed",
+      "triggeredBy": "Maxine Bailey",
+      "branch": "feature/notifications",
+      "environment": "qa",
+      "startedAt": "2026-03-14 11:05",
+      "duration": "3m 18s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Failed",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 4808,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-14 02:00",
+      "duration": "4m 17s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4807,
+      "status": "Cancelled",
+      "triggeredBy": "Robb Morgan",
+      "branch": "experiment/new-nav",
+      "environment": "dev",
+      "startedAt": "2026-03-13 16:30",
+      "duration": "0m 31s",
+      "stages": {
+        "build": "Cancelled",
+        "test": "Skipped",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 4806,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-13 02:00",
+      "duration": "4m 40s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4805,
+      "status": "Success",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/payment-methods",
+      "environment": "test",
+      "startedAt": "2026-03-12 10:55",
+      "duration": "4m 28s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4804,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-12 02:00",
+      "duration": "4m 19s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    },
+    {
+      "id": 4803,
+      "status": "Failed",
+      "triggeredBy": "Robb Morgan",
+      "branch": "feature/payment-methods",
+      "environment": "dev",
+      "startedAt": "2026-03-11 14:22",
+      "duration": "2m 44s",
+      "stages": {
+        "build": "Success",
+        "test": "Failed",
+        "scan": "Skipped",
+        "infraDeploy": "Skipped",
+        "appDeploy": "Skipped"
+      }
+    },
+    {
+      "id": 4802,
+      "status": "Success",
+      "triggeredBy": "System",
+      "branch": "main",
+      "environment": "prod",
+      "startedAt": "2026-03-11 02:00",
+      "duration": "4m 25s",
+      "stages": {
+        "build": "Success",
+        "test": "Success",
+        "scan": "Success",
+        "infraDeploy": "External",
+        "appDeploy": "Success"
+      }
+    }
   ]
 }

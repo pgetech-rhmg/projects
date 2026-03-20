@@ -1,4 +1,4 @@
-export type RunStatus = 'Success' | 'Failed' | 'Running' | 'Cancelled' | 'Skipped';
+export type RunStatus = 'Success' | 'Failed' | 'Running' | 'Cancelled' | 'Skipped' | 'External';
 
 export interface AppLookup {
   name: string;
@@ -36,7 +36,8 @@ export interface PipelineRun {
     build: RunStatus;
     test: RunStatus;
     scan: RunStatus;
-    deploy: RunStatus;
+    infraDeploy: RunStatus;
+    appDeploy: RunStatus;
   };
 }
 
