@@ -381,10 +381,6 @@
             <span class="detail-value">{{ newRunApp()!.technology }}</span>
           </div>
           <div class="detail-item">
-            <span class="detail-label">Environment</span>
-            <span class="detail-value">{{ newRunApp()!.environment }}</span>
-          </div>
-          <div class="detail-item">
             <span class="detail-label">Cloud</span>
             <span class="detail-value">{{ newRunApp()!.cloud }}</span>
           </div>
@@ -395,16 +391,41 @@
             <input
               id="new-run-branch"
               type="text"
-              placeholder="e.g. main"
+              placeholder="e.g. feature/my-branch"
               [(ngModel)]="newRunBranch"
               [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="onNewRunBranchChange()"
+              [class.input--taken]="newRunBranchError()"
             />
+            @if (newRunBranchError()) {
+              <span class="field-hint field-hint--taken">{{ newRunBranchError() }}</span>
+            }
+          </div>
+          <div class="form-field">
+            <label for="new-run-env">Environment <span class="form-required">*</span></label>
+            <select
+              id="new-run-env"
+              [(ngModel)]="newRunEnvironment"
+              [ngModelOptions]="{ standalone: true }"
+              [disabled]="newRunEnvLocked()"
+            >
+              <option value="dev">dev</option>
+              <option value="test">test</option>
+              <option value="qa">qa</option>
+              <option value="stage">stage</option>
+              @if (newRunEnvLocked()) {
+                <option value="prod">prod</option>
+              }
+            </select>
+            @if (newRunEnvLocked()) {
+              <span class="field-hint field-hint--info">Release branches always deploy to prod.</span>
+            }
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closeNewRunModal()">Cancel</button>
-        <button class="btn-primary" (click)="onConfirmNewRun()" [disabled]="!newRunBranch.trim()">Run</button>
+        <button class="btn-primary" (click)="onConfirmNewRun()" [disabled]="!canRunNewPipeline">Run</button>
       </div>
     </div>
   </div>

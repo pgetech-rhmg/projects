@@ -142,6 +142,9 @@ export class App implements OnInit {
   protected showNewRunModal = signal(false);
   protected newRunApp = signal<AppDetail | null>(null);
   protected newRunBranch = '';
+  protected newRunEnvironment = '';
+  protected newRunBranchError = signal<string | null>(null);
+  protected newRunEnvLocked = signal(false);
 
   protected newAppRepo = '';
   protected newAppBranch = '';
@@ -215,9 +218,36 @@ export class App implements OnInit {
     const detail = this.appDetail();
     if (!detail) return;
     this.newRunApp.set(detail);
-    this.newRunBranch = detail.github.branch;
+    this.newRunBranch = '';
+    this.newRunEnvironment = 'dev';
+    this.newRunBranchError.set(null);
+    this.newRunEnvLocked.set(false);
     this.closeManageModal();
     this.showNewRunModal.set(true);
+  }
+
+  protected onNewRunBranchChange(): void {
+    const branch = this.newRunBranch.trim().toLowerCase();
+    if (branch === 'main' || branch === 'master') {
+      this.newRunBranchError.set(`"${this.newRunBranch.trim()}" is not allowed — use a feature or release branch.`);
+    } else {
+      this.newRunBranchError.set(null);
+    }
+
+    if (/^release\d*$/i.test(this.newRunBranch.trim())) {
+      this.newRunEnvironment = 'prod';
+      this.newRunEnvLocked.set(true);
+    } else {
+      this.newRunEnvLocked.set(false);
+    }
+  }
+
+  protected get canRunNewPipeline(): boolean {
+    return (
+      !!this.newRunBranch.trim() &&
+      !this.newRunBranchError() &&
+      !!this.newRunEnvironment
+    );
   }
 
   protected closeNewRunModal(): void {
@@ -226,11 +256,12 @@ export class App implements OnInit {
   }
 
   protected onConfirmNewRun(): void {
+    if (!this.canRunNewPipeline) return;
     const name = this.newRunApp()?.displayName;
     const branch = this.newRunBranch.trim();
-    if (!name || !branch) return;
+    const env = this.newRunEnvironment;
     this.closeNewRunModal();
-    this.showToast(`A new pipeline run for "${name}" on branch "${branch}" has been queued — check back shortly for status updates.`);
+    this.showToast(`A new pipeline run for "${name}" on branch "${branch}" for the "${env}" environment has been queued — check back shortly for status updates.`);
   }
 
   protected closeManageModal(): void {
