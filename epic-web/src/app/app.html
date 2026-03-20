@@ -139,13 +139,16 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="8" class="no-results">No apps match your search or filters.</td>
+              <td colspan="8" class="no-results">
+                {{ apps().length === 0 ? 'No records found.' : 'No apps match your search or filters.' }}
+              </td>
             </tr>
           }
         </tbody>
       </table>
     </div>
 
+    @if (filteredApps().length > 0) {
     <div class="pagination">
       <span class="pagination__info">
         {{ (currentPage() - 1) * pageSize + 1 }}–{{ pageRangeEnd() }} of {{ filteredApps().length }} apps
@@ -170,14 +173,21 @@
         </button>
       </div>
     </div>
+    }
   </main>
 </div>
 
 @if (showManageModal() && selectedApp()) {
   <div class="modal-overlay" (click)="closeManageModal()">
-    <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal modal--wide" (click)="$event.stopPropagation()">
+
       <div class="modal-header">
-        <h3>{{ selectedApp()!.name }}</h3>
+        <div>
+          <h3>{{ appDetail()?.displayName ?? selectedApp()!.name }}</h3>
+          @if (appDetail()) {
+            <p class="modal-subtitle">{{ appDetail()!.description }}</p>
+          }
+        </div>
         <button class="modal-close" (click)="closeManageModal()" title="Close">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -186,46 +196,92 @@
           </svg>
         </button>
       </div>
-      <div class="modal-body">
-        <p>From here you'll be able to manage everything related to this application's pipeline.</p>
-        <ul class="manage-options">
-          <li>
-            <span class="manage-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
-            </span>
-            <span><strong>Previous Runs</strong> — View the full history of pipeline executions for this app.</span>
-          </li>
-          <li>
-            <span class="manage-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
-              </svg>
-            </span>
-            <span><strong>Logs</strong> — Drill into build, test, scan, and deploy output for any run.</span>
-          </li>
-          <li>
-            <span class="manage-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-              </svg>
-            </span>
-            <span><strong>New Run</strong> — Kick off a fresh pipeline run against any branch and environment.</span>
-          </li>
-        </ul>
-      </div>
+
+      @if (!appDetail()) {
+        <div class="modal-body modal-loading">Loading...</div>
+      } @else {
+        <div class="modal-body">
+
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Team</span>
+              <span class="detail-value">{{ appDetail()!.team }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Last Updated By</span>
+              <span class="detail-value">{{ appDetail()!.lastUpdatedBy }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Technology</span>
+              <span class="detail-value">{{ appDetail()!.technology }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Environment</span>
+              <span class="detail-value">{{ appDetail()!.environment }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">GitHub Repo</span>
+              <span class="detail-value">{{ appDetail()!.github.repo }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Branch</span>
+              <span class="detail-value">{{ appDetail()!.github.branch }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Cloud</span>
+              <span class="detail-value">{{ appDetail()!.cloud }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Domain</span>
+              <span class="detail-value">{{ appDetail()!.domain }}</span>
+            </div>
+          </div>
+
+          <h4 class="runs-heading">Pipeline Runs</h4>
+
+          <div class="runs-table-wrapper">
+            <table class="runs-table">
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Status</th>
+                  <th>Branch</th>
+                  <th>Environment</th>
+                  <th>Triggered By</th>
+                  <th>Started</th>
+                  <th>Duration</th>
+                  <th>Build</th>
+                  <th>Test</th>
+                  <th>Scan</th>
+                  <th>Deploy</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (run of appDetail()!.runs; track run.id) {
+                  <tr>
+                    <td class="run-id">#{{ run.id }}</td>
+                    <td><span class="badge badge--status badge--status-{{ run.status | lowercase }}">{{ run.status }}</span></td>
+                    <td class="run-branch">{{ run.branch }}</td>
+                    <td><span class="badge badge--env badge--env-{{ run.environment }}">{{ run.environment }}</span></td>
+                    <td class="timestamp">{{ run.triggeredBy }}</td>
+                    <td class="timestamp">{{ run.startedAt }}</td>
+                    <td class="timestamp">{{ run.duration ?? '—' }}</td>
+                    <td><span class="stage-dot stage-dot--{{ run.stages.build | lowercase }}"></span></td>
+                    <td><span class="stage-dot stage-dot--{{ run.stages.test | lowercase }}"></span></td>
+                    <td><span class="stage-dot stage-dot--{{ run.stages.scan | lowercase }}"></span></td>
+                    <td><span class="stage-dot stage-dot--{{ run.stages.deploy | lowercase }}"></span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      }
+
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closeManageModal()">Close</button>
-        <button class="btn-primary" disabled>Coming Soon</button>
+        <button class="btn-primary">New Run</button>
       </div>
     </div>
   </div>

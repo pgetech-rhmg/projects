@@ -444,13 +444,21 @@ tbody {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
   width: 480px;
   max-width: calc(100vw - 40px);
+
+  &--wide {
+    width: 860px;
+    max-height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 .modal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 20px 24px 0;
+  flex-shrink: 0;
 
   h3 {
     margin: 0;
@@ -458,6 +466,135 @@ tbody {
     font-weight: 700;
     color: #1a1a2e;
   }
+}
+
+.modal-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: #718096;
+  line-height: 1.5;
+  max-width: 640px;
+}
+
+.modal-loading {
+  color: #a0aec0;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 40px 24px;
+}
+
+// ── App detail ───────────────────────────────────────────────────────────────
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.detail-item {
+  background: #f7fafc;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.detail-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a0aec0;
+}
+
+.detail-value {
+  font-size: 0.85rem;
+  color: #2d3748;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.runs-heading {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.runs-table-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 280px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.runs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  thead {
+    background: #f0f2f5;
+    position: sticky;
+    top: 0;
+
+    th {
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #718096;
+      border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+  }
+
+  tbody tr {
+    border-bottom: 1px solid #edf2f7;
+
+    &:last-child { border-bottom: none; }
+    &:hover { background: #f7fafc; }
+  }
+
+  td {
+    padding: 8px 12px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+}
+
+.run-id {
+  font-weight: 600;
+  color: #2b6cb0;
+  font-size: 0.8rem;
+}
+
+.run-branch {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #4a5568;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Stage indicator dots
+.stage-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+
+  &--success   { background: #48bb78; }
+  &--failed    { background: #fc8181; }
+  &--running   { background: #63b3ed; }
+  &--cancelled { background: #cbd5e0; }
+  &--skipped   { background: #e2e8f0; }
 }
 
 .modal-close {
@@ -481,6 +618,7 @@ tbody {
 
 .modal-body {
   padding: 16px 24px 20px;
+  overflow-y: auto;
 
   p {
     margin: 0 0 10px;
