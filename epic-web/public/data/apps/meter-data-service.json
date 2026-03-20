@@ -1,0 +1,16 @@
+{
+  "name": "meter-data-service",
+  "displayName": "Meter Data Service",
+  "description": "Java microservice responsible for ingesting, validating, and storing smart meter telemetry from the AMI network into the data lake.",
+  "appType": "java",
+  "technology": "Java",
+  "javaVersion": "21",
+  "cloud": "AWS",
+  "environment": "prod",
+  "team": "Smart Grid",
+  "lastUpdatedBy": "Maxine Bailey",
+  "domain": "meter-data.internal.pge.com",
+  "github": { "repo": "pgetech/meter-data-service", "branch": "main" },
+  "aws": { "accountId": "514712703977", "ec2InstanceId": "i-0c3d4e5f6a7b8c9d0" },
+  "runs": []
+}

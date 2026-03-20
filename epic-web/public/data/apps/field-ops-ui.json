@@ -1,0 +1,16 @@
+{
+  "name": "field-ops-ui",
+  "displayName": "Field Ops UI",
+  "description": "Angular application providing field operations crews with real-time work assignments, asset maps, and job status updates in the field.",
+  "appType": "angular",
+  "technology": "Angular",
+  "nodeVersion": "20",
+  "cloud": "Azure",
+  "environment": "qa",
+  "team": "Field Operations",
+  "lastUpdatedBy": "Robb Morgan",
+  "domain": "field-ops-qa.nonprod.pge.com",
+  "github": { "repo": "pgetech/field-ops-ui", "branch": "develop" },
+  "azure": { "subscription": "pge-nonprod", "resourceGroup": "rg-epic-field-ops-ui-qa" },
+  "runs": []
+}

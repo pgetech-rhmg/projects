@@ -239,6 +239,9 @@
 
           <h4 class="runs-heading">Pipeline Runs</h4>
 
+          @if (appDetail()!.runs.length === 0) {
+            <p class="runs-empty">No pipeline runs recorded yet for this app.</p>
+          } @else {
           <div class="runs-table-wrapper">
             <table class="runs-table">
               <thead>
@@ -259,7 +262,7 @@
               <tbody>
                 @for (run of appDetail()!.runs; track run.id) {
                   <tr>
-                    <td class="run-id">#{{ run.id }}</td>
+                    <td class="run-id"><button class="run-link" (click)="onRunClick(run.id)">#{{ run.id }}</button></td>
                     <td><span class="badge badge--status badge--status-{{ run.status | lowercase }}">{{ run.status }}</span></td>
                     <td class="run-branch">{{ run.branch }}</td>
                     <td><span class="badge badge--env badge--env-{{ run.environment }}">{{ run.environment }}</span></td>
@@ -275,6 +278,7 @@
               </tbody>
             </table>
           </div>
+          }
 
         </div>
       }
@@ -309,6 +313,18 @@
         <button class="btn-primary" disabled>Coming Soon</button>
       </div>
     </div>
+  </div>
+}
+
+@if (toastMessage()) {
+  <div class="toast">
+    <span>{{ toastMessage() }}</span>
+    <button class="toast__dismiss" (click)="dismissToast()" title="Dismiss">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
   </div>
 }
 

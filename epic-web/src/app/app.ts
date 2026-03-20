@@ -158,4 +158,20 @@ export class App implements OnInit {
     this.selectedApp.set(null);
     this.appDetail.set(null);
   }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+
+  protected toastMessage = signal<string | null>(null);
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  protected onRunClick(runId: number): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastMessage.set(`Run #${runId} — this will navigate to the ADO pipeline run once the integration is wired up.`);
+    this.toastTimer = setTimeout(() => this.toastMessage.set(null), 4000);
+  }
+
+  protected dismissToast(): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastMessage.set(null);
+  }
 }

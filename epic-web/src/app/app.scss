@@ -523,6 +523,17 @@ tbody {
   color: #2d3748;
 }
 
+.runs-empty {
+  margin: 12px 0 0;
+  padding: 20px;
+  background: #f7fafc;
+  border: 1px dashed #cbd5e0;
+  border-radius: 6px;
+  text-align: center;
+  color: #718096;
+  font-size: 0.875rem;
+}
+
 .runs-table-wrapper {
   overflow-x: auto;
   overflow-y: auto;
@@ -702,4 +713,59 @@ tbody {
     opacity: 0.5;
     cursor: not-allowed;
   }
+}
+
+// ── Run link ────────────────────────────────────────────────────────────────
+
+.run-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2b6cb0;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover { color: #2c5282; }
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: #1a1a2e;
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  font-size: 0.875rem;
+  z-index: 9999;
+  max-width: 520px;
+  animation: toast-in 0.2s ease;
+}
+
+.toast__dismiss {
+  background: none;
+  border: none;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  &:hover { color: #fff; }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
