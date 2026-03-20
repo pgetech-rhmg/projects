@@ -137,7 +137,22 @@ interface RepoCheckResult  // returned by checkRepo()
   - Run # is a clickable link → fires a toast (placeholder for ADO run navigation)
   - Stage columns use colored dot indicators
   - If `runs` array is empty → shows a dashed empty-state message instead of the table
-- Footer: **Close** + **New Run** (New Run fires a toast — placeholder for `POST /api/apps/{name}/runs`)
+- Footer: **Close** + **New Run** (closes manage modal and opens the New Run modal)
+
+### New Run modal
+- Triggered from the manage modal's "New Run" button — closes the manage modal first, then opens this one
+- Shows a 3-tile metadata summary: GitHub Repo, Technology, Cloud
+- **Branch input** (required):
+  - `main` and `master` are blocked — shows red error: `"main" is not allowed — use a feature or release branch.`
+  - If branch matches `release`, `release1`, `release2`, etc. (`/^release\d*$/i`), environment is forced to `prod` and the dropdown is disabled with a hint
+  - Placeholder guides users: `e.g. feature/my-branch`
+- **Environment dropdown** (required):
+  - Options: dev, test, qa, stage
+  - Defaults to `dev`
+  - `prod` is **not selectable** — it only appears (and is auto-selected) when a release branch is entered
+- **Run button** is disabled until branch is valid and environment is selected
+- On confirm → closes modal → fires toast: `A new pipeline run for "{name}" on branch "{branch}" for the "{env}" environment has been queued...`
+- Still a placeholder — no service call yet (`POST /api/apps/{name}/runs`)
 
 ### Onboard modal ("+ New App")
 - **Repo name input** with on-blur validation via `checkRepo()`
@@ -192,7 +207,18 @@ Key values:
 ## Known Gaps / Next Steps
 
 - Only 6 apps have detail JSON files (`apps/{name}.json`). The other 49 apps in `apps.json` will show "Loading..." if their row is clicked. Need to either generate the remaining files or add a 404 handler in the modal.
-- `onboardApp()` and `onNewRun()` fire toasts only — need real service calls once the API exists.
+- `onboardApp()` and `onConfirmNewRun()` fire toasts only — need real service calls once the API exists.
 - Auth is hardcoded (`currentUser = 'Robb Morgan'`). Will need to wire up real identity.
-- The "New Run" button should eventually allow branch selection before triggering.
 - No unit tests written yet (`app.spec.ts` is the default scaffold).
+
+### Component state for the New Run modal
+
+| Signal / Property | Type | Purpose |
+|---|---|---|
+| `showNewRunModal` | `signal(false)` | Toggles modal visibility |
+| `newRunApp` | `signal<AppDetail \| null>(null)` | Holds the app detail for context |
+| `newRunBranch` | `string` | Two-way bound branch input |
+| `newRunEnvironment` | `string` | Two-way bound environment select |
+| `newRunBranchError` | `signal<string \| null>(null)` | Validation error for blocked branches |
+| `newRunEnvLocked` | `signal(false)` | True when a release branch forces prod |
+| `canRunNewPipeline` | getter | Composite validation (branch valid + env selected) |
