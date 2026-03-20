@@ -1,7 +1,10 @@
 // ── Layout ─────────────────────────────────────────────────────────────────
 
 .page {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: #f5f6f8;
   font-family: 'Segoe UI', system-ui, sans-serif;
   color: #1a1a2e;
@@ -68,7 +71,12 @@
 }
 
 .page-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   padding: 32px 40px;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .section-header {
@@ -193,11 +201,12 @@
 // ── Table ───────────────────────────────────────────────────────────────────
 
 .table-wrapper {
+  flex: 1;
+  min-height: 0;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   overflow-y: auto;
-  max-height: calc(100vh - 220px);
 }
 
 table {
