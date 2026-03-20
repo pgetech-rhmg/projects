@@ -32,9 +32,11 @@
           <tr>
             <th>App Name</th>
             <th>Technology</th>
-            <th>Last Pipeline Run</th>
             <th>Cloud</th>
             <th>Environment</th>
+            <th>Last Pipeline Run</th>
+            <th>Run Status</th>
+            <th>Triggered By</th>
             <th></th>
           </tr>
         </thead>
@@ -45,7 +47,6 @@
               <td>
                 <span class="badge badge--tech">{{ app.technology }}</span>
               </td>
-              <td class="timestamp">{{ app.lastPipelineRun }}</td>
               <td>
                 <span class="badge badge--cloud badge--cloud-{{ app.cloud | lowercase }}">
                   {{ app.cloud }}
@@ -54,6 +55,17 @@
               <td>
                 <span class="badge badge--env badge--env-{{ app.environment }}">
                   {{ app.environment }}
+                </span>
+              </td>
+              <td class="timestamp">{{ app.lastPipelineRun }}</td>
+              <td>
+                <span class="badge badge--status badge--status-{{ app.runStatus | lowercase }}">
+                  {{ app.runStatus }}
+                </span>
+              </td>
+              <td>
+                <span class="triggered-by" [class.triggered-by--system]="app.triggeredBy === 'System'">
+                  {{ app.triggeredBy }}
                 </span>
               </td>
               <td class="actions">

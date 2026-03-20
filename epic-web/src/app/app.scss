@@ -164,6 +164,16 @@ tbody {
   font-size: 0.85rem;
 }
 
+.triggered-by {
+  font-size: 0.88rem;
+  color: #2d3748;
+
+  &--system {
+    color: #718096;
+    font-style: italic;
+  }
+}
+
 .actions {
   width: 48px;
   text-align: center;
@@ -210,6 +220,14 @@ tbody {
 .badge--cloud {
   &-aws   { background: #fff3cd; color: #7d5a00; }
   &-azure { background: #cce5ff; color: #004085; }
+}
+
+// Run Status
+.badge--status {
+  &-success   { background: #d4edda; color: #155724; }
+  &-failed    { background: #f8d7da; color: #721c24; }
+  &-running   { background: #cce5ff; color: #004085; }
+  &-cancelled { background: #e2e8f0; color: #4a5568; }
 }
 
 // Environment
