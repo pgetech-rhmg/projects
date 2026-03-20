@@ -95,12 +95,11 @@
             <th>Last Pipeline Run</th>
             <th>Run Status</th>
             <th>Triggered By</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>
           @for (app of pagedApps(); track app.name) {
-            <tr>
+            <tr class="app-row" (click)="onManageApp(app)" title="View {{ app.name }}">
               <td class="app-name">{{ app.name }}</td>
               <td>
                 <span class="badge badge--tech">{{ app.technology }}</span>
@@ -127,19 +126,10 @@
                   <span class="user-chip__name">{{ app.triggeredBy === currentUser ? 'You' : app.triggeredBy }}</span>
                 </div>
               </td>
-              <td class="actions">
-                <button class="icon-btn" (click)="onManageApp(app)" title="Manage {{ app.name }}">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                  </svg>
-                </button>
-              </td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="8" class="no-results">
+              <td colspan="7" class="no-results">
                 {{ apps().length === 0 ? 'No records found.' : 'No apps match your search or filters.' }}
               </td>
             </tr>
@@ -295,7 +285,10 @@
   <div class="modal-overlay" (click)="closeAddModal()">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h3>Add New App</h3>
+        <div>
+          <h3>Onboard New App</h3>
+          <p class="modal-subtitle">Connect a GitHub repository to get started with EPIC.</p>
+        </div>
         <button class="modal-close" (click)="closeAddModal()" title="Close">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -305,19 +298,64 @@
         </button>
       </div>
       <div class="modal-body">
-        <p>This is where you'll onboard a new project or application into EPIC.</p>
-        <p>You'll provide a GitHub repository name and branch, along with your app's technology type and target environment. EPIC will handle the rest.</p>
+        <div class="onboard-form">
+          <div class="form-field">
+            <label for="onboard-repo">GitHub Repository <span class="form-required">*</span></label>
+            <input
+              id="onboard-repo"
+              type="text"
+              placeholder="e.g. my-new-app"
+              [(ngModel)]="newAppRepo"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="onRepoChange()"
+              (blur)="onRepoBlur()"
+              [class.input--available]="repoCheckStatus() === 'available'"
+              [class.input--available]="repoCheckStatus() === 'available'"
+              [class.input--info]="repoCheckStatus() === 'in-epic-not-mine'"
+              [class.input--taken]="repoCheckStatus() === 'already-mine' || repoCheckStatus() === 'not-found'"
+            />
+            @if (repoCheckStatus() === 'checking') {
+              <span class="field-hint field-hint--checking">
+                <span class="spinner"></span> Checking...
+              </span>
+            } @else if (repoCheckStatus() === 'available') {
+              <span class="field-hint field-hint--available">Repository is available to onboard.</span>
+            } @else if (repoCheckStatus() === 'in-epic-not-mine') {
+              <span class="field-hint field-hint--info">"{{ foundMasterApp()?.displayName }}" is already in EPIC but isn't on your list. You can add it below.</span>
+            } @else if (repoCheckStatus() === 'already-mine') {
+              <span class="field-hint field-hint--taken">"{{ foundMasterApp()?.displayName }}" is already in your list.</span>
+            } @else if (repoCheckStatus() === 'not-found') {
+              <span class="field-hint field-hint--taken">Repo not found. Verify the name or check your access.</span>
+            }
+          </div>
+          @if (repoCheckStatus() !== 'in-epic-not-mine' && repoCheckStatus() !== 'already-mine') {
+            <div class="form-field">
+              <label for="onboard-branch">Branch <span class="form-required">*</span></label>
+              <input
+                id="onboard-branch"
+                type="text"
+                placeholder="e.g. main"
+                [(ngModel)]="newAppBranch"
+                [ngModelOptions]="{ standalone: true }"
+              />
+            </div>
+          }
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closeAddModal()">Cancel</button>
-        <button class="btn-primary" disabled>Coming Soon</button>
+        @if (repoCheckStatus() === 'in-epic-not-mine') {
+          <button class="btn-primary" (click)="onAddToMyList()">Add to My List</button>
+        } @else {
+          <button class="btn-primary" (click)="onOnboardApp()" [disabled]="!canOnboard">Onboard</button>
+        }
       </div>
     </div>
   </div>
 }
 
 @if (toastMessage()) {
-  <div class="toast">
+  <div class="toast" (mouseenter)="pauseToast()" (mouseleave)="resumeToast()">
     <span>{{ toastMessage() }}</span>
     <button class="toast__dismiss" (click)="dismissToast()" title="Dismiss">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"

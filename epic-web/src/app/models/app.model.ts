@@ -1,5 +1,19 @@
 export type RunStatus = 'Success' | 'Failed' | 'Running' | 'Cancelled' | 'Skipped';
 
+export interface AppLookup {
+  name: string;
+  displayName: string;
+  technology: string;
+  cloud: string;
+  environment: string;
+  github: { repo: string };
+}
+
+export interface RepoCheckResult {
+  status: 'available' | 'in-epic-not-mine' | 'already-mine' | 'not-found';
+  masterApp?: AppLookup;
+}
+
 export interface ManagedApp {
   name: string;
   technology: string;

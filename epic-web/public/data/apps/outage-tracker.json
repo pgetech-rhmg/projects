@@ -10,7 +10,7 @@
   "team": "Grid Operations",
   "lastUpdatedBy": "Maxine Bailey",
   "domain": "outage-tracker-test.nonprod.pge.com",
-  "github": { "repo": "pgetech/outage-tracker", "branch": "develop" },
+  "github": { "repo": "outage-tracker", "branch": "develop" },
   "azure": { "subscription": "pge-nonprod", "resourceGroup": "rg-epic-outage-tracker-test" },
   "runs": [
     { "id": 2244, "status": "Failed",    "triggeredBy": "Maxine Bailey", "branch": "develop",                      "environment": "test", "startedAt": "2026-03-19 14:30", "duration": "5m 12s", "stages": { "build": "Success",   "test": "Success", "scan": "Success", "deploy": "Failed"   } },

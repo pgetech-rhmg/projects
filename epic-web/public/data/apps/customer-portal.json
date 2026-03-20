@@ -10,7 +10,7 @@
   "team": "Digital Experience",
   "lastUpdatedBy": "Robb Morgan",
   "domain": "portal.pge.com",
-  "github": { "repo": "pgetech/customer-portal", "branch": "main" },
+  "github": { "repo": "customer-portal", "branch": "main" },
   "aws": { "accountId": "514712703977", "s3": "pge-epic-customer-portal-web-prod", "cloudfront": "E1A2B3C4D5E6F7" },
   "runs": [
     { "id": 4821, "status": "Success",   "triggeredBy": "Robb Morgan",   "branch": "main",                      "environment": "prod", "startedAt": "2026-03-20 08:42", "duration": "4m 32s", "stages": { "build": "Success",   "test": "Success", "scan": "Success",   "deploy": "Success"   } },

@@ -10,7 +10,7 @@
   "team": "Field Operations",
   "lastUpdatedBy": "Robb Morgan",
   "domain": "field-ops-qa.nonprod.pge.com",
-  "github": { "repo": "pgetech/field-ops-ui", "branch": "develop" },
+  "github": { "repo": "field-ops-ui", "branch": "develop" },
   "azure": { "subscription": "pge-nonprod", "resourceGroup": "rg-epic-field-ops-ui-qa" },
   "runs": []
 }

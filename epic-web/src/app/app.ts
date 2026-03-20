@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { LowerCasePipe } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 
-import { AppDetail, ManagedApp } from './models/app.model';
+import { AppDetail, AppLookup, ManagedApp } from './models/app.model';
 import { AppService } from './services/app.service';
 
 @Component({
@@ -138,12 +138,65 @@ export class App implements OnInit {
   protected selectedApp = signal<ManagedApp | null>(null);
   protected appDetail = signal<AppDetail | null>(null);
 
+  protected newAppRepo = '';
+  protected newAppBranch = '';
+  protected repoCheckStatus = signal<'idle' | 'checking' | 'available' | 'in-epic-not-mine' | 'already-mine' | 'not-found'>('idle');
+  protected foundMasterApp = signal<AppLookup | null>(null);
+
   protected onAddApp(): void {
+    this.newAppRepo = '';
+    this.newAppBranch = '';
+    this.repoCheckStatus.set('idle');
+    this.foundMasterApp.set(null);
     this.showAddModal.set(true);
   }
 
   protected closeAddModal(): void {
     this.showAddModal.set(false);
+  }
+
+  protected onRepoChange(): void {
+    this.repoCheckStatus.set('idle');
+    this.foundMasterApp.set(null);
+  }
+
+  protected onRepoBlur(): void {
+    const repo = this.newAppRepo.trim();
+    if (!repo) {
+      this.repoCheckStatus.set('idle');
+      return;
+    }
+    this.repoCheckStatus.set('checking');
+    this.appService.checkRepo(repo).subscribe(result => {
+      this.repoCheckStatus.set(result.status);
+      this.foundMasterApp.set(result.masterApp ?? null);
+    });
+  }
+
+  protected get canOnboard(): boolean {
+    return (
+      !!this.newAppRepo.trim() &&
+      !!this.newAppBranch.trim() &&
+      this.repoCheckStatus() === 'available'
+    );
+  }
+
+  protected onOnboardApp(): void {
+    if (!this.canOnboard) return;
+    const repo = this.newAppRepo.trim();
+    const branch = this.newAppBranch.trim();
+    this.closeAddModal();
+    this.showToast(`"${repo}" on branch "${branch}" has been submitted for onboarding — EPIC will set up the pipeline shortly.`);
+  }
+
+  protected onAddToMyList(): void {
+    const masterApp = this.foundMasterApp();
+    if (!masterApp) return;
+    this.appService.addToMyApps(masterApp).subscribe(app => {
+      this.apps.update(list => [app, ...list]);
+      this.closeAddModal();
+      this.showToast(`"${masterApp.displayName}" has been added to your list.`);
+    });
   }
 
   protected onManageApp(app: ManagedApp): void {
@@ -163,15 +216,28 @@ export class App implements OnInit {
 
   protected toastMessage = signal<string | null>(null);
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly toastDuration = 5000;
 
   protected onRunClick(runId: number): void {
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastMessage.set(`Run #${runId} — this will navigate to the ADO pipeline run once the integration is wired up.`);
-    this.toastTimer = setTimeout(() => this.toastMessage.set(null), 4000);
+    this.showToast(`Run #${runId} — this will navigate to the ADO pipeline run once the integration is wired up.`);
   }
 
   protected dismissToast(): void {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastMessage.set(null);
+  }
+
+  protected pauseToast(): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+  }
+
+  protected resumeToast(): void {
+    this.toastTimer = setTimeout(() => this.toastMessage.set(null), this.toastDuration);
+  }
+
+  private showToast(message: string): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastMessage.set(message);
+    this.toastTimer = setTimeout(() => this.toastMessage.set(null), this.toastDuration);
   }
 }
