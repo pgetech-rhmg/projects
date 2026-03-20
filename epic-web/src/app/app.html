@@ -28,35 +28,35 @@
 
     <div class="toolbar">
       <div class="toolbar-filters">
-        <select [(ngModel)]="filterTechnology" [ngModelOptions]="{standalone: true}">
+        <select [(ngModel)]="filterTechnology" [ngModelOptions]="{standalone: true}" (ngModelChange)="onFilterChange()">
           <option value="">All Technologies</option>
           @for (opt of techOptions(); track opt) {
             <option [value]="opt">{{ opt }}</option>
           }
         </select>
 
-        <select [(ngModel)]="filterCloud" [ngModelOptions]="{standalone: true}">
+        <select [(ngModel)]="filterCloud" [ngModelOptions]="{standalone: true}" (ngModelChange)="onFilterChange()">
           <option value="">All Clouds</option>
           @for (opt of cloudOptions(); track opt) {
             <option [value]="opt">{{ opt }}</option>
           }
         </select>
 
-        <select [(ngModel)]="filterEnvironment" [ngModelOptions]="{standalone: true}">
+        <select [(ngModel)]="filterEnvironment" [ngModelOptions]="{standalone: true}" (ngModelChange)="onFilterChange()">
           <option value="">All Environments</option>
           @for (opt of envOptions(); track opt) {
             <option [value]="opt">{{ opt }}</option>
           }
         </select>
 
-        <select [(ngModel)]="filterRunStatus" [ngModelOptions]="{standalone: true}">
+        <select [(ngModel)]="filterRunStatus" [ngModelOptions]="{standalone: true}" (ngModelChange)="onFilterChange()">
           <option value="">All Statuses</option>
           @for (opt of statusOptions(); track opt) {
             <option [value]="opt">{{ opt }}</option>
           }
         </select>
 
-        <select [(ngModel)]="filterTriggeredBy" [ngModelOptions]="{standalone: true}">
+        <select [(ngModel)]="filterTriggeredBy" [ngModelOptions]="{standalone: true}" (ngModelChange)="onFilterChange()">
           <option value="">All Users</option>
           @for (opt of triggeredByOptions(); track opt) {
             <option [value]="opt">{{ opt }}</option>
@@ -78,7 +78,7 @@
           type="text"
           placeholder="Search apps..."
           [ngModel]="searchQuery()"
-          (ngModelChange)="searchQuery.set($event)"
+          (ngModelChange)="searchQuery.set($event); onFilterChange()"
           [ngModelOptions]="{standalone: true}"
         />
       </div>
@@ -99,7 +99,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (app of filteredApps(); track app.name) {
+          @for (app of pagedApps(); track app.name) {
             <tr>
               <td class="app-name">{{ app.name }}</td>
               <td>
@@ -144,6 +144,31 @@
           }
         </tbody>
       </table>
+    </div>
+
+    <div class="pagination">
+      <span class="pagination__info">
+        {{ (currentPage() - 1) * pageSize + 1 }}–{{ pageRangeEnd() }} of {{ filteredApps().length }} apps
+      </span>
+      <div class="pagination__controls">
+        <button class="page-btn" (click)="goToPage(currentPage() - 1)" [disabled]="currentPage() === 1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        @for (page of pageNumbers(); track page) {
+          <button class="page-btn" [class.page-btn--active]="page === currentPage()" (click)="goToPage(page)">
+            {{ page }}
+          </button>
+        }
+        <button class="page-btn" (click)="goToPage(currentPage() + 1)" [disabled]="currentPage() === totalPages()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </main>
 </div>

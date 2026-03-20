@@ -373,6 +373,61 @@ tbody {
   &-dev  { background: #e2e8f0; color: #4a5568; }
 }
 
+// ── Pagination ───────────────────────────────────────────────────────────────
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 0;
+  flex-shrink: 0;
+}
+
+.pagination__info {
+  font-size: 0.82rem;
+  color: #718096;
+}
+
+.pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #4a5568;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+
+  &:hover:not(:disabled):not(.page-btn--active) {
+    background: #f7fafc;
+    border-color: #cbd5e0;
+  }
+
+  &--active {
+    background: #2b6cb0;
+    border-color: #2b6cb0;
+    color: #fff;
+    font-weight: 600;
+    cursor: default;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
 // ── Modal ────────────────────────────────────────────────────────────────────
 
 .modal-overlay {

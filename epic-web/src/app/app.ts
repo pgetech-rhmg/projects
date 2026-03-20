@@ -203,6 +203,312 @@ export class App {
       cloud: 'AWS',
       environment: 'prod',
     },
+    {
+      name: 'substation-api',
+      technology: 'Java',
+      lastPipelineRun: '2026-03-10 11:15',
+      runStatus: 'Failed',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'AWS',
+      environment: 'test',
+    },
+    {
+      name: 'load-balancer-ui',
+      technology: 'Angular',
+      lastPipelineRun: '2026-03-09 14:00',
+      runStatus: 'Success',
+      triggeredBy: 'System',
+      cloud: 'Azure',
+      environment: 'prod',
+    },
+    {
+      name: 'permit-service',
+      technology: 'Python',
+      lastPipelineRun: '2026-03-09 09:30',
+      runStatus: 'Cancelled',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'AWS',
+      environment: 'qa',
+    },
+    {
+      name: 'hr-portal',
+      technology: '.NET',
+      lastPipelineRun: '2026-03-08 16:45',
+      runStatus: 'Success',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'Azure',
+      environment: 'prod',
+    },
+    {
+      name: 'incident-router',
+      technology: 'Java',
+      lastPipelineRun: '2026-03-08 13:20',
+      runStatus: 'Running',
+      triggeredBy: 'System',
+      cloud: 'AWS',
+      environment: 'dev',
+    },
+    {
+      name: 'rate-calculator',
+      technology: 'Python',
+      lastPipelineRun: '2026-03-07 10:55',
+      runStatus: 'Success',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'fleet-tracker',
+      technology: 'Angular',
+      lastPipelineRun: '2026-03-07 08:10',
+      runStatus: 'Failed',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'Azure',
+      environment: 'test',
+    },
+    {
+      name: 'transmission-api',
+      technology: '.NET',
+      lastPipelineRun: '2026-03-06 15:30',
+      runStatus: 'Success',
+      triggeredBy: 'System',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'dispatch-console',
+      technology: 'Java',
+      lastPipelineRun: '2026-03-06 11:00',
+      runStatus: 'Success',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'AWS',
+      environment: 'qa',
+    },
+    {
+      name: 'carbon-tracker',
+      technology: 'Python',
+      lastPipelineRun: '2026-03-05 17:40',
+      runStatus: 'Cancelled',
+      triggeredBy: 'System',
+      cloud: 'Azure',
+      environment: 'dev',
+    },
+    {
+      name: 'equipment-registry',
+      technology: 'Angular',
+      lastPipelineRun: '2026-03-05 14:25',
+      runStatus: 'Success',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'solar-monitor',
+      technology: '.NET',
+      lastPipelineRun: '2026-03-04 12:00',
+      runStatus: 'Failed',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'AWS',
+      environment: 'test',
+    },
+    {
+      name: 'audit-log-service',
+      technology: 'Java',
+      lastPipelineRun: '2026-03-04 09:15',
+      runStatus: 'Success',
+      triggeredBy: 'System',
+      cloud: 'Azure',
+      environment: 'prod',
+    },
+    {
+      name: 'customer-alerts',
+      technology: 'Python',
+      lastPipelineRun: '2026-03-03 16:50',
+      runStatus: 'Running',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'AWS',
+      environment: 'qa',
+    },
+    {
+      name: 'map-renderer',
+      technology: 'Angular',
+      lastPipelineRun: '2026-03-03 13:35',
+      runStatus: 'Success',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'billing-reconciler',
+      technology: '.NET',
+      lastPipelineRun: '2026-03-02 10:20',
+      runStatus: 'Failed',
+      triggeredBy: 'System',
+      cloud: 'Azure',
+      environment: 'test',
+    },
+    {
+      name: 'smart-meter-api',
+      technology: 'Java',
+      lastPipelineRun: '2026-03-02 08:00',
+      runStatus: 'Success',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'demand-response',
+      technology: 'Python',
+      lastPipelineRun: '2026-03-01 15:10',
+      runStatus: 'Success',
+      triggeredBy: 'System',
+      cloud: 'AWS',
+      environment: 'dev',
+    },
+    {
+      name: 'vegetation-mgmt',
+      technology: 'Angular',
+      lastPipelineRun: '2026-03-01 11:45',
+      runStatus: 'Cancelled',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'Azure',
+      environment: 'qa',
+    },
+    {
+      name: 'field-survey-app',
+      technology: '.NET',
+      lastPipelineRun: '2026-02-28 14:30',
+      runStatus: 'Success',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'power-flow-engine',
+      technology: 'Java',
+      lastPipelineRun: '2026-02-28 09:55',
+      runStatus: 'Running',
+      triggeredBy: 'System',
+      cloud: 'AWS',
+      environment: 'test',
+    },
+    {
+      name: 'invoice-generator',
+      technology: 'Python',
+      lastPipelineRun: '2026-02-27 16:00',
+      runStatus: 'Success',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'Azure',
+      environment: 'prod',
+    },
+    {
+      name: 'wildfire-risk-ui',
+      technology: 'Angular',
+      lastPipelineRun: '2026-02-27 12:20',
+      runStatus: 'Failed',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'AWS',
+      environment: 'dev',
+    },
+    {
+      name: 'line-clearance-api',
+      technology: '.NET',
+      lastPipelineRun: '2026-02-26 10:05',
+      runStatus: 'Success',
+      triggeredBy: 'System',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'transformer-mgmt',
+      technology: 'Java',
+      lastPipelineRun: '2026-02-26 08:30',
+      runStatus: 'Success',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'Azure',
+      environment: 'qa',
+    },
+    {
+      name: 'outage-predictor',
+      technology: 'Python',
+      lastPipelineRun: '2026-02-25 17:15',
+      runStatus: 'Cancelled',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'AWS',
+      environment: 'test',
+    },
+    {
+      name: 'supply-chain-ui',
+      technology: 'Angular',
+      lastPipelineRun: '2026-02-25 14:50',
+      runStatus: 'Success',
+      triggeredBy: 'System',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'relay-config-api',
+      technology: '.NET',
+      lastPipelineRun: '2026-02-24 11:30',
+      runStatus: 'Failed',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'Azure',
+      environment: 'dev',
+    },
+    {
+      name: 'hazmat-registry',
+      technology: 'Java',
+      lastPipelineRun: '2026-02-24 09:00',
+      runStatus: 'Success',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'switch-order-svc',
+      technology: 'Python',
+      lastPipelineRun: '2026-02-23 15:45',
+      runStatus: 'Success',
+      triggeredBy: 'System',
+      cloud: 'AWS',
+      environment: 'qa',
+    },
+    {
+      name: 'tower-inspection-ui',
+      technology: 'Angular',
+      lastPipelineRun: '2026-02-23 13:00',
+      runStatus: 'Running',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'Azure',
+      environment: 'test',
+    },
+    {
+      name: 'project-tracker',
+      technology: '.NET',
+      lastPipelineRun: '2026-02-22 10:35',
+      runStatus: 'Success',
+      triggeredBy: 'Maxine Bailey',
+      cloud: 'AWS',
+      environment: 'prod',
+    },
+    {
+      name: 'load-forecast-api',
+      technology: 'Java',
+      lastPipelineRun: '2026-02-22 08:15',
+      runStatus: 'Failed',
+      triggeredBy: 'System',
+      cloud: 'AWS',
+      environment: 'dev',
+    },
+    {
+      name: 'charge-station-mgmt',
+      technology: 'Python',
+      lastPipelineRun: '2026-02-21 16:20',
+      runStatus: 'Success',
+      triggeredBy: 'Robb Morgan',
+      cloud: 'Azure',
+      environment: 'prod',
+    },
   ]);
 
   // ── Search & filters ──────────────────────────────────────────────────────
@@ -231,6 +537,33 @@ export class App {
       (!triggeredBy || app.triggeredBy === triggeredBy)
     );
   });
+
+  // ── Pagination ────────────────────────────────────────────────────────────
+
+  protected readonly pageSize = 25;
+  protected currentPage = signal(1);
+
+  protected readonly totalPages = computed(() =>
+    Math.max(1, Math.ceil(this.filteredApps().length / this.pageSize))
+  );
+
+  protected readonly pagedApps = computed(() => {
+    const page = this.currentPage();
+    const start = (page - 1) * this.pageSize;
+    return this.filteredApps().slice(start, start + this.pageSize);
+  });
+
+  protected readonly pageNumbers = computed(() =>
+    Array.from({ length: this.totalPages() }, (_, i) => i + 1)
+  );
+
+  protected readonly pageRangeEnd = computed(() =>
+    Math.min(this.currentPage() * this.pageSize, this.filteredApps().length)
+  );
+
+  protected goToPage(page: number): void {
+    this.currentPage.set(page);
+  }
 
   // Unique option lists derived from data
   protected readonly techOptions = computed(() =>
@@ -267,6 +600,11 @@ export class App {
     this.filterEnvironment.set('');
     this.filterRunStatus.set('');
     this.filterTriggeredBy.set('');
+    this.currentPage.set(1);
+  }
+
+  protected onFilterChange(): void {
+    this.currentPage.set(1);
   }
 
   // ── Modals ────────────────────────────────────────────────────────────────
