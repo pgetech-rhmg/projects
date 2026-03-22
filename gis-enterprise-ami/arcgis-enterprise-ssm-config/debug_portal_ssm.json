@@ -1,0 +1,176 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Configure Portal site using cinc-client (multi-step, per-step logging + waits)",
+  "parameters": {
+    "arcgisPortalFileServer": { "type": "String" },
+    "arcgisPortalPrimary": { "type": "String" }
+  },
+  "mainSteps": [
+
+    {
+      "action": "aws:runShellScript",
+      "name": "prepSystem",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/portal-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/prepSystem.log\") 2>&1",
+          "echo \"=== prepSystem: starting at $(date) ===\"",
+          "",
+          "sudo yum update -y || true",
+          "sudo yum install -y amazon-ssm-agent ruby wget git unzip dmidecode --nogpgcheck || true",
+          "systemctl enable amazon-ssm-agent || true",
+          "systemctl start amazon-ssm-agent || true",
+          "",
+          "echo \"=== prepSystem: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "downloadAssets",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/portal-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/downloadAssets.log\") 2>&1",
+          "echo \"=== downloadAssets: starting at $(date) ===\"",
+          "",
+          "mkdir -p \"/opt/certificates\"",
+          "aws s3 cp \"s3://pge-project/aes_ps.com.cer\" \"/opt/certificates/aes_ps.com.cer\" --region us-east-2 || (echo 'Failed to download root cert' >&2; exit 1)",
+          "aws s3 cp \"s3://pge-project/staraespsdotcomks.p12\"  \"/opt/certificates/staraespsdotcomks.p12\" --region us-east-2 || (echo 'Failed to download pfx cert' >&2; exit 1)",
+          "",
+          "mkdir -p \"/opt/license/11.5\"",
+          "aws s3 cp \"s3://pge-project/AllUTs_AllAddOnApps.json\" \"/opt/license/11.5/AllUTs_AllAddOnApps.json\" --region us-east-2 || (echo 'Failed to download license' >&2; exit 1)",
+          "",
+          "echo \"=== downloadAssets: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "installCinc",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/portal-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/installCinc.log\") 2>&1",
+          "echo \"=== installCinc: starting at $(date) ===\"",
+          "",
+          "curl -L https://omnitruck.cinc.sh/install.sh | sudo bash -s -- -v 18.5.0",
+          "export PATH=\"$PATH:/opt/cinc/bin\"",
+          "mkdir -p /opt/cinc/cookbooks /opt/cinc/attributes /opt/cinc/cache",
+          "git clone --depth 1 https://github.com/Esri/arcgis-cookbook.git /opt/cinc/temp",
+          "mv /opt/cinc/temp/cookbooks/* /opt/cinc/cookbooks/ || true",
+          "rm -rf /opt/cinc/temp || true",
+          "",
+          "echo \"=== installCinc: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "runFileServerConfig",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/portal-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/portal-fileserver.log\") 2>&1",
+          "echo \"=== runFileServerConfig: starting at $(date) ===\"",
+          "",
+          "echo 'ewogICAgImFyY2dpcyI6IHsKICAgICAgICAidmVyc2lvbiI6ICIxMS41IiwKICAgICAgICAicnVuX2FzX3VzZXIiOiAiYXJjZ2lzIiwKICAgICAgICAiZmlsZXNlcnZlciI6IHsKICAgICAgICAgICAgImRpcmVjdG9yaWVzIjogWyIgIiwiICJdCiAgICAgICAgICAgICJzaGFyZXMiOiBbIiAiLCIgIl0KICAgICAgICB9CiAgICB9LAogICAgInJ1bl9saXN0IjogWwogICAgICAgICJyZWNpcGVbbmZzOjpzZXJ2ZXJdIiwKICAgICAgICAicmVjaXBlW2FyY2dpcy1lbnRlcnByaXNlOjpzeXN0ZW1dIiwKICAgICAgICAicmVjaXBlW2FyY2dpcy1lbnRlcnByaXNlOjpmaWxlc2VydmVyXSIKICAgIF0KfQo=' | base64 --decode > /opt/cinc/attributes/arcgis-portal-fileserver.json",
+          "cinc-client -z -j /opt/cinc/attributes/arcgis-portal-fileserver.json 2>&1 | tee -a \"$LOG_DIR/portal-fileserver.log\"",
+          "RC=${PIPESTATUS[0]}",
+          "if [ $RC -ne 0 ]; then echo \"FileServer cinc-client failed with exit $RC\" >&2; exit $RC; fi",
+          "touch /var/run/portal_fileserver_done",
+          "echo \"=== runFileServerConfig: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "waitForFileServer",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/portal-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/waitForFileServer.log\") 2>&1",
+          "echo \"Waiting for portal_fileserver_done marker...\"",
+          "COUNT=0",
+          "while [ ! -f /var/run/portal_fileserver_done ]; do",
+          "  sleep 5",
+          "  COUNT=$((COUNT+1))",
+          "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for portal_fileserver_done' >&2; exit 1; fi",
+          "done",
+          "echo \"portal_fileserver_done found, continuing.\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "runPortalPrimaryConfig",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/portal-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/portal-primary.log\") 2>&1",
+          "echo \"=== runPortalPrimaryConfig: starting at $(date) ===\"",
+          "",
+          "echo 'ewogICAgImFyY2dpcyI6IHsKICAgICAgICAidmVyc2lvbiI6ICIxMS41IiwKICAgICAgICAicnVuX2FzX3VzZXIiOiAie3J1bl9hc191c2VyfSIsCiAgICAgICAgInJlcG9zaXRvcnkiOiB7CiAgICAgICAgICAgICJhcmNoaXZlcyI6ICIvb3B0L3NvZnR3YXJlL2FyY2hpdmVzIiwKICAgICAgICAgICAgInNldHVwcyI6ICIvb3B0L3NvZnR3YXJlL3NldHVwcyIKICAgICAgICB9LAogICAgICAgICJwb3J0YWwiOiB7CiAgICAgICAgICAgICJob3N0bmFtZSI6ICIxMC4wLjAuMSIsCgkJCSJob3N0aWRlbnRpZmllciI6ICIxMC4wLjAuMSIsCgkJCSJpbnN0YWxsX2RpciI6ICIvb3B0IiwKICAgICAgICAgICAgImFkbWluX3VzZXJuYW1lIjogInBvcnRhbGFkbWluIiwKICAgICAgICAgICAgImFkbWluX3Bhc3N3b3JkIjogInBvcnRhbGFkbWluMSIsCiAgICAgICAgICAgICJhZG1pbl9lbWFpbCI6ICJleGFtcGxlQGVtYWlsLmNvbSIsCiAgICAgICAgICAgICJhZG1pbl9mdWxsX25hbWUiOiAiSW5pdGlhbCBBZG1pbmlzdHJhdG9yIiwKICAgICAgICAgICAgImFkbWluX2Rlc2NyaXB0aW9uIjogIlRoZSBQb3J0YWwgSW5pdGlhbCBBZG1pbmlzdHJhdG9yIEFjY291bnQuIiwKICAgICAgICAgICAgInNlY3VyaXR5X3F1ZXN0aW9uX2luZGV4IjogMSwKICAgICAgICAgICAgInNlY3VyaXR5X3F1ZXN0aW9uX2Fuc3dlciI6ICJSZWRsYW5kcyIsCiAgICAgICAgICAgICJsb2dfZGlyIjogIi9vcHQvYXJjZ2lzL3BvcnRhbC91c3IvYXJjZ2lzcG9ydGFsL2xvZ3MiLAogICAgICAgICAgICAibG9nX2xldmVsIjogIldBUk5JTkciLAogICAgICAgICAgICAiZW5hYmxlX2RlYnVnIjogZmFsc2UsCiAgICAgICAgICAgICJjb250ZW50X3N0b3JlX3R5cGUiOiAiZmlsZVN0b3JlIiwKICAgICAgICAgICAgImNvbnRlbnRfc3RvcmVfcHJvdmlkZXIiOiAiRmlsZVN5c3RlbSIsCiAgICAgICAgICAgICJjb250ZW50X3N0b3JlX2Nvbm5lY3Rpb25fc3RyaW5nIjogIi9uZXQvZ2lzZGF0YS9hcmNnaXNwb3J0YWwvY29udGVudCIsCiAgICAgICAgICAgICJvYmplY3Rfc3RvcmUiOiAiIiwKICAgICAgICAgICAgImF1dGhvcml6YXRpb25fZmlsZSI6ICIvb3B0L2xpY2Vuc2UvMTEuNSIsCiAgICAgICAgICAgICJ1c2VyX2xpY2Vuc2VfdHlwZV9pZCI6ICJjcmVhdG9yVVQiLAoJCQkia2V5c3RvcmVfZmlsZSI6ICIvb3B0L2NlcnRpZmljYXRlcy9zdGFyYWVzcHNkb3Rjb21rcy5wMTIiLAoJCQkia2V5c3RvcmVfcGFzc3dvcmQiOiAicGZ4IiwKCQkJImNlcnRfYWxpYXMiOiAicG9ydGFscGZ4IiwKICAgICAgICAgICAgImluc3RhbGxfc3lzdGVtX3JlcXVpcmVtZW50cyI6IHRydWUsCiAgICAgICAgICAgICJyb290X2NlcnQiOiAiL29wdC9jZXJ0aWZpY2F0ZXMvYWVzX3BzLmNvbS5jZXIiLAogICAgICAgICAgICAicm9vdF9jZXJ0X2FsaWFzIjogInJvb3QiLAoJCQkiaW1wb3J0X2NlcnRpZmljYXRlX2NoYWluIjogdHJ1ZSwKCQkJIndhX25hbWUiOiAicG9ydGFsIiwKICAgICAgICAgICAgInN5c3RlbV9wcm9wZXJ0aWVzIjogeyJXZWJDb250ZXh0VVJMIjoiaHR0cHM6Ly9hbGIuZG9tYWluLmNvbS9wb3J0YWwiLCJwcml2YXRlUG9ydGFsVVJMIjoiaHR0cHM6Ly9pcC5kb21haW4uY29tOjc0NDMvYXJjZ2lzIn0KICAgICAgICB9CiAgICB9LAogICAgInJ1bl9saXN0IjogWwogICAgICAgICJyZWNpcGVbYXJjZ2lzLWVudGVycHJpc2U6OnBvcnRhbF0iCiAgICBdCn0=' | base64 --decode > /opt/cinc/attributes/arcgis-portal-primary.json",
+          "cinc-client -z -j /opt/cinc/attributes/arcgis-portal-primary.json 2>&1 | tee -a \"$LOG_DIR/portal-primary.log\"",
+          "RC=${PIPESTATUS[0]}",
+          "if [ $RC -ne 0 ]; then echo \"Portal Primary cinc-client failed with exit $RC\" >&2; exit $RC; fi",
+          "touch /var/run/portal_primary_done",
+          "echo \"=== runPortalPrimaryConfig: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "waitForPortalPrimary",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/portal-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/waitForPortalPrimary.log\") 2>&1",
+          "echo \"Waiting for portal_primary_done marker...\"",
+          "COUNT=0",
+          "while [ ! -f /var/run/portal_primary_done ]; do",
+          "  sleep 5",
+          "  COUNT=$((COUNT+1))",
+          "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for portal_primary_done' >&2; exit 1; fi",
+          "done",
+          "echo \"portal_primary_done found, continuing.\""
+        ]
+      }
+    }
+
+  ]
+}

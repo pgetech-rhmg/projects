@@ -1,0 +1,22 @@
+{
+  "arcgis": {
+    "version": "11.5",
+    "run_as_user": "arcgis",
+	  "run_as_group": "arcgis",
+	  "download_path" : "/opt/software",
+	  "setups_path": "/opt/software/setups",
+    "server": {
+      "s3_uri": "s3://elevate-installer/esri/arcgis-enterprise/11-5/ArcGIS_Server_Linux_115_195440.tar.gz",
+      "install_path": "/opt/arcgis/server",
+	  "tarball_path": "/opt/software/ArcGIS_Server_Linux_115_195440.tar.gz",
+	  "patches": [
+		{
+			"name": "Server for ArcGIS 11.5 Security Patch 1",
+			"s3_uri": "s3://elevate-installer/esri/arcgis-enterprise/11-5/patches/PortalSecurityPatch1.tar.gz",
+			"download_path": "/opt/software/patches",
+			"apply": true
+		}
+		]
+    }
+  }
+}

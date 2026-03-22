@@ -1,0 +1,126 @@
+---
+schemaVersion: "0.3"
+description: "SSM Automation document to install FME Flow Core with Web Services on Windows Server for fault-tolerant architecture with FSx shared storage"
+parameters:
+  InstanceId:
+    type: String
+    description: "EC2 Instance ID to run the installation on"
+  Region:
+    type: String
+    description: "AWS Region"
+    default: "us-west-2"
+  S3InstallBucket:
+    type: String
+    description: "S3 bucket containing installation files"
+    default: "elevate-installer"
+  FMEFlowS3KeyName:
+    type: String
+    description: "S3 key for FME Flow installation package"
+    default: "esri/fmeflow/fme-flow-2025.2.2-b25827-win-x64.exe"
+  FsxDnsName:
+    type: String
+    description: "FSx file system DNS name for shared storage"
+    default: "amznfsxcuemjjkd.aws.pge.com"
+  InstancePrivateDNSName:
+    type: String
+    description: "FME Flow Core EC2 Instance Private DNS Name"
+    default: "ip-10-88-100-196.us-west-2.compute.internal"
+  LoadBalancerDNSName:
+    type: String
+    description: "DNS Name of the Application Load Balancer"
+    default: "go-fme-dev.nonprod.pge.com"
+  DatabaseClusterEndpoint:
+    type: String
+    description: "Endpoint of the PostgreSQL Database cluster"
+    default: "fme-server-database.cluster-cni6a46o4af3.us-west-2.rds.amazonaws.com"
+  FMEFlowVersion:
+    type: String
+    description: "FME Flow version (must contain year in format: fme-flow-YYYY.x.x)"
+    default: "fme-flow-2025.2.2-b25827"
+    allowedPattern: "^fme-flow-\\d{4}\\.\\d+\\.\\d+(-b\\d+)?$"
+  FMEDBAdminUserName:
+    type: String
+    description: "FME PostgreSQL database admin user"
+    default: "superadmin"
+  FMEDBAdminPasswordSecretName:
+    type: String
+    description: "AWS Secrets Manager secret name for FME PostgreSQL database admin password"
+    default: "rds!cluster-4eb48b5f-724c-4c1c-bab7-27516c3970ab"
+  FMEDBPasswordSecretName:
+    type: String
+    default: "fme/db-fmeflow"
+    description: "AWS Secrets Manager secret name for FME PostgreSQL database password"
+  PostgreSQLClientS3KeyName:
+    type: String
+    description: "S3 key for PostgreSQL client installer"
+    default: "esri/fmeflow/postgresql-18.1-2-windows-x64.exe"
+  InstallDrive:
+    type: String
+    description: "Drive letter for FME Flow installation"
+    default: "E:"
+  InstallEngine:
+    type: String
+    description: "Install FME Engine on same machine (Yes/No)"
+    default: "Yes"
+    allowedValues:
+      - "Yes"
+      - "No"
+  LicenseFileS3Key:
+    type: String
+    description: "S3 key for ArcGIS Server license file (.ecp)"
+    default: "esri/arcgis-enterprise/11-5/license/server/ArcGISGISServerAdvanced_ArcGISServer_1556363.ecp"
+  ArcGISVersion:
+    type: String
+    description: "ArcGIS version"
+    default: "11.5"
+  ServerInstallerS3Key:
+    type: String
+    description: "S3 keys for ArcGIS Server installers (comma-separated for multiple files)"
+    default: "esri/arcgis-enterprise/11-5/ArcGIS_Server_Windows_115_188343.exe"
+
+mainSteps:
+  - name: ConfigureArcGISServer
+    action: "aws:runCommand"
+    onFailure: Abort
+    timeoutSeconds: 1800
+    inputs:
+      DocumentName: "arcgis-server-115-windows-command"
+      InstanceIds:
+        - "{{ InstanceId }}"
+      Parameters:
+        Region: "{{ Region }}"
+        DeploymentBucket: "{{ S3InstallBucket }}"
+        LicenseFileS3Key: "{{ LicenseFileS3Key }}"
+        ArcGISVersion: "{{ ArcGISVersion }}"
+        InstallDrive: "{{ InstallDrive }}"
+        ServerInstallerS3Key: "{{ ServerInstallerS3Key }}"
+    description: "Configure ArcGIS Server before FME Flow installation"
+
+  - name: InstallFMEFlowCore
+    action: "aws:runCommand"
+    onFailure: Abort
+    timeoutSeconds: 1800
+    inputs:
+      DocumentName: "fmeflow-core-windows-command"
+      InstanceIds:
+        - "{{ InstanceId }}"
+      Parameters:
+        Region: "{{ Region }}"
+        S3InstallBucket: "{{ S3InstallBucket }}"
+        FMEFlowS3KeyName: "{{ FMEFlowS3KeyName }}"
+        FsxDnsName: "{{ FsxDnsName }}"
+        InstancePrivateDNSName: "{{ InstancePrivateDNSName }}"
+        LoadBalancerDNSName: "{{ LoadBalancerDNSName }}"
+        DatabaseClusterEndpoint: "{{ DatabaseClusterEndpoint }}"
+        FMEFlowVersion: "{{ FMEFlowVersion }}"
+        FMEDBAdminUserName: "{{ FMEDBAdminUserName }}"
+        FMEDBAdminPasswordSecretName: "{{ FMEDBAdminPasswordSecretName }}"
+        FMEDBPasswordSecretName: "{{ FMEDBPasswordSecretName }}"
+        PostgreSQLClientS3KeyName: "{{ PostgreSQLClientS3KeyName }}"
+        InstallDrive: "{{ InstallDrive }}"
+        InstallEngine: "{{ InstallEngine }}"
+    description: "Execute remaining FME Flow Core installation and configuration steps"
+
+outputs:
+  - ConfigureArcGISServer.Output
+  - InstallFMEFlowCore.Output

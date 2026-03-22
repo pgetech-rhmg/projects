@@ -1,0 +1,86 @@
+schemaVersion: "2.2"
+description: |
+  Install ArcGIS Enterprise license.
+  This document installs ArcGIS Enterprise license on Linux RHEL instances.
+  The document supports licensing ArcGIS Server and Portal for ArcGIS.
+  Instances can be selected using instance ID.
+parameters:
+  ProductLicense:
+    type: String
+    description: Type of ArcGIS Enterprise product license to install. Valid values are 'Portal' or 'Server'.
+    default: "Portal"
+    allowedValues:
+      - "Portal"
+      - "Server"
+  AdminUsername:
+    type: String
+    description: (Optional) ArcGIS Enterprise admin username for Portal.
+    default: "portaladmin"
+  PortalAdminSecret:
+    type: String
+    description: (Optional) Secret manager name for Portal admin password.
+    default: ""
+  LicenseFileS3Key:
+    type: String
+    description: S3 Key for the ArcGIS Enterprise license file.
+    default: ""
+  Region:
+    type: String
+    description: AWS Region where the S3 bucket is located.
+    default: "us-west-2"
+    allowedValues:
+      - "us-west-2"
+      - "us-east-1"
+      - "us-east-2"
+mainSteps:
+  - name: ApplyEnterpriseLicense
+    action: 'aws:runShellScript'
+    description: Download and apply ArcGIS Enterprise license
+    inputs:
+      timeoutSeconds: '1800'
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+
+          # Initialize logging
+          timestamp=$(date +"%Y%m%d_%H%M%S")
+          license_dir="/home/arcgis/license"
+
+          if [ ! -d "$license_dir" ]; then
+            sudo mkdir -p "$license_dir"
+            sudo chown arcgis:arcgis "$license_dir"
+          fi
+
+          log_file="$license_dir/ArcGIS_portal_License_$timestamp.log"
+          exec > >(tee -a "$log_file")
+          exec 2>&1
+
+          # Download the license file from S3
+          s3_key="{{ LicenseFileS3Key }}"
+          license_file_path="$license_dir/$(basename $s3_key)"
+          echo "Downloading license file from s3://$s3_key to $license_file_path"
+          aws s3 cp $s3_key "$license_file_path" --region "{{ Region }}"
+          echo "License file downloaded successfully."
+
+          # Install the license based on the product type
+          product_license="{{ ProductLicense }}"
+          if [ "$product_license" == "Portal" ]; then
+            echo "Installing Portal for ArcGIS license..."
+            if [ -n "{{ PortalAdminSecret }}" ]; then
+              portal_admin_username="{{ AdminUsername }}"
+              portal_admin_password=$(aws secretsmanager get-secret-value --secret-id "{{ PortalAdminSecret }}" --region "{{ Region }}" --query SecretString --output text)
+            else
+              echo "ERROR: PortalAdminSecret parameter is required for Portal license installation."
+              exit 1
+            fi
+            sudo -u arcgis /opt/arcgis/portal/tools/importlicense/importlicense.sh -u "$portal_admin_username" -p "$portal_admin_password" -lf "$license_file_path"
+            echo "Portal for ArcGIS license installed successfully."
+          elif [ "$product_license" == "Server" ]; then
+            echo "Installing ArcGIS Server license..."
+            sudo -u arcgis /opt/arcgis/server/tools/authorizeSoftware -f "$license_file_path"
+            echo "ArcGIS Server license installed successfully."
+          else
+            echo "ERROR: Invalid ProductLicense value. Must be 'Portal' or 'Server'."
+            exit 1
+          fi

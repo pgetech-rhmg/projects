@@ -1,0 +1,28 @@
+{
+    "arcgis": {
+        "version": "11.5",
+        "run_as_user": "arcgis",
+        "repository": {
+            "archives": "/opt/software/archives",
+            "setups": "/opt/software/setups"
+        },
+        "web_server": {
+            "webapp_dir": "/opt/tomcat_arcgis_9.0.106/webapps"
+        },
+        "portal": {
+            "url": "https://__PORTAL_PRIVATE_DOMAIN__:7443/arcgis",
+            "wa_url": "https://__PORTAL_DOMAIN__/portal",
+            "admin_username": "__PORTAL_ADMIN_USERNAME__",
+            "admin_password": "__PORTAL_ADMIN_PASSWORD__",
+            "wa_name": "portal"
+        },
+        "web_adaptor": {
+            "install_dir": "/opt",
+            "reindex_portal_content": false
+        }
+    },
+    "run_list": [
+        "recipe[arcgis-enterprise::system]",
+        "recipe[arcgis-enterprise::portal_wa]"
+    ]
+}

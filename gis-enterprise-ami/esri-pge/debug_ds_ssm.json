@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Configure ArcGIS Data Stores site using cinc-client (multi-step, per-step logging + waits)",
+  "parameters": {
+    "dataStore": { "type": "String" }
+  },
+  "mainSteps": [
+
+    {
+      "action": "aws:runShellScript",
+      "name": "prepSystem",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/datastore-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/prepSystem.log\") 2>&1",
+          "echo \"=== prepSystem: starting at $(date) ===\"",
+          "",
+          "sudo yum update -y || true",
+          "sudo yum install -y amazon-ssm-agent ruby wget git unzip dmidecode --nogpgcheck || true",
+          "systemctl enable amazon-ssm-agent || true",
+          "systemctl start amazon-ssm-agent || true",
+          "",
+          "echo \"=== prepSystem: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "installCinc",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/datastore-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/installCinc.log\") 2>&1",
+          "echo \"=== installCinc: starting at $(date) ===\"",
+          "",
+          "curl -L https://omnitruck.cinc.sh/install.sh | sudo bash -s -- -v 18.5.0",
+          "export PATH=\"$PATH:/opt/cinc/bin\"",
+          "mkdir -p /opt/cinc/cookbooks /opt/cinc/attributes /opt/cinc/cache",
+          "git clone --depth 1 https://github.com/Esri/arcgis-cookbook.git /opt/cinc/temp",
+          "mv /opt/cinc/temp/cookbooks/* /opt/cinc/cookbooks/ || true",
+          "rm -rf /opt/cinc/temp || true",
+          "",
+          "echo \"=== installCinc: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "runDataStoreConfig",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/datastore-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/arcgis-datastore-primary.log\") 2>&1",
+          "echo \"=== runDataStoreConfig: starting at $(date) ===\"",
+          "",
+          "echo 'ewogICAgImFyY2dpcyI6IHsKICAgICAgICAidmVyc2lvbiI6ICIxMS41IiwKICAgICAgICAicnVuX2FzX3VzZXIiOiAiYXJjZ2lzIiwKICAgICAgICAicmVwb3NpdG9yeSI6IHsKICAgICAgICAgICAgImFyY2hpdmVzIjogIi9vcHQvc29mdHdhcmUvYXJjaGl2ZXMiLAogICAgICAgICAgICAic2V0dXBzIjogIi9vcHQvc29mdHdhcmUvc2V0dXBzIgogICAgICAgIH0sCiAgICAgICAgInNlcnZlciI6IHsKICAgICAgICAgICAgImFkbWluX3VzZXJuYW1lIjogInNpdGVhZG1pbiIsCiAgICAgICAgICAgICJhZG1pbl9wYXNzd29yZCI6ICJzaXRlYWRtaW4xIiwKICAgICAgICAgICAgInVybCI6ICJodHRwczovLzEwLjAuMC4yOjY0NDMvYXJjZ2lzIgogICAgICAgIH0sCiAgICAgICAgImRhdGFfc3RvcmUiOiB7CiAgICAgICAgICAgICJob3N0aWRlbnRpZmllciI6ICIxMC4wLjAuMyIsCgkJCSJpbnN0YWxsX2RpciI6ICIvb3B0IiwKICAgICAgICAgICAgInNldHVwX29wdGlvbnMiOiAiLWYgUmVsYXRpb25hbCIsCiAgICAgICAgICAgICJpbnN0YWxsX3N5c3RlbV9yZXF1aXJlbWVudHMiOiB0cnVlLAogICAgICAgICAgICAidHlwZXMiOiAicmVsYXRpb25hbCxvYmplY3QiLCAjcmVsYXRpb25hbHxvYmplY3R8dGlsZUNhY2hlfHNwYXRpb3RlbXBvcmFsfGdyYXBoCiAgICAgICAgICAgICJwcmVmZXJyZWRpZGVudGlmaWVyIjogImhvc3RuYW1lIiwgI2hvc3RuYW1lfGlwCiAgICAgICAgICAgICJkYXRhX2RpciI6ICIvZ2lzZGF0YS9hcmNnaXNkYXRhc3RvcmUiLAogICAgICAgICAgICAicmVsYXRpb25hbCI6IHsKICAgICAgICAgICAgICAgICJiYWNrdXBfdHlwZSI6ICJmcyIsICNmc3xzM3xhenVyZXxub25lCiAgICAgICAgICAgICAgICAiYmFja3VwX2xvY2F0aW9uIjogIi9naXNkYXRhL2FyY2dpc2RhdGFzdG9yZS9yZWxhdGlvbmFsIiwKICAgICAgICAgICAgICAgICJkaXNrX3RocmVzaG9sZF9yZWFkb25seSI6IDUxMjAsCiAgICAgICAgICAgICAgICAibWF4X2Nvbm5lY3Rpb25zIjogMTUwLAogICAgICAgICAgICAgICAgInBpdHIiOiAiZGlzYWJsZSIsCiAgICAgICAgICAgICAgICAiZW5hYmxlc3NsIjogdHJ1ZQogICAgICAgICAgICB9LAoJCQkib2JqZWN0IjogewoJCQkJImJhY2t1cF90eXBlIjogImZzIiwgI2ZzfHMzfGF6dXJlfG5vbmUKCQkJCSJiYWNrdXBfbG9jYXRpb24iOiAiL2dpc2RhdGEvYXJjZ2lzZGF0YXN0b3JlL29iamVjdCIKCQkJfQogICAgICAgIH0KICAgIH0sCiAgICAicnVuX2xpc3QiOiBbCiAgICAgICAgInJlY2lwZVthcmNnaXMtZW50ZXJwcmlzZTo6c3lzdGVtXSIsCiAgICAgICAgInJlY2lwZVthcmNnaXMtZW50ZXJwcmlzZTo6ZGF0YXN0b3JlXSIKICAgIF0KfQ==' | base64 --decode > /opt/cinc/attributes/arcgis-datastore-primary.json",
+          "cinc-client -z -j /opt/cinc/attributes/arcgis-datastore-primary.json 2>&1 | tee -a \"$LOG_DIR/arcgis-datastore-primary.log\"",
+          "RC=${PIPESTATUS[0]}",
+          "if [ $RC -ne 0 ]; then echo \"Data Store cinc-client failed with exit $RC\" >&2; exit $RC; fi",
+          "touch /var/run/data_store_done",
+          "echo \"=== runDataStoreConfig: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "waitForDataStore",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/datastore-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/waitForDataStore.log\") 2>&1",
+          "echo \"Waiting for data_store_done marker...\"",
+          "COUNT=0",
+          "while [ ! -f /var/run/data_store_done ]; do",
+          "  sleep 5",
+          "  COUNT=$((COUNT+1))",
+          "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for data_store_done' >&2; exit 1; fi",
+          "done",
+          "echo \"data_store_done found, continuing.\""
+        ]
+      }
+    }
+
+  ]
+}

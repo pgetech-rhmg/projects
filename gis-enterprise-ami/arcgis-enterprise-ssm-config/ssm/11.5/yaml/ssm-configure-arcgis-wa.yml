@@ -1,0 +1,105 @@
+schemaVersion: "2.2"
+description: "Configure Web Adaptor using cinc-client (multi-step, per-step logging + waits)"
+parameters:
+  S3Region:
+    type: String
+    description: "AWS region for the S3 bucket"
+    default: "us-west-2"
+mainSteps:
+  - action: aws:runShellScript
+    name: prepSystem
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/wa-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/prepSystem.log") 2>&1'
+        - 'echo "=== prepSystem: starting at $(date) ==="'
+        - ""
+        - 'echo "=== prepSystem: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: runPortalWaConfig
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/wa-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/portal-wa-config.log") 2>&1'
+        - 'echo "=== runPortalWaConfig: starting at $(date) ==="'
+        - ""
+        - "if [ ! -f /opt/cinc/attributes/arcgis-portal-webadaptor.json ]; then"
+        - '  echo "ERROR: /opt/cinc/attributes/arcgis-portal-webadaptor.json not found" >&2'
+        - "  exit 1"
+        - "fi"
+        - ""
+        - 'cinc-client -z -c /etc/cinc/client.rb -j /opt/cinc/attributes/arcgis-portal-webadaptor.json 2>&1 | tee -a "$LOG_DIR/arcgis-portal-webadaptor.log"'
+        - "RC=${PIPESTATUS[0]}"
+        - 'if [ $RC -ne 0 ]; then echo "Portal Web Adaptor cinc-client failed with exit $RC" >&2; exit $RC; fi'
+        - "touch /var/run/portal_webadaptor_done"
+        - 'echo "=== runPortalWaConfig: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: waitForPortalWa
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/wa-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/waitForPortalWa.log") 2>&1'
+        - 'echo "Waiting for portal_webadaptor_done marker..."'
+        - "COUNT=0"
+        - "while [ ! -f /var/run/portal_webadaptor_done ]; do"
+        - "  sleep 5"
+        - "  COUNT=$((COUNT+1))"
+        - "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for portal_webadaptor_done' >&2; exit 1; fi"
+        - "done"
+        - 'echo "portal_webadaptor_done found, continuing."'
+
+  - action: aws:runShellScript
+    name: runHostingWaConfig
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/wa-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/hosting-wa-config.log") 2>&1'
+        - 'echo "=== runHostingWaConfig: starting at $(date) ==="'
+        - ""
+        - "if [ ! -f /opt/cinc/attributes/hosting-server-webadaptor.json ]; then"
+        - '  echo "ERROR: /opt/cinc/attributes/hosting-server-webadaptor.json not found" >&2'
+        - "  exit 1"
+        - "fi"
+        - ""
+        - 'cinc-client -z -c /etc/cinc/client.rb -j /opt/cinc/attributes/hosting-server-webadaptor.json 2>&1 | tee -a "$LOG_DIR/hosting-server-webadaptor.log"'
+        - "RC=${PIPESTATUS[0]}"
+        - 'if [ $RC -ne 0 ]; then echo "Hosting Web Adaptor cinc-client failed with exit $RC" >&2; exit $RC; fi'
+        - "touch /var/run/hosting_webadaptor_done"
+        - 'echo "=== runHostingWaConfig: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: waitForHostingWa
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/wa-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/waitForHostingWa.log") 2>&1'
+        - 'echo "Waiting for hosting_webadaptor_done marker..."'
+        - "COUNT=0"
+        - "while [ ! -f /var/run/hosting_webadaptor_done ]; do"
+        - "  sleep 5"
+        - "  COUNT=$((COUNT+1))"
+        - "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for hosting_webadaptor_done' >&2; exit 1; fi"
+        - "done"
+        - 'echo "hosting_webadaptor_done found, continuing."'

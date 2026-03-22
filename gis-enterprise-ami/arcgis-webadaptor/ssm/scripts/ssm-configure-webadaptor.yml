@@ -1,0 +1,360 @@
+schemaVersion: '2.2'
+description: 'Configure ArcGIS Web Adaptor 11.5 on EC2 instance with Tomcat deployment'
+parameters:
+  TomcatHome:
+    type: String
+    description: 'Path to Tomcat installation directory'
+    default: '/opt/tomcat_arcgis_9.0.106'
+  WAWarFile:
+    type: String
+    description: 'Path to Web Adaptor WAR file'
+    default: '/opt/arcgis/webadaptor11.5/java/arcgis.war'
+  WebAdaptorConfig:
+    type: String
+    description: 'JSON configuration for web adaptors with name, DNS, username and password'
+    default: '[{"name":"portal","dnsName":"portal.example.com","username":"portaladmin","password":"changeme"},{"name":"hosted","dnsName":"hosted.example.com","username":"siteadmin","password":"changeme"}]'
+  ArcGISVersion:
+    type: String
+    description: 'ArcGIS version'
+    default: '11.5'
+  PrivateDNSName:
+    type: String
+    description: 'This Webadaptor site machine private DNS name'
+    default: 'ip-00-00-00-00.us-west-2.compute.internal'
+  InstanceID:
+    type: String
+    description: 'WebAdaptor EC2 Instance ID'
+    default: 'i-0123456789abcdef0'
+
+mainSteps:
+  - name: DisableRHELSubscriptionManager
+    action: 'aws:runShellScript'
+    description: 'Disable RHEL Subscription Manager to prevent subscription prompts'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          subscription-manager config --rhsm.manage_repos=0
+          subscription-manager config --rhsm.auto_enable_yum_plugins=0
+          sed -i 's/enabled[ ]*=[ ]*1/enabled=0/g' /etc/yum/pluginconf.d/subscription-manager.conf
+          
+  - name: CleanExistingDeployments
+    action: 'aws:runShellScript'
+    description: 'Remove existing Web Adaptor deployments to ensure clean installation'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-web-adaptor-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "========================================" 
+          echo "Starting ArcGIS WebAdaptor initialization" 
+          echo "Time: $(date)" 
+          echo "========================================" 
+          
+          INSTANCE_ID="{{ InstanceID }}"
+
+          # Update instance hostname
+          hostnamectl set-hostname "arcgis-webadaptor-$INSTANCE_ID"
+          echo "SUCCESS: Hostname updated to arcgis-webadaptor-$INSTANCE_ID"
+
+          TOMCAT_HOME="{{ TomcatHome }}"
+          WEBADAPTOR_CONFIG=$(cat <<'EOF'
+          {{ WebAdaptorConfig }}
+          EOF
+          )
+  
+          webapp_dir="$TOMCAT_HOME/webapps"  
+          echo "Cleaning existing deployments..." 
+          
+          # Parse JSON configuration and iterate through web adaptors
+          echo "$WEBADAPTOR_CONFIG" | jq -c '.[]' | while read -r adaptor; do
+          adaptor_name=$(echo "$adaptor" | jq -r '.name')
+          
+          # Validate adaptor name is not empty
+          if [ -z "$adaptor_name" ] || [ "$adaptor_name" == "null" ]; then
+            echo "WARNING: Empty or invalid adaptor name, skipping..."
+            continue
+          fi
+          
+          echo "Cleaning web adaptor: $adaptor_name" 
+          deployed_war="$webapp_dir/$adaptor_name.war"
+          deployed_dir="$webapp_dir/$adaptor_name"
+          
+          # Remove existing WAR file
+          if [[ -f "$deployed_war" ]]; then
+            rm -f "$deployed_war"
+            echo "INFO: Removed existing WAR file: $deployed_war" 
+          fi
+          
+          # Remove existing deployment directory
+          if [[ -d "$deployed_dir" ]]; then
+            rm -rf "$deployed_dir"
+            echo "INFO: Removed existing deployment directory: $deployed_dir" 
+          fi
+          done
+          
+          echo "SUCCESS: Cleanup completed" 
+
+  - name: DeployWebAdaptors
+    action: 'aws:runShellScript'
+    description: 'Deploy Web Adaptor WAR files to Tomcat'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-web-adaptor-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "========================================" 
+          echo "Deploying ArcGIS WebAdaptor" 
+          echo "========================================" 
+
+          TOMCAT_HOME="{{ TomcatHome }}"
+          WA_WAR_FILE="{{ WAWarFile }}"
+          WEBADAPTOR_CONFIG=$(cat <<'EOF'
+          {{ WebAdaptorConfig }}
+          EOF
+          )
+          TOMCAT_USER="tomcat"
+          webapp_dir="$TOMCAT_HOME/webapps"
+          
+          echo "Deploying web adaptors..." 
+          
+          # Parse JSON configuration and iterate through web adaptors
+          echo "$WEBADAPTOR_CONFIG" | jq -c '.[]' | while read -r adaptor; do
+          adaptor_name=$(echo "$adaptor" | jq -r '.name')
+          
+          # Validate adaptor name is not empty
+          if [ -z "$adaptor_name" ] || [ "$adaptor_name" == "null" ]; then
+            echo "WARNING: Empty or invalid adaptor name, skipping..."
+            continue
+          fi
+          
+          echo "Processing web adaptor: $adaptor_name" 
+          deployed_war="$webapp_dir/$adaptor_name.war"
+          
+          # Copy WAR file to Tomcat webapps directory
+          cp "$WA_WAR_FILE" "$deployed_war"
+          chown $TOMCAT_USER:$TOMCAT_USER "$deployed_war"
+          
+          echo "SUCCESS: Deployed $adaptor_name to $deployed_war" 
+          done
+          
+          echo "SUCCESS: All web adaptors deployed" 
+
+  - name: RestartTomcat
+    action: 'aws:runShellScript'
+    description: 'Restart Tomcat service to deploy Web Adaptors'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-web-adaptor-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "========================================" 
+          echo "Restarting Tomcat Service" 
+          echo "========================================" 
+
+          TOMCAT_SERVICE="tomcat"    
+          echo "Managing Tomcat service..." 
+          
+          if systemctl is-active "$TOMCAT_SERVICE" > /dev/null 2>&1; then
+            echo "INFO: Restarting Tomcat to deploy Web Adaptor..." 
+            systemctl restart "$TOMCAT_SERVICE"
+          else
+            echo "INFO: Starting Tomcat to deploy Web Adaptor..." 
+            systemctl start "$TOMCAT_SERVICE"
+          fi
+          
+          echo "Waiting 60 seconds for deployment..." 
+          sleep 60
+          
+          # Verify service is running
+          if systemctl is-active "$TOMCAT_SERVICE" > /dev/null 2>&1; then
+            echo "SUCCESS: Tomcat service is running" 
+          else
+            echo "ERROR: Tomcat service failed to start" 
+            exit 1
+          fi
+
+  - name: ValidateDeployment
+    action: 'aws:runShellScript'
+    description: 'Validate Web Adaptor deployment'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-web-adaptor-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "========================================" 
+          echo "Validating ArcGIS WebAdaptor deployment" 
+          echo "========================================" 
+
+          TOMCAT_HOME="{{ TomcatHome }}"
+          webapp_dir="$TOMCAT_HOME/webapps"
+          deployment_failed=0
+          
+          echo "Validating deployments..." 
+          WEBADAPTOR_CONFIG=$(cat <<'EOF'
+          {{ WebAdaptorConfig }}
+          EOF
+          )
+          
+          # Parse JSON configuration and iterate through web adaptors
+          echo "$WEBADAPTOR_CONFIG" | jq -c '.[]' | while read -r adaptor; do
+          adaptor_name=$(echo "$adaptor" | jq -r '.name')
+          
+          # Validate adaptor name is not empty
+          if [ -z "$adaptor_name" ] || [ "$adaptor_name" == "null" ]; then
+            echo "WARNING: Empty or invalid adaptor name, skipping..."
+            continue
+          fi
+          
+          deployed_dir="$webapp_dir/$adaptor_name"
+          
+          if [[ -d "$deployed_dir" ]]; then
+            echo "SUCCESS: Web Adaptor '$adaptor_name' deployed successfully" 
+            
+            # Check for key files
+            if [[ -f "$deployed_dir/WEB-INF/web.xml" ]]; then
+            echo "INFO: web.xml found for $adaptor_name" 
+            else
+            echo "WARNING: web.xml not found for $adaptor_name" 
+            fi
+          else
+            echo "ERROR: Web Adaptor '$adaptor_name' deployment failed" 
+            deployment_failed=1
+          fi
+          done
+          
+          if [[ $deployment_failed -eq 1 ]]; then
+          echo "ERROR: One or more deployments failed" 
+          exit 1
+          fi
+    
+          echo "SUCCESS: All deployments validated" 
+
+  - name: WebAdaptorRegistration
+    action: 'aws:runShellScript'
+    description: 'Web Adaptor Registration'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-web-adaptor-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "========================================" 
+          echo "Registering ArcGIS WebAdaptor" 
+          echo "========================================" 
+          ARC_GIS_VERSION="{{ ArcGISVersion }}"
+          WEBADAPTOR_CONFIG=$(cat <<'EOF'
+          {{ WebAdaptorConfig }}
+          EOF
+          )
+          WEBADAPTOR_TOOLS_DIR="/opt/arcgis/webadaptor${ARC_GIS_VERSION}/java/tools"
+          WEBADAPTOR_PRIVATE_DNS_NAME="{{ PrivateDNSName }}"
+
+          # Parse JSON configuration and iterate through web adaptors
+          echo "$WEBADAPTOR_CONFIG" | jq -c '.[]' | while read -r adaptor; do
+          adaptor_name=$(echo "$adaptor" | jq -r '.name')
+          dns_name=$(echo "$adaptor" | jq -r '.dnsName')
+          username=$(echo "$adaptor" | jq -r '.username')
+          password=$(echo "$adaptor" | jq -r '.password')
+          
+          # Validate required fields
+          if [ -z "$adaptor_name" ] || [ "$adaptor_name" == "null" ] || \
+              [ -z "$dns_name" ] || [ "$dns_name" == "null" ]; then
+            echo "WARNING: Empty or invalid adaptor configuration, skipping..."
+            continue
+          fi
+          
+          echo "Registering web adaptor: $adaptor_name with site machine: $dns_name"
+          
+          # Determine mode based on adaptor name
+          if [ "$adaptor_name" == "portal" ]; then
+            MODE="portal"
+            MACHINE_URL="https://$dns_name:7443"
+          elif [ "$adaptor_name" == "monitor" ]; then
+            MODE="monitor"
+            MACHINE_URL="https://$dns_name:6443"
+          elif [ "$adaptor_name" == "notebook" ]; then
+            MODE="notebook"
+            MACHINE_URL="https://$dns_name:6443"
+          else
+            MODE="server"
+            MACHINE_URL="https://$dns_name:6443"
+          fi
+          
+          echo "Running command: ${WEBADAPTOR_TOOLS_DIR}/configurewebadaptor.sh -m $MODE -w https://$WEBADAPTOR_PRIVATE_DNS_NAME/$adaptor_name/webadaptor -g $MACHINE_URL -u $username -p [REDACTED]"
+                
+          ${WEBADAPTOR_TOOLS_DIR}/configurewebadaptor.sh \
+          -m "$MODE" \
+          -w "https://$WEBADAPTOR_PRIVATE_DNS_NAME/$adaptor_name/webadaptor" \
+          -g "$MACHINE_URL" \
+          -u "$username" \
+          -p "$password" \
+          -r "true"
+          
+          echo "SUCCESS: Web adaptor $adaptor_name registered successfully"
+          done
+
+  - name: FinalizeConfiguration
+    action: 'aws:runShellScript'
+    description: 'Finalize configuration and log completion'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          
+          LOG_FILE="/var/log/arcgis-web-adaptor-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+
+          echo "========================================" 
+          echo "Web adaptor configuration completed successfully" 
+          echo "Time: $(date)" 
+          echo "========================================" 
+          
+          # Display deployed web adaptors
+          echo "" 
+          echo "Deployed Web Adaptors:" 
+          TOMCAT_HOME="{{ TomcatHome }}"
+          WEBADAPTOR_PRIVATE_DNS_NAME="{{ PrivateDNSName }}"
+          WEBADAPTOR_CONFIG=$(cat <<'EOF'
+          {{ WebAdaptorConfig }}
+          EOF
+          )
+                
+          echo "$WEBADAPTOR_CONFIG" | jq -c '.[]' | while read -r adaptor; do
+          adaptor_name=$(echo "$adaptor" | jq -r '.name')
+          
+          if [ -z "$adaptor_name" ] || [ "$adaptor_name" == "null" ]; then
+            continue
+          fi
+          
+          echo "  - $adaptor_name (https://$WEBADAPTOR_PRIVATE_DNS_NAME/$adaptor_name)" 
+          done
+          
+          echo "" 
+          echo "Configuration log: $LOG_FILE" 

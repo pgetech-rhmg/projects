@@ -1,0 +1,190 @@
+schemaVersion: "2.2"
+description: "Configure ArcGIS Data Store - Primary or Standby node deployment with high availability"
+parameters:
+  S3Bucket:
+    type: String
+    description: "S3 bucket containing cookbook artifacts and deployment assets"
+  S3Region:
+    type: String
+    description: "AWS region for the S3 bucket"
+    default: "us-west-2"
+  EsriVersion:
+    type: String
+    description: "Esri software version (e.g., 11.5)"
+  DataStoreRole:
+    type: String
+    description: "Data Store role: Primary or Standby"
+    default: "Primary"
+    allowedValues:
+      - "Primary"
+      - "Standby"
+  DataStoreHostIdentifier:
+    type: String
+    description: "Data Store machine host identifier (hostname)"
+  ServerAdminUsername:
+    type: String
+    description: "Server administrator username"
+    default: "siteadmin"
+  ServerAdminPassword:
+    type: String
+    description: "Server administrator password"
+  ServerDomain:
+    type: String
+    description: "Server domain name for data store registration (e.g., hosting-server.domain.com)"
+  PrimaryDataStoreDNSName:
+    type: String
+    description: "Primary Data Store DNS Name (for standby join operations)"
+    default: ""
+mainSteps:
+  - action: aws:runShellScript
+    name: prepSystem
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/datastore-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/prepSystem.log") 2>&1'
+        - 'echo "=== prepSystem: starting at $(date) ==="'
+        - ""
+        - 'echo "=== prepSystem: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: runDataStorePrimaryConfig
+    description: "Run Data Store Primary cinc-client config (Primary only)"
+    precondition:
+      StringEquals:
+        - "{{ DataStoreRole }}"
+        - "Primary"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/datastore-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/datastore-primary.log") 2>&1'
+        - 'echo "=== runDataStorePrimaryConfig: starting at $(date) ==="'
+        - ""
+        - "if [ ! -f /opt/cinc/attributes/arcgis-config-datastore-relational-primary.json ]; then"
+        - '  echo "ERROR: /opt/cinc/attributes/arcgis-config-datastore-relational-primary.json not found" >&2'
+        - "  exit 1"
+        - "fi"
+        - ""
+        - 'echo "Replacing runtime tokens in arcgis-config-datastore-relational-primary.json..."'
+        - 'sed -i "s|__DATA_STORE_HOSTIDENTIFIER__|{{ DataStoreHostIdentifier }}|g" /opt/cinc/attributes/arcgis-config-datastore-relational-primary.json'
+        - 'sed -i "s|__SERVER_ADMIN_USERNAME__|{{ ServerAdminUsername }}|g" /opt/cinc/attributes/arcgis-config-datastore-relational-primary.json'
+        - 'sed -i "s|__SERVER_ADMIN_PASSWORD__|{{ ServerAdminPassword }}|g" /opt/cinc/attributes/arcgis-config-datastore-relational-primary.json'
+        - 'sed -i "s|__SERVER_DOMAIN__|{{ ServerDomain }}|g" /opt/cinc/attributes/arcgis-config-datastore-relational-primary.json'
+        - ""
+        - 'cinc-client -z -c /etc/cinc/client.rb -j /opt/cinc/attributes/arcgis-config-datastore-relational-primary.json 2>&1 | tee -a "$LOG_DIR/datastore-primary.log"'
+        - "RC=${PIPESTATUS[0]}"
+        - 'if [ $RC -ne 0 ]; then echo "Data Store Primary cinc-client failed with exit $RC" >&2; exit $RC; fi'
+        - "touch /var/run/datastore_primary_done"
+        - 'echo "=== runDataStorePrimaryConfig: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: waitForDataStorePrimary
+    description: "Wait for Data Store Primary config to complete (Primary only)"
+    precondition:
+      StringEquals:
+        - "{{ DataStoreRole }}"
+        - "Primary"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/datastore-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/waitForDataStorePrimary.log") 2>&1'
+        - 'echo "Waiting for datastore_primary_done marker..."'
+        - "COUNT=0"
+        - "while [ ! -f /var/run/datastore_primary_done ]; do"
+        - "  sleep 5"
+        - "  COUNT=$((COUNT+1))"
+        - "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for datastore_primary_done' >&2; exit 1; fi"
+        - "done"
+        - 'echo "datastore_primary_done found, continuing."'
+
+  - action: aws:runShellScript
+    name: runDataStoreStandbyConfig
+    description: "Run Data Store Standby cinc-client config (Standby only)"
+    precondition:
+      StringEquals:
+        - "{{ DataStoreRole }}"
+        - "Standby"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/datastore-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/datastore-standby.log") 2>&1'
+        - 'echo "=== runDataStoreStandbyConfig: starting at $(date) ==="'
+        - ""
+        - "if [ ! -f /opt/cinc/attributes/arcgis-config-datastore-relational-standby.json ]; then"
+        - '  echo "ERROR: /opt/cinc/attributes/arcgis-config-datastore-relational-standby.json not found" >&2'
+        - "  exit 1"
+        - "fi"
+        - ""
+        - 'echo "Replacing runtime tokens in arcgis-config-datastore-relational-standby.json..."'
+        - 'sed -i "s|__PRIMARY_DATASTORE_DNSNAME__|{{ PrimaryDataStoreDNSName }}|g" /opt/cinc/attributes/arcgis-config-datastore-relational-standby.json'
+        - 'sed -i "s|__SERVER_ADMIN_USERNAME__|{{ ServerAdminUsername }}|g" /opt/cinc/attributes/arcgis-config-datastore-relational-standby.json'
+        - 'sed -i "s|__SERVER_ADMIN_PASSWORD__|{{ ServerAdminPassword }}|g" /opt/cinc/attributes/arcgis-config-datastore-relational-standby.json'
+        - 'sed -i "s|__SERVER_DOMAIN__|{{ ServerDomain }}|g" /opt/cinc/attributes/arcgis-config-datastore-relational-standby.json'
+        - ""
+        - 'cinc-client -z -c /etc/cinc/client.rb -j /opt/cinc/attributes/arcgis-config-datastore-relational-standby.json 2>&1 | tee -a "$LOG_DIR/datastore-standby.log"'
+        - "RC=${PIPESTATUS[0]}"
+        - 'if [ $RC -ne 0 ]; then echo "Data Store Standby cinc-client failed with exit $RC" >&2; exit $RC; fi'
+        - "touch /var/run/datastore_standby_done"
+        - 'echo "=== runDataStoreStandbyConfig: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: waitForDataStoreStandby
+    description: "Wait for Data Store Standby config to complete (Standby only)"
+    precondition:
+      StringEquals:
+        - "{{ DataStoreRole }}"
+        - "Standby"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/datastore-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/waitForDataStoreStandby.log") 2>&1'
+        - 'echo "Waiting for datastore_standby_done marker..."'
+        - "COUNT=0"
+        - "while [ ! -f /var/run/datastore_standby_done ]; do"
+        - "  sleep 5"
+        - "  COUNT=$((COUNT+1))"
+        - "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for datastore_standby_done' >&2; exit 1; fi"
+        - "done"
+        - 'echo "datastore_standby_done found, continuing."'
+
+  - action: aws:runShellScript
+    name: FinalizeConfiguration
+    description: "Finalize configuration and log completion"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - ""
+        - "LOG_DIR=/var/log/datastore-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/FinalizeConfiguration.log") 2>&1'
+        - 'echo "=== FinalizeConfiguration: starting at $(date) ==="'
+        - ""
+        - 'DATASTORE_ROLE="{{ DataStoreRole }}"'
+        - 'DATASTORE_HOST="{{ DataStoreHostIdentifier }}"'
+        - ""
+        - 'echo "========================================"'
+        - 'echo "ArcGIS Data Store configuration completed"'
+        - 'echo "Data Store Role: $DATASTORE_ROLE"'
+        - 'echo "Data Store Host: $DATASTORE_HOST"'
+        - 'echo "Time: $(date)"'
+        - 'echo "========================================"'
+        - 'echo "=== FinalizeConfiguration: finished at $(date) ==="'

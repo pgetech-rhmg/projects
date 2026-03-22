@@ -1,0 +1,16 @@
+{
+  "arcgis": {
+    "version": "11.5",
+    "run_as_user": "arcgis",
+	  "run_as_group": "arcgis",
+	  "download_path" : "/opt/software",
+	  "setups_path": "/opt/software/setups",
+    "data_store": {
+      "install_path": "/opt/arcgis/datastore",
+      "s3_uri": "s3://elevate-installer/esri/arcgis-enterprise/11-5/ArcGIS_DataStore_Linux_115_195461.tar.gz",
+      "tarball_path": "/opt/software/ArcGIS_DataStore_Linux_115_195461.tar.gz",
+      "data_dir": "/opt/gisdata/arcgisdatastore",
+      "preferred_identifier": "hostname"
+    }
+  }
+}

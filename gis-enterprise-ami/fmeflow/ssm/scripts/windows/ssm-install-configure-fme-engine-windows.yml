@@ -1,0 +1,545 @@
+---
+schemaVersion: "2.2"
+description: "SSM document to install FME Flow Engine on Windows Server for fault-tolerant architecture with FSx shared storage"
+parameters:
+    Region:
+        type: String
+        description: "AWS Region"
+        default: "us-west-2"
+    S3InstallBucket:
+        type: String
+        description: "S3 bucket containing installation files"
+        default: "elevate-installer"
+    FMEFlowS3KeyName:
+        type: String
+        description: "S3 key for FME Flow installation package"
+        default: "esri/fmeflow/fme-flow-2025.2.2-b25827-win-x64.exe"
+    FsxDnsName:
+        type: String
+        description: "FSx file system DNS name for shared storage"
+        default: "amznfsxcuemjjkd.aws.pge.com"
+    InstancePrivateDNSName:
+        type: String
+        description: "FME Flow Engine EC2 Instance Private DNS Name"
+        default: "ip-10-88-100-6.us-west-2.compute.internal"
+    CoreHostDNSName:
+        type: String
+        description: "FME Flow Core DNS Name or IP address"
+        default: "ip-10-88-100-196.us-west-2.compute.internal"
+    FMEFlowVersion:
+        type: String
+        description: "FME Flow version (must contain year in format: fme-flow-YYYY.x.x)"
+        default: "fme-flow-2025.2.2-b25827"
+    InstallDrive:
+        type: String
+        description: "Drive letter for FME Flow installation"
+        default: "E:"
+
+mainSteps:
+    - name: DownloadInstaller
+      action: aws:runPowerShellScript
+      onFailure: Abort
+      inputs:
+          runCommand:
+              - |
+                  try {
+                      $installDrive = '{{ InstallDrive }}'
+                      $downloadDir = 'fmeflow-downloads'
+                      $s3Bucket = '{{ S3InstallBucket }}'
+                      $s3Key = '{{ FMEFlowS3KeyName }}'
+
+                      $downloadPath = "${installDrive}\${downloadDir}"
+
+                      if (-not (Test-Path $downloadPath)) {
+                          New-Item -ItemType Directory -Path $downloadPath -Force | Out-Null
+                      }
+
+                      $installerFile = Split-Path -Leaf $s3Key
+                      $installerPath = Join-Path $downloadPath $installerFile
+
+
+                      Write-Host "Downloading FME Flow installer from S3..."
+                      Write-Host "Source: s3://${s3Bucket}/${s3Key}"
+                      Write-Host "Destination: $installerPath"
+
+                      aws s3 cp "s3://${s3Bucket}/${s3Key}" $installerPath --no-progress
+
+                      if (-not (Test-Path $installerPath)) {
+                          Write-Error "Installer download failed"
+                          exit 1
+                      }
+
+                      $fileSize = (Get-Item $installerPath).Length / 1MB
+                      Write-Host "✓ Installer downloaded successfully ($([Math]::Round($fileSize, 2)) MB)"
+
+                      Unblock-File -Path $installerPath
+                      Write-Host "SUCCESS: Installer download completed"
+                  } catch {
+                      Write-Error "Failed to download installer: $_"
+                      exit 1
+                  }
+
+    - name: ConfigureFirewall
+      action: aws:runPowerShellScript
+      onFailure: Abort
+      inputs:
+          runCommand:
+              - |
+                  try {
+                      Write-Host "Configuring Windows Firewall for FME Flow Engine..."
+
+                      # Individual ports
+                      $ports = @(
+                          8080, 8443, 80, 443, 5432, 6379,
+                          7069, 7070, 7071, 7072, 7073, 7074, 7075, 7076, 7077, 7078, 7079,
+                          8078, 35357, 7501, 7500
+                      )
+
+                      foreach ($port in $ports) {
+                          $ruleName = "FME Flow Engine - Port $port"
+                          if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) {
+                              New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow | Out-Null
+                              Write-Host "Opened port: $port"
+                          }
+                      }
+
+                      # Port ranges
+                      $portRanges = @(
+                          @{Name="FME Flow Engine - Ports 7100-7150"; Start=7100; End=7150},
+                          @{Name="FME Flow Engine - Ports 32768-60999"; Start=32768; End=60999}
+                      )
+
+                      foreach ($range in $portRanges) {
+                          if (-not (Get-NetFirewallRule -DisplayName $range.Name -ErrorAction SilentlyContinue)) {
+                              New-NetFirewallRule -DisplayName $range.Name -Direction Inbound -Protocol TCP -LocalPort "$($range.Start)-$($range.End)" -Action Allow | Out-Null
+                              Write-Host "Opened port range: $($range.Start)-$($range.End)"
+                          }
+                      }
+
+                      Write-Host "SUCCESS: Firewall configured"
+                  } catch {
+                      Write-Error "Failed to configure firewall: $_"
+                      exit 1
+                  }
+
+    - name: CreateDirectories
+      action: aws:runPowerShellScript
+      onFailure: Abort
+      inputs:
+          runCommand:
+              - |
+                  try {
+                      $installDrive = '{{ InstallDrive }}'
+                      $fmeVersionFull = '{{ FMEFlowVersion }}' -replace '-b\d+$', ''
+                      $fmeYear = $fmeVersionFull -replace '^.*-(\d{4})\..*$', '$1'
+                      $fmeVersion = "fmeflow_${fmeYear}"
+
+                      $installDir = "${installDrive}\${fmeVersion}"
+
+                      if (-not (Test-Path $installDir)) {
+                          New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+                          Write-Host "Created: $installDir"
+                      } else {
+                          Write-Host "Directory already exists: $installDir"
+                      }
+                      Write-Host "SUCCESS: Installation directory created"
+                  } catch {
+                      Write-Error "Failed to create directories: $_"
+                      exit 1
+                  }
+
+    - name: MountFsxStorage
+      action: aws:runPowerShellScript
+      onFailure: Abort
+      inputs:
+          runCommand:
+              - |
+                  try {
+                      $installDrive = '{{ InstallDrive }}'
+                      $fsxDns = '{{ FsxDnsName }}'
+                      $fmeVersionFull = '{{ FMEFlowVersion }}' -replace '-b\d+$', ''
+                      $fmeYear = $fmeVersionFull -replace '^.*-(\d{4})\..*$', '$1'
+                      $fmeVersion = "fmeflow_${fmeYear}"
+
+                      $installDir = "${installDrive}\${fmeVersion}"
+                      $fsxPath = "\\${fsxDns}\share"
+                      $fsxSystemsharePath = "${fsxPath}\fmeflow_systemshare"
+
+                      Write-Host "Mounting FSx share using net use command"
+                      Write-Host "FSx Path: $fsxPath"
+                      Write-Host "FSx systemshare path: $fsxSystemsharePath"
+                      Write-Host ""
+
+                      # Find an available drive letter for temporary mapping
+                      $availableDrive = $null
+                      for ($letter = [byte][char]'Z'; $letter -ge [byte][char]'M'; $letter--) {
+                          $driveLetter = [char]$letter + ":"
+                          if (-not (Test-Path $driveLetter)) {
+                              $availableDrive = $driveLetter
+                              break
+                          }
+                      }
+
+                      if (-not $availableDrive) {
+                          Write-Error "No available drive letters found (M-Z)"
+                          exit 1
+                      }
+
+                      Write-Host "Using drive letter: $availableDrive"
+                      Write-Host ""
+
+                      # First, disconnect if already mapped to clean up any stale mappings
+                      Write-Host "Cleaning up any existing mappings for $fsxPath..."
+                      net use $availableDrive /delete /yes 2>&1 | Out-Null
+                      Start-Sleep -Seconds 1
+
+                      # Test connectivity to FSx share first
+                      Write-Host "Testing FSx share accessibility..."
+                      if (Test-Path $fsxPath) {
+                          Write-Host "✓ FSx share is accessible via UNC path: $fsxPath"
+                      } else {
+                          Write-Warning "FSx share UNC path not immediately accessible, proceeding with mount attempt..."
+                      }
+                      Write-Host ""
+
+                      # Mount FSx share using net use command
+                      Write-Host "Mounting FSx share with net use command..."
+                      Write-Host "Command: net use $availableDrive $fsxPath /persistent:yes"
+                      Write-Host ""
+
+                      $netUseOutput = net use $availableDrive $fsxPath /persistent:yes 2>&1
+
+                      Write-Host "Mount output:"
+                      $netUseOutput | ForEach-Object { Write-Host "  $_" }
+                      Write-Host ""
+
+                      if ($LASTEXITCODE -eq 0) {
+                          Write-Host "✓ FSx share successfully mapped to $availableDrive"
+                      } else {
+                          Write-Error "Failed to mount FSx share. Exit code: $LASTEXITCODE"
+                          exit 1
+                      }
+
+                      # Verify the mapping
+                      Start-Sleep -Seconds 2
+                      if (Test-Path $availableDrive) {
+                          Write-Host "✓ Mapped drive $availableDrive is accessible"
+                      } else {
+                          Write-Error "Mapped drive $availableDrive is not accessible"
+                          exit 1
+                      }
+
+                      # Verify the systemshare directory exists (should be created by Core)
+                      Write-Host ""
+                      Write-Host "Verifying systemshare directory on FSx share..."
+                      if (Test-Path $fsxSystemsharePath) {
+                          Write-Host "✓ systemshare directory exists: $fsxSystemsharePath"
+                      } else {
+                          Write-Warning "systemshare directory not found (should be created by Core): $fsxSystemsharePath"
+                      }
+
+                      # Verify the systemshare directory is accessible
+                      try {
+                          $testFile = Join-Path $fsxSystemsharePath "test_engine_$(Get-Random).txt"
+                          "Test" | Out-File -FilePath $testFile -ErrorAction Stop
+                          Remove-Item -Path $testFile -Force -ErrorAction Stop
+                          Write-Host "✓ FSx systemshare directory is writable"
+                      } catch {
+                          Write-Warning "Could not write to FSx systemshare directory: $_"
+                      }
+
+                      # List current mappings for reference
+                      Write-Host ""
+                      Write-Host "Current drive mappings:"
+                      net use 2>&1 | ForEach-Object { Write-Host "  $_" }
+
+                      Write-Host ""
+                      Write-Host "SUCCESS: FSx storage mounting completed successfully"
+                      Write-Host "Mapped drive: $availableDrive → $fsxPath"
+                      Write-Host "FSx systemshare path: $fsxSystemsharePath"
+                  } catch {
+                      Write-Error "Failed to mount FSx storage: $_"
+                      exit 1
+                  }
+
+    - name: InstallFMEFlowEngine
+      action: aws:runPowerShellScript
+      onFailure: Abort
+      timeoutSeconds: 3600
+      inputs:
+          runCommand:
+              - |
+                  # Ensure running with administrative privileges
+                  $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+                  $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+                  if (-not $isAdmin) {
+                      Write-Error "This step must run with administrative privileges. SSM should provide this automatically."
+                      exit 1
+                  }
+
+                  Write-Host "✓ Running with administrative privileges"
+                  Write-Host ""
+
+                  $installDrive = '{{ InstallDrive }}'
+                  $downloadDir = 'fmeflow-downloads'
+                  $s3Key = '{{ FMEFlowS3KeyName }}'
+                  $engineHost = '{{ InstancePrivateDNSName }}'
+                  $coreHost = '{{ CoreHostDNSName }}'
+                  $fsxDns = '{{ FsxDnsName }}'
+                  $fmeVersionFull = '{{ FMEFlowVersion }}' -replace '-b\d+$', ''
+                  $fmeYear = $fmeVersionFull -replace '^.*-(\d{4})\..*$', '$1'
+                  $fmeVersion = "fmeflow_${fmeYear}"
+
+                  $downloadPath = "${installDrive}\${downloadDir}"
+                  $installerFile = Split-Path -Leaf $s3Key
+                  $installerPath = Join-Path $downloadPath $installerFile
+                  $extractDir = Join-Path $downloadPath "extract"
+                  $installDir = "${installDrive}\${fmeVersion}"
+                  $fsxSystemsharePath = "\\${fsxDns}\share\fmeflow_systemshare"
+
+                  Write-Host "==========================================="
+                  Write-Host "Pre-Installation Validation"
+                  Write-Host "==========================================="
+
+                  # Verify installer exists
+                  if (-not (Test-Path $installerPath)) {
+                      Write-Error "Installer not found at: $installerPath"
+                      exit 1
+                  }
+                  Write-Host "✓ Installer found: $installerPath"
+
+                  # Verify install directory exists
+                  if (-not (Test-Path $installDir)) {
+                      Write-Error "Installation directory not found: $installDir"
+                      exit 1
+                  }
+                  Write-Host "✓ Installation directory exists: $installDir"
+
+                  # Verify FSx shared directory exists and is accessible
+                  if (-not (Test-Path $fsxSystemsharePath)) {
+                      Write-Error "FSx shared directory not found: $fsxSystemsharePath"
+                      exit 1
+                  }
+                  Write-Host "✓ FSx shared directory exists: $fsxSystemsharePath"
+
+                  Write-Host ""
+                  Write-Host "==========================================="
+                  Write-Host "Building MSI Properties"
+                  Write-Host "==========================================="
+
+                  # Build MSI properties for Engine installation
+                  $msiProps = @(
+                      "/qb",
+                      "/norestart",
+                      "/l*v `"${downloadPath}\install.log`"",
+                      "ADDLOCAL=FMEEngine",
+                      "INSTALLDIR=`"${installDir}`"",
+                      "COREHOSTNAME=`"${coreHost}`"",
+                      "ENGINEHOSTNAME=`"${engineHost}`"",
+                      "NODENAME=`"${engineHost}`"",
+                      "LOGPREFIX=`"${engineHost}_`"",
+                      "INSTALLTYPE=Engine",
+                      "REPOSITORYSERVERROOTDIR=`"${fsxSystemsharePath}`"",
+                      "FMEFLOWSHAREDDATA=`"${fsxSystemsharePath}`"",
+                      "INSTALLDISTRIBUTEDREPOSITORY=Yes"
+                  )
+
+                  $msiPropsString = $msiProps -join ' '
+
+                  Write-Host "MSI Properties Summary:"
+                  Write-Host "  Install Dir: $installDir"
+                  Write-Host "  FSx Shared Dir: $fsxSystemsharePath"
+                  Write-Host "  Core Host: $coreHost"
+                  Write-Host "  Engine Host: $engineHost"
+                  Write-Host ""
+
+                  Write-Host ""
+                  Write-Host "==========================================="
+                  Write-Host "Starting FME Flow Engine Installation"
+                  Write-Host "==========================================="
+                  Write-Host "Installer: $installerPath"
+                  Write-Host "Extract Dir: $extractDir"
+                  Write-Host "Time: $(Get-Date)"
+                  Write-Host ""
+
+                  Write-Host "Starting installation process..."
+                  Write-Host "Note: This may take 10-15 minutes. Please wait..."
+                  Write-Host ""
+
+                  # Run installer with extraction and MSI parameters
+                  # CRITICAL: Arguments must be formatted as -d"path" -s -sp"props" (no spaces after flags)
+                  $exeArgs = "-d`"${extractDir}`" -s -sp`"${msiPropsString}`""
+
+                  Write-Host "Running installer with arguments:"
+                  Write-Host "  $exeArgs"
+                  Write-Host ""
+
+                  $process = Start-Process -FilePath $installerPath -ArgumentList $exeArgs -Wait -PassThru -NoNewWindow
+
+                  Write-Host ""
+                  Write-Host "Installation completed with exit code: $($process.ExitCode)"
+                  Write-Host ""
+
+                  # Handle exit code 2638 (wrapper code, but MSI succeeded)
+                  if ($process.ExitCode -eq 2638) {
+                      Write-Host "WARNING: Exit code 2638 - Another installation is in progress or reboot pending. Installation may have completed successfully."
+                      Write-Host ""
+                      Write-Host "========== Installation Log (Last 100 lines) =========="
+                      if (Test-Path "${downloadPath}\install.log") {
+                          Get-Content "${downloadPath}\install.log" -Tail 100
+                      } else {
+                          Write-Host "Install log not found at ${downloadPath}\install.log"
+                      }
+                      Write-Host ""
+                      Write-Host "Exit Code Reference:"
+                      Write-Host "  2711 = Feature name not found (check ADDLOCAL components)"
+                      Write-Host "  2638 = Installation failed (possible database or path issue)"
+                      Write-Host "  1601 = Admin rights required"
+                      Write-Host "  1603 = Fatal error during installation"
+                      Write-Host "  3010 = Reboot required"
+                      exit 0
+                  }
+
+                  if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
+                      Write-Error "Installation failed with exit code: $($process.ExitCode)"
+                      Write-Host ""
+                      Write-Host "========== Installation Log (Last 100 lines) =========="
+                      if (Test-Path "${downloadPath}\install.log") {
+                          Get-Content "${downloadPath}\install.log" -Tail 100
+                      } else {
+                          Write-Host "Install log not found at ${downloadPath}\install.log"
+                      }
+                      Write-Host ""
+                      Write-Host "Exit Code Reference:"
+                      Write-Host "  2711 = Feature name not found (check ADDLOCAL components)"
+                      Write-Host "  2638 = Installation failed (possible database or path issue)"
+                      Write-Host "  1601 = Admin rights required"
+                      Write-Host "  1603 = Fatal error during installation"
+                      Write-Host "  3010 = Reboot required"
+                      exit 1
+                  }
+
+                  if ($process.ExitCode -eq 3010) {
+                      Write-Warning "Installation requires reboot (exit code 3010)"
+                  }
+
+                  Write-Host "SUCCESS: FME Flow Engine installed"
+
+    - name: StartFMEFlowEngine
+      action: aws:runPowerShellScript
+      onFailure: Abort
+      inputs:
+          runCommand:
+              - |
+                  try {
+                      Write-Host "Starting FME Flow Engine services..."
+
+                      # Services installed in distributed mode
+                      $services = @(
+                          "FME Flow Engines"
+                      )
+
+                      foreach ($svcName in $services) {
+                          $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+                          if ($svc) {
+                              if ($svc.Status -ne 'Running') {
+                                  Write-Host "Starting: $svcName"
+                                  Start-Service -Name $svcName
+                                  Set-Service -Name $svcName -StartupType Automatic
+                              } else {
+                                  Write-Host "Already running: $svcName"
+                              }
+                          } else {
+                              Write-Warning "Service not found: $svcName"
+                          }
+                      }
+
+                      Write-Host "Waiting for services to start..."
+                      Start-Sleep -Seconds 10
+                      Write-Host "SUCCESS: Services started"
+                  } catch {
+                      Write-Error "Failed to start FME Flow Engine services: $_"
+                      exit 1
+                  }
+
+    - name: VerifyInstallation
+      action: aws:runPowerShellScript
+      onFailure: Abort
+      inputs:
+          runCommand:
+              - |
+                  try {
+                      $installDrive = '{{ InstallDrive }}'
+                      $fmeVersionFull = '{{ FMEFlowVersion }}' -replace '-b\d+$', ''
+                      $fmeYear = $fmeVersionFull -replace '^.*-(\d{4})\..*$', '$1'
+                      $fmeVersion = "fmeflow_${fmeYear}"
+                      $installDir = "${installDrive}\${fmeVersion}"
+
+                      Write-Host "Verifying FME Flow Engine installation..."
+                      Write-Host ""
+
+                      # Check installation directory
+                      if (-not (Test-Path $installDir)) {
+                          Write-Error "Installation directory not found: $installDir"
+                          exit 1
+                      }
+                      Write-Host "✓ Installation directory exists"
+
+                      # Check FME executable
+                      $fmeExe = Join-Path $installDir "Server\fme.exe"
+                      if (Test-Path $fmeExe) {
+                          $version = & $fmeExe --version 2>&1
+                          Write-Host "✓ FME Version: $version"
+                      } else {
+                          Write-Warning "FME executable not found at: $fmeExe"
+                      }
+
+                      # Check Engine service
+                      $engineService = Get-Service "FME Flow Engine" -ErrorAction SilentlyContinue
+                      if ($engineService -and $engineService.Status -eq 'Running') {
+                          Write-Host "✓ FME Flow Engine service is running"
+                      } else {
+                          Write-Warning "FME Flow Engine service not running"
+                      }
+
+                      Write-Host "SUCCESS: Installation verified"
+                  } catch {
+                      Write-Error "Failed to verify installation: $_"
+                      exit 1
+                  }
+
+    - name: CleanupInstallationFiles
+      action: aws:runPowerShellScript
+      onFailure: Abort
+      inputs:
+          runCommand:
+              - |
+                  try {
+                      $installDrive = '{{ InstallDrive }}'
+                      $downloadDir = 'fmeflow-downloads'
+                      $downloadPath = "${installDrive}\${downloadDir}"
+
+                      Write-Host "Cleaning up installation files..."
+
+                      # Keep install.log but remove installer and extract directory
+                      $s3Key = '{{ FMEFlowS3KeyName }}'
+                      $installerFile = Split-Path -Leaf $s3Key
+                      $installerPath = Join-Path $downloadPath $installerFile
+                      $extractDir = Join-Path $downloadPath "extract"
+
+                      if (Test-Path $installerPath) {
+                          Remove-Item -Path $installerPath -Force
+                          Write-Host "Removed installer: $installerPath"
+                      }
+
+                      if (Test-Path $extractDir) {
+                          Remove-Item -Path $extractDir -Recurse -Force
+                          Write-Host "Removed extract directory: $extractDir"
+                      }
+
+                      Write-Host "SUCCESS: Cleanup completed"
+                  } catch {
+                      Write-Error "Failed to cleanup installation files: $_"
+                      exit 1
+                  }

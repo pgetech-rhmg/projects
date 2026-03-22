@@ -1,0 +1,92 @@
+---
+schemaVersion: "0.3"
+description: "SSM Automation document to install ArcGIS Server and FME Engine on Windows Server"
+parameters:
+  InstanceId:
+    type: String
+    description: "EC2 Instance ID to run the installation on"
+  Region:
+    type: String
+    description: "AWS Region"
+    default: "us-west-2"
+  DeploymentBucket:
+    type: String
+    description: "S3 bucket containing deployment files and installers"
+    default: "elevate-installer"
+  LicenseFileS3Key:
+    type: String
+    description: "S3 key for ArcGIS Server license file (.ecp)"
+    default: "esri/arcgis-enterprise/11-5/license/server/ArcGISGISServerAdvanced_ArcGISServer_1556363.ecp"
+  ArcGISVersion:
+    type: String
+    description: "ArcGIS version"
+    default: "11.5"
+  ServerInstallerS3Key:
+    type: String
+    description: "S3 keys for ArcGIS Server installers (comma-separated for multiple files)"
+    default: "esri/arcgis-enterprise/11-5/ArcGIS_Server_Windows_115_195344.exe,esri/arcgis-enterprise/11-5/ArcGIS_Server_Windows_115_195344.exe.001"
+  FMEFlowS3KeyName:
+    type: String
+    description: "S3 key for FME Flow installation package"
+    default: "esri/fmeflow/fme-flow-2025.2.2-b25827-win-x64.exe"
+  FsxDnsName:
+    type: String
+    description: "FSx file system DNS name for shared storage"
+    default: "amznfsxcuemjjkd.aws.pge.com"
+  InstancePrivateDNSName:
+    type: String
+    description: "FME Flow Engine EC2 Instance Private DNS Name"
+    default: "ip-10-88-100-6.us-west-2.compute.internal"
+  CoreHostDNSName:
+    type: String
+    description: "FME Flow Core DNS Name or IP address"
+    default: "ip-10-88-100-196.us-west-2.compute.internal"
+  FMEFlowVersion:
+    type: String
+    description: "FME Flow version (must contain year in format: fme-flow-YYYY.x.x)"
+    default: "fme-flow-2025.2.2-b25827"
+  InstallDrive:
+    type: String
+    description: "Drive letter for installation (e.g., E:)"
+    default: "E:"
+
+mainSteps:
+  - name: ConfigureArcGISServer
+    action: "aws:runCommand"
+    onFailure: Abort
+    timeoutSeconds: 1800
+    inputs:
+      DocumentName: "arcgis-server-115-windows-command"
+      InstanceIds:
+        - "{{ InstanceId }}"
+      Parameters:
+        Region: "{{ Region }}"
+        DeploymentBucket: "{{ DeploymentBucket }}"
+        LicenseFileS3Key: "{{ LicenseFileS3Key }}"
+        ArcGISVersion: "{{ ArcGISVersion }}"
+        InstallDrive: "{{ InstallDrive }}"
+        ServerInstallerS3Key: "{{ ServerInstallerS3Key }}"
+    description: "Install and configure ArcGIS Server"
+
+  - name: InstallFMEEngine
+    action: "aws:runCommand"
+    onFailure: Abort
+    timeoutSeconds: 1800
+    inputs:
+      DocumentName: "fmeflow-engine-windows-command"
+      InstanceIds:
+        - "{{ InstanceId }}"
+      Parameters:
+        Region: "{{ Region }}"
+        S3InstallBucket: "{{ DeploymentBucket }}"
+        FMEFlowS3KeyName: "{{ FMEFlowS3KeyName }}"
+        FsxDnsName: "{{ FsxDnsName }}"
+        InstancePrivateDNSName: "{{ InstancePrivateDNSName }}"
+        CoreHostDNSName: "{{ CoreHostDNSName }}"
+        FMEFlowVersion: "{{ FMEFlowVersion }}"
+        InstallDrive: "{{ InstallDrive }}"
+    description: "Install and configure FME Engine"
+
+outputs:
+  - ConfigureArcGISServer.Output
+  - InstallFMEEngine.Output
