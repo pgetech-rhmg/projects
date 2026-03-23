@@ -1,9 +1,33 @@
-aws ssm get-command-invocation \
---command-id 331bbd4f-c0fd-41d7-aa4d-645c0b48cc9e \
---instance-id i-055bc0c56b8e7003c \
---query 'StandardErrorContent' \
---output text
+2026-03-23T18:38:58.3854157Z ##[section]Starting: Run EF Core migrations
+2026-03-23T18:38:58.3859718Z ==============================================================================
+2026-03-23T18:38:58.3859824Z Task         : AWS Shell Script
+2026-03-23T18:38:58.3859901Z Description  : Run a shell script using Bash with AWS credentials as environment variables
+2026-03-23T18:38:58.3859999Z Version      : 1.24.0
+2026-03-23T18:38:58.3860070Z Author       : Amazon Web Services
+2026-03-23T18:38:58.3860149Z Help         : Runs a shell script in Bash, setting AWS credentials and region information into the shell environment using the standard environment keys _AWS_ACCESS_KEY_ID_, _AWS_SECRET_ACCESS_KEY_, _AWS_SESSION_TOKEN_ and _AWS_REGION_.
 
+More information on this task can be found in the [task reference](https://docs.aws.amazon.com/vsts/latest/userguide/awsshell.html).
 
-/opt/epic-api/app/efbundle: /opt/epic-api/app/efbundle: cannot execute binary file
-failed to run commands: exit status 126
+####Task Permissions
+Permissions for this task to call AWS service APIs depend on the activities in the supplied script.
+2026-03-23T18:38:58.3860452Z ==============================================================================
+2026-03-23T18:38:58.8063238Z Configuring credentials for task
+2026-03-23T18:38:58.8063744Z ...configuring AWS credentials from service endpoint 'd4d1385c-1185-470a-8044-26d6400b4223'
+2026-03-23T18:38:58.8064220Z Skipping Instance profile, we have OIDC enabled
+2026-03-23T18:38:58.8065917Z ...configuring AWS credentials from service endpoint 'd4d1385c-1185-470a-8044-26d6400b4223'
+2026-03-23T18:38:58.8068876Z Getting OIDC Token...
+2026-03-23T18:38:59.2083736Z OIDC Token generated: issuer: {https://vstoken.dev.azure.com/24ec78d4-db96-44e7-ac11-88d89473d472} sub: {sc://pgetech/EPIC-Pipeline/AWS}, aud: {api://AzureADTokenExchange}
+2026-03-23T18:38:59.2099639Z Configuring region for task
+2026-03-23T18:38:59.2100026Z ...configured to use region us-west-2, defined in task.
+2026-03-23T18:38:59.2147587Z Assuming role via OIDC Token...
+2026-03-23T18:38:59.9132409Z ...role assumed via OIDC Token: arn:aws:sts::750713712981:assumed-role/pge-epic-service-role/***
+2026-03-23T18:38:59.9133692Z Configuring region for task
+2026-03-23T18:38:59.9138255Z ...configured to use region us-west-2, defined in task.
+2026-03-23T18:38:59.9153276Z [command]/usr/bin/bash /home/vsts/work/_temp/awsshellscript_2400.sh 514712703977
+2026-03-23T18:39:01.1745843Z Running EF Core migrations on i-055bc0c56b8e7003c
+2026-03-23T18:39:02.4113934Z SSM Command ID: 1ac64075-a035-4a79-88f8-980124323a1c
+2026-03-23T18:39:08.7230351Z 
+2026-03-23T18:39:08.7231860Z aws: [ERROR]: Waiter CommandExecuted failed: Waiter encountered a terminal failure state: For expression "Status" we matched expected path: "Failed"
+2026-03-23T18:39:08.8410828Z 
+2026-03-23T18:39:08.8464198Z ##[error]Error: The process '/usr/bin/bash' failed with exit code 255
+2026-03-23T18:39:08.8618145Z ##[section]Finishing: Run EF Core migrations
