@@ -72,7 +72,7 @@ jobs:
 
 
     ###########################################################################
-    # Deploy - .NET, Python
+    # Deploy - .NET, Python, AMI
     ###########################################################################
     - ${{ if and(ne(parameters.appType, 'html'), ne(parameters.appType, 'angular')) }}:
       - template: ${{ parameters.appType }}/main.yml
