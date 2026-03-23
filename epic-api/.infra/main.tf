@@ -342,7 +342,8 @@ RestartSec=5
 User=ec2-user
 Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment=ConnectionStrings__EpicDb=Host=${aws_rds_cluster.epic.endpoint};Port=5432;Database=${var.db_name};Username=${var.db_master_username};Password=MANAGED_BY_SECRETS
+Environment=AWS_REGION=${var.aws_region}
+Environment=AWS_SECRETS_NAME=${module.secretmanager.secret_name}
 
 [Install]
 WantedBy=multi-user.target

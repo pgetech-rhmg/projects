@@ -54,6 +54,7 @@ logs/
 secrets.json
 appsettings.Local.json
 appsettings.*.Local.json
+**/Properties/launchSettings.json
 
 ##################################
 # Auth artifacts
