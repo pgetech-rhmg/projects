@@ -243,11 +243,11 @@
                   <th>Triggered By</th>
                   <th>Started</th>
                   <th>Duration</th>
-                  <th>Build</th>
-                  <th>Test</th>
-                  <th>Scan</th>
-                  <th>Infra Deploy</th>
-                  <th>App Deploy</th>
+                  <th class="stage-col">Build</th>
+                  <th class="stage-col">Test</th>
+                  <th class="stage-col">Scan</th>
+                  <th class="stage-col">Infra Deploy</th>
+                  <th class="stage-col">App Deploy</th>
                 </tr>
               </thead>
               <tbody>
@@ -260,11 +260,11 @@
                     <td class="timestamp">{{ run.triggeredBy }}</td>
                     <td class="timestamp">{{ run.startedAt }}</td>
                     <td class="timestamp">{{ run.duration ?? '—' }}</td>
-                    <td><span class="stage-dot stage-dot--{{ run.stages.build | lowercase }}"></span></td>
-                    <td><span class="stage-dot stage-dot--{{ run.stages.test | lowercase }}"></span></td>
-                    <td><span class="stage-dot stage-dot--{{ run.stages.scan | lowercase }}"></span></td>
-                    <td><span class="stage-dot stage-dot--{{ run.stages.infraDeploy | lowercase }}" [title]="run.stages.infraDeploy === 'External' ? 'Infrastructure provided' : run.stages.infraDeploy"></span></td>
-                    <td><span class="stage-dot stage-dot--{{ run.stages.appDeploy | lowercase }}"></span></td>
+                    <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.build | lowercase }}"></span></td>
+                    <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.test | lowercase }}"></span></td>
+                    <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.scan | lowercase }}"></span></td>
+                    <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.infraDeploy | lowercase }}" [title]="run.stages.infraDeploy === 'External' ? 'Infrastructure provided' : run.stages.infraDeploy"></span></td>
+                    <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.appDeploy | lowercase }}"></span></td>
                   </tr>
                 }
               </tbody>

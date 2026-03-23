@@ -575,9 +575,15 @@ tbody {
   text-overflow: ellipsis;
 }
 
+// Stage columns (centered headers + dots)
+.stage-col {
+  text-align: center;
+}
+
 // Stage indicator dots
 .stage-dot {
-  display: inline-block;
+  display: block;
+  margin: 0 auto;
   width: 10px;
   height: 10px;
   border-radius: 50%;
