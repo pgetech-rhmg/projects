@@ -454,6 +454,17 @@ Required when deploying to AWS and `/.infra` is absent. If `/.infra` is present,
 | `ec2InstanceId` | EC2 instance ID (.NET, Python, Java apps) |
 | `appExecutable` | Executable name (.NET apps) |
 
+### `cloud` Section — EF Core Migration Parameters
+
+Required when `efMigrations` is `"true"` in the `app` section.
+
+| Parameter | Description |
+|-----------|-------------|
+| `efSecretsName` | AWS Secrets Manager secret name containing the database connection string |
+| `efSecretsKey` | Key within the secret for the connection string (default: `ConnectionStrings__EpicDb`) |
+
+During deploy, EPIC fetches the connection string from Secrets Manager in the pipeline agent, then passes it to the `efbundle` on the EC2 via SSM. If `efSecretsName` is not set, migrations are skipped with a warning.
+
 ### `cloud` Section — AMI Parameters
 
 Required when `appType` is `ami`.
@@ -490,6 +501,7 @@ Required when `appType` is `ami`.
 | Unit Testing | `app` | Optional | `unitTestTool` |
 | Integration Testing | `app` | Optional | `integrationTestTool` |
 | AWS Deployment | `cloud` | Conditional | `awsAccountId`, `awsRegion`, `s3`, `cloudfront`, `ec2InstanceId`, `appExecutable` |
+| EF Core Migrations | `cloud` | Conditional | `efSecretsName`, `efSecretsKey` |
 | AMI Configuration | `cloud` | Conditional | `components`, `imageBuilderPipelinePrefix`, `ssmParameterPrefix`, `configDocPrefix`, `testDocPrefix`, `componentDocSuffixes`, `instanceTags` |
 | Azure Deployment | `cloud` | Conditional | `azureSubscription`, `azureResourceGroup` |
 
