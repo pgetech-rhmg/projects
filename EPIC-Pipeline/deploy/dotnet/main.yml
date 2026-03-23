@@ -129,11 +129,84 @@ steps:
 
 
   #############################################################################
+  # Resolve EF Core Connection String (from epic.json cloud config)
+  #############################################################################
+  - bash: |
+      if [ "$(EF_BUNDLE_EXISTS)" != "true" ]; then
+        echo ">> No migration bundle — skipping connection string resolution"
+        echo "##vso[task.setvariable variable=EF_CONNECTION_STRING]"
+        exit 0
+      fi
+
+      CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/.pipeline/epic.json"
+      SECRETS_NAME=$(jq -r '.cloud.efSecretsName // empty' "$CONFIG")
+      SECRETS_KEY=$(jq -r '.cloud.efSecretsKey // "ConnectionStrings__EpicDb"' "$CONFIG")
+
+      if [ -z "$SECRETS_NAME" ]; then
+        echo "##vso[task.logissue type=warning]cloud.efSecretsName not set in epic.json — migrations will be skipped"
+        echo "##vso[task.setvariable variable=EF_CONNECTION_STRING]"
+        exit 0
+      fi
+
+      echo "##vso[task.setvariable variable=EF_SECRETS_NAME]$SECRETS_NAME"
+      echo "##vso[task.setvariable variable=EF_SECRETS_KEY]$SECRETS_KEY"
+    displayName: 'Resolve EF migration config'
+    condition: and(succeeded(), eq(variables['EF_BUNDLE_EXISTS'], 'true'))
+
+
+  #############################################################################
+  # Fetch Connection String from Secrets Manager
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Fetch connection string from Secrets Manager"
+    condition: and(succeeded(), eq(variables['EF_BUNDLE_EXISTS'], 'true'), ne(variables['EF_SECRETS_NAME'], ''))
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-DEPLOY-ADO-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        SECRETS_NAME="$(EF_SECRETS_NAME)"
+        SECRETS_KEY="$(EF_SECRETS_KEY)"
+
+        echo ">> Fetching connection string from secret: $SECRETS_NAME (key: $SECRETS_KEY)"
+
+        SECRET_JSON=$(aws secretsmanager get-secret-value \
+          --secret-id "$SECRETS_NAME" \
+          --query SecretString \
+          --output text)
+
+        CONNECTION_STRING=$(echo "$SECRET_JSON" | jq -r --arg key "$SECRETS_KEY" '.[$key] // empty')
+
+        if [ -z "$CONNECTION_STRING" ]; then
+          echo "##vso[task.logissue type=error]Key '$SECRETS_KEY' not found in secret '$SECRETS_NAME'"
+          exit 1
+        fi
+
+        echo ">> Connection string resolved"
+        echo "##vso[task.setvariable variable=EF_CONNECTION_STRING;issecret=true]$CONNECTION_STRING"
+
+
+  #############################################################################
   # Run EF Core Migrations (optional — if efbundle exists in build artifact)
   #############################################################################
   - task: AWSShellScript@1
     displayName: "Run EF Core migrations"
-    condition: and(succeeded(), eq(variables['EF_BUNDLE_EXISTS'], 'true'))
+    condition: and(succeeded(), eq(variables['EF_BUNDLE_EXISTS'], 'true'), ne(variables['EF_SECRETS_NAME'], ''))
     inputs:
       awsCredentials: 'AWS'
       arguments: $(CLOUD_AWS_ACCOUNT_ID)
@@ -157,43 +230,23 @@ steps:
         INSTANCE_ID="$(INSTANCE_ID)"
         S3_BUCKET="$(BUCKET_NAME)"
         APP_NAME="${{ parameters.appName }}"
+        CONNECTION_STRING="$(EF_CONNECTION_STRING)"
 
         echo "Running EF Core migrations on $INSTANCE_ID"
 
-        # Read the secrets name from the app's appsettings.json
-        SECRETS_NAME=$(aws ssm send-command \
-          --instance-ids "$INSTANCE_ID" \
-          --document-name "AWS-RunShellScript" \
-          --comment "Read secrets name for $APP_NAME" \
-          --parameters commands="[\"cat /opt/$APP_NAME/app/appsettings.json 2>/dev/null | jq -r '.AWS_SECRETS_NAME // empty' || echo ''\"]" \
-          --query 'Command.CommandId' \
-          --output text)
-
-        aws ssm wait command-executed --command-id "$SECRETS_NAME" --instance-id "$INSTANCE_ID"
-
-        APP_SECRETS_NAME=$(aws ssm get-command-invocation \
-          --command-id "$SECRETS_NAME" \
-          --instance-id "$INSTANCE_ID" \
-          --query 'StandardOutputContent' \
-          --output text | tr -d '[:space:]')
-
-        echo ">> Secrets name: $APP_SECRETS_NAME"
-
+        # Write connection string to a temp file on the instance, run efbundle, then clean up
         COMMAND_ID=$(aws ssm send-command \
           --instance-ids "$INSTANCE_ID" \
           --document-name "AWS-RunShellScript" \
           --comment "EF Core migrations for $APP_NAME (Build $(Build.BuildId))" \
           --parameters commands="[
             \"set -e\",
-            \"cd /opt/$APP_NAME\",
             \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip /opt/$APP_NAME/\",
             \"sudo unzip -o /opt/$APP_NAME/$APP_NAME.zip -d /opt/$APP_NAME/app\",
             \"if [ -f /opt/$APP_NAME/app/efbundle ]; then\",
             \"  echo 'Running migration bundle...'\",
             \"  sudo chmod +x /opt/$APP_NAME/app/efbundle\",
-            \"  CONNECTION_STRING=\\$(aws secretsmanager get-secret-value --secret-id $APP_SECRETS_NAME --query SecretString --output text | jq -r '.ConnectionStrings__EpicDb // .\\\"ConnectionStrings:EpicDb\\\" // empty')\",
-            \"  if [ -z \\\"\\$CONNECTION_STRING\\\" ]; then echo 'ERROR: ConnectionStrings__EpicDb not found in secrets' && exit 1; fi\",
-            \"  sudo /opt/$APP_NAME/app/efbundle --connection \\\"\\$CONNECTION_STRING\\\"\",
+            \"  sudo /opt/$APP_NAME/app/efbundle --connection '$CONNECTION_STRING'\",
             \"  echo 'Migrations complete'\",
             \"else\",
             \"  echo 'No efbundle found — skipping migrations'\",

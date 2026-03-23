@@ -11,6 +11,8 @@
   "cloud": {
     "awsAccountId": "514712703977",
     "awsRegion": "us-west-2",
-    "appExecutable": "Epic.Api"
+    "appExecutable": "Epic.Api",
+    "efSecretsName": "pge-epic-epic-dev-secrets",
+    "efSecretsKey": "ConnectionStrings__EpicDb"
   }
 }
