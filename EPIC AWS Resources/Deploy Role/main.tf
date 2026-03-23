@@ -352,6 +352,32 @@ resource "aws_iam_role_policy" "epic_application" {
 
 
 ###############################################################################
+# AMI Deployment Policy
+###############################################################################
+
+data "aws_iam_policy_document" "epic_ami" {
+	# EC2 Image Builder
+	statement {
+		sid    = "ImageBuilderExecution"
+		effect = "Allow"
+		actions = [
+			"imagebuilder:StartImagePipelineExecution",
+			"imagebuilder:GetImage",
+			"imagebuilder:GetImagePipeline",
+			"imagebuilder:ListImagePipelineImages"
+		]
+		resources = ["*"]
+	}
+}
+
+resource "aws_iam_role_policy" "epic_ami" {
+	name   = "pge-epic-ami-deployment"
+	role   = aws_iam_role.epic_deployment.id
+	policy = data.aws_iam_policy_document.epic_ami.json
+}
+
+
+###############################################################################
 # State Backend Access Policy
 ###############################################################################
 
