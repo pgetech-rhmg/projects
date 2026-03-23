@@ -156,6 +156,7 @@ steps:
         dotnet ef migrations bundle \
           --configuration Release \
           --self-contained \
+          --runtime linux-x64 \
           --output .build/efbundle
 
         chmod +x .build/efbundle
