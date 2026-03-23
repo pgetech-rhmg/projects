@@ -89,7 +89,12 @@ builder.Services.AddDbContext<EpicDbContext>(options =>
 // ---------------------------------------------------------------------------
 // Services
 // ---------------------------------------------------------------------------
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -100,6 +105,9 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Epic.Api.Auth.ICurrentUser, Epic.Api.Auth.HeaderCurrentUser>();
+builder.Services.AddHttpClient<IGitHubService, GitHubService>();
 builder.Services.AddScoped<IAppService, AppService>();
 
 // ---------------------------------------------------------------------------

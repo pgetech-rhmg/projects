@@ -17,9 +17,9 @@ export interface RepoCheckResult {
 export interface ManagedApp {
   name: string;
   technology: string;
-  lastPipelineRun: string;
-  runStatus: RunStatus;
-  triggeredBy: string;
+  lastPipelineRun: string | null;
+  runStatus: RunStatus | null;
+  triggeredBy: string | null;
   cloud: string;
   environment: string;
 }

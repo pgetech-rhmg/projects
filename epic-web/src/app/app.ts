@@ -125,7 +125,8 @@ export class App implements OnInit {
 
   // ── User ──────────────────────────────────────────────────────────────────
 
-  protected initialsFor(name: string): string {
+  protected initialsFor(name: string | null): string {
+    if (!name) return '—';
     return name === 'System'
       ? '⚙'
       : name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -175,9 +176,12 @@ export class App implements OnInit {
       return;
     }
     this.repoCheckStatus.set('checking');
-    this.appService.checkRepo(repo).subscribe(result => {
-      this.repoCheckStatus.set(result.status);
-      this.foundMasterApp.set(result.masterApp ?? null);
+    this.appService.checkRepo(repo).subscribe({
+      next: result => {
+        this.repoCheckStatus.set(result.status);
+        this.foundMasterApp.set(result.masterApp ?? null);
+      },
+      error: () => this.repoCheckStatus.set('not-found')
     });
   }
 
@@ -193,17 +197,26 @@ export class App implements OnInit {
     if (!this.canOnboard) return;
     const repo = this.newAppRepo.trim();
     const branch = this.newAppBranch.trim();
-    this.closeAddModal();
-    this.showToast(`"${repo}" on branch "${branch}" has been submitted for onboarding — EPIC will set up the pipeline shortly.`);
+    this.appService.onboardApp(repo, branch).subscribe({
+      next: app => {
+        this.apps.update(list => [app, ...list]);
+        this.closeAddModal();
+        this.showToast(`"${repo}" on branch "${branch}" has been onboarded into EPIC.`);
+      },
+      error: () => this.showToast(`Failed to onboard "${repo}" — please try again.`)
+    });
   }
 
   protected onAddToMyList(): void {
     const masterApp = this.foundMasterApp();
     if (!masterApp) return;
-    this.appService.addToMyApps(masterApp).subscribe(app => {
-      this.apps.update(list => [app, ...list]);
-      this.closeAddModal();
-      this.showToast(`"${masterApp.displayName}" has been added to your list.`);
+    this.appService.addToMyApps(masterApp).subscribe({
+      next: app => {
+        this.apps.update(list => [app, ...list]);
+        this.closeAddModal();
+        this.showToast(`"${masterApp.displayName}" has been added to your list.`);
+      },
+      error: () => this.showToast(`Failed to add "${masterApp.displayName}" — please try again.`)
     });
   }
 
@@ -211,7 +224,13 @@ export class App implements OnInit {
     this.selectedApp.set(app);
     this.appDetail.set(null);
     this.showManageModal.set(true);
-    this.appService.getApp(app.name).subscribe(detail => this.appDetail.set(detail));
+    this.appService.getApp(app.name).subscribe({
+      next: detail => this.appDetail.set(detail),
+      error: () => {
+        this.showToast(`Failed to load details for "${app.name}".`);
+        this.closeManageModal();
+      }
+    });
   }
 
   protected onNewRun(): void {
@@ -257,11 +276,21 @@ export class App implements OnInit {
 
   protected onConfirmNewRun(): void {
     if (!this.canRunNewPipeline) return;
-    const name = this.newRunApp()?.displayName;
+    const appName = this.newRunApp()?.name;
+    const displayName = this.newRunApp()?.displayName;
     const branch = this.newRunBranch.trim();
     const env = this.newRunEnvironment;
-    this.closeNewRunModal();
-    this.showToast(`A new pipeline run for "${name}" on branch "${branch}" for the "${env}" environment has been queued — check back shortly for status updates.`);
+    if (!appName) return;
+    this.appService.triggerRun(appName, branch, env).subscribe({
+      next: () => {
+        this.closeNewRunModal();
+        this.showToast(`A new pipeline run for "${displayName}" on branch "${branch}" for the "${env}" environment has been queued.`);
+      },
+      error: () => {
+        this.closeNewRunModal();
+        this.showToast(`Failed to trigger pipeline run for "${displayName}" — the feature is not yet available.`);
+      }
+    });
   }
 
   protected closeManageModal(): void {

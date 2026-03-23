@@ -1,3 +1,4 @@
+using Epic.Api.Auth;
 using Epic.Api.Data;
 using Epic.Api.Data.Entities;
 using Epic.Api.Models;
@@ -5,10 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Epic.Api.Services;
 
-public sealed class AppService(EpicDbContext db) : IAppService
+public sealed class AppService(EpicDbContext db, IGitHubService gitHub, ICurrentUser currentUser) : IAppService
 {
-    // TODO: Replace with real user identity from auth
-    private const string CurrentUserId = "robb.morgan";
+    private string CurrentUserId => currentUser.UserId;
 
     public async Task<List<ManagedApp>> GetUserAppsAsync(CancellationToken ct = default)
     {
@@ -37,8 +37,11 @@ public sealed class AppService(EpicDbContext db) : IAppService
 
         if (app is null)
         {
-            // TODO: Optionally check GitHub API to verify repo exists
-            return new RepoCheckResult { Status = "available" };
+            var repoExists = await gitHub.RepoExistsAsync(repo, ct);
+            return new RepoCheckResult
+            {
+                Status = repoExists ? "available" : "not-found"
+            };
         }
 
         var isTracked = await db.UserApps
