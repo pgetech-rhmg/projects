@@ -18,60 +18,69 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
 
     public async Task<List<AdoPipelineRun>> GetRunsForAppAsync(string appName, int top = 20, CancellationToken ct = default)
     {
-        // Get recent runs for the engine pipeline
-        var runsUrl = $"{BaseUrl}/pipelines/{EnginePipelineId}/runs?api-version=7.1-preview.1";
-        var runsJson = await CallApiAsync(runsUrl, ct);
+        // Use the Builds API — it returns parameters and supports filtering
+        var buildsUrl = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&$top=100&queryOrder=finishTimeDescending&api-version=7.1";
+        var buildsJson = await CallApiAsync(buildsUrl, ct);
 
-        if (runsJson is null) return [];
+        if (buildsJson is null) return [];
 
         var results = new List<AdoPipelineRun>();
 
-        foreach (var run in runsJson.Value.GetProperty("value").EnumerateArray())
+        foreach (var build in buildsJson.Value.GetProperty("value").EnumerateArray())
         {
             if (results.Count >= top) break;
 
-            var runId = run.GetProperty("id").GetInt32();
+            // Parameters are stored as a JSON string in the "parameters" field
+            var paramsString = build.TryGetProperty("parameters", out var p) && p.ValueKind == JsonValueKind.String
+                ? p.GetString() : null;
 
-            // Check if this run belongs to the requested app via templateParameters
-            var templateParams = run.TryGetProperty("templateParameters", out var tp) ? tp : (JsonElement?)null;
-            if (templateParams is null) continue;
+            if (paramsString is null) continue;
 
-            var runAppName = templateParams.Value.TryGetProperty("appName", out var an)
+            JsonElement paramObj;
+            try { paramObj = JsonDocument.Parse(paramsString).RootElement; }
+            catch { continue; }
+
+            var runAppName = paramObj.TryGetProperty("appName", out var an)
                 ? an.GetString() : null;
 
             if (!string.Equals(runAppName, appName, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var branch = templateParams.Value.TryGetProperty("branch", out var br)
+            var buildId = build.GetProperty("id").GetInt32();
+
+            var branch = paramObj.TryGetProperty("branch", out var br)
                 ? br.GetString() ?? "" : "";
-            var environment = templateParams.Value.TryGetProperty("environment", out var env)
+            var environment = paramObj.TryGetProperty("environment", out var env)
                 ? env.GetString() ?? "dev" : "dev";
 
-            var state = run.GetProperty("state").GetString() ?? "";
-            var result = run.TryGetProperty("result", out var res) ? res.GetString() : null;
+            var adoStatus = build.TryGetProperty("status", out var st) ? st.GetString() : "unknown";
+            var adoResult = build.TryGetProperty("result", out var res) ? res.GetString() : null;
+            var status = MapRunStatus(adoStatus, adoResult);
 
-            var status = MapRunStatus(state, result);
-            var triggeredBy = run.TryGetProperty("createdBy", out var cb)
-                && cb.TryGetProperty("displayName", out var dn)
+            var triggeredBy = build.TryGetProperty("requestedFor", out var rf)
+                && rf.TryGetProperty("displayName", out var dn)
                 ? dn.GetString() ?? "Unknown" : "Unknown";
 
-            var startedAt = run.TryGetProperty("createdDate", out var cd)
-                ? cd.GetDateTime() : DateTime.UtcNow;
+            var startedAt = build.TryGetProperty("startTime", out var st2)
+                && st2.ValueKind != JsonValueKind.Null
+                ? st2.GetDateTime()
+                : build.TryGetProperty("queueTime", out var qt)
+                    ? qt.GetDateTime() : DateTime.UtcNow;
 
-            var finishedAt = run.TryGetProperty("finishedDate", out var fd)
-                && fd.ValueKind != JsonValueKind.Null
-                ? fd.GetDateTime() : (DateTime?)null;
+            var finishedAt = build.TryGetProperty("finishTime", out var ft)
+                && ft.ValueKind != JsonValueKind.Null
+                ? ft.GetDateTime() : (DateTime?)null;
 
             var duration = finishedAt.HasValue
                 ? FormatDuration(finishedAt.Value - startedAt)
                 : null;
 
             // Get stage-level results from the timeline
-            var stages = await GetStageResultsAsync(runId, ct);
+            var stages = await GetStageResultsAsync(buildId, ct);
 
             results.Add(new AdoPipelineRun
             {
-                Id = runId,
+                Id = buildId,
                 Status = status,
                 TriggeredBy = triggeredBy,
                 Branch = branch,
@@ -134,7 +143,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         return stages;
     }
 
-    private static string MapRunStatus(string state, string? result) => state switch
+    private static string MapRunStatus(string? state, string? result) => state switch
     {
         "completed" => result switch
         {
@@ -145,6 +154,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         },
         "inProgress" => "Running",
         "canceling" => "Cancelled",
+        "notStarted" => "Running",
         _ => "Running"
     };
 
