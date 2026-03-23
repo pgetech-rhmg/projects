@@ -1,0 +1,74 @@
+using Epic.Api.Data;
+using Epic.Api.Services;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+builder.Configuration
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
+    .AddEnvironmentVariables();
+
+// ---------------------------------------------------------------------------
+// CORS
+// ---------------------------------------------------------------------------
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ApiCorsPolicy", policy =>
+    {
+        policy.WithOrigins(
+                "https://epic-dev.nonprod.pge.com",
+                "http://localhost:4200",
+                "https://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Database
+// ---------------------------------------------------------------------------
+builder.Services.AddDbContext<EpicDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("EpicDb")));
+
+// ---------------------------------------------------------------------------
+// Services
+// ---------------------------------------------------------------------------
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new()
+    {
+        Title = "EPIC API",
+        Description = "Enterprise Pipeline for Integration and Continuous Delivery"
+    });
+});
+
+builder.Services.AddScoped<IAppService, AppService>();
+
+// ---------------------------------------------------------------------------
+// Build & Configure
+// ---------------------------------------------------------------------------
+var app = builder.Build();
+
+// Auto-migrate in development (production migrations are handled by EPIC Pipeline)
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<EpicDbContext>();
+    db.Database.Migrate();
+}
+
+app.UseSwagger();
+app.UseSwaggerUI();
+
+app.UseCors("ApiCorsPolicy");
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();

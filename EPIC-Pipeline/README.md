@@ -233,7 +233,7 @@ Dispatcher that selects the correct build implementation based on `appType`. Eac
 |------|-----------|--------|
 | `angular` | npm | `dist/` → `.build/` |
 | `ami` | EC2 Image Builder | AMI IDs → SSM → `.build/ami-manifest.json` |
-| `dotnet` | dotnet CLI | Published self-contained executable or NuGet package |
+| `dotnet` | dotnet CLI | Published self-contained executable or NuGet package (+ EF Core migration bundle if `efMigrations: true`) |
 | `dotnet_framework` | MSBuild | `.build/` |
 | `html` | (copy) | `.build/` |
 | `java` | Maven or Gradle | JAR → `.build/` |
@@ -407,6 +407,8 @@ If `/.infra` is present and Terraform outputs include `bucket_name`, `distributi
 | `appType` | Yes | Determines build and deploy implementation. See allowed values below. |
 | `codePath` | Yes | Relative path from repo root to application source (e.g., `/`, `.`, `/src`). |
 | `buildType` | No | Defines packaging behavior. Omit for standard build. |
+| `efMigrations` | No | Set to `"true"` to generate an EF Core migration bundle during build and run it before deploy (.NET only). |
+| `approvalEnvironments` | No | Array of environment names that require manual approval before deploy (e.g., `["prod"]`). |
 
 **`appType` allowed values:**
 
@@ -481,6 +483,8 @@ Required when `appType` is `ami`.
 |----------|---------|----------|------------|
 | Application Identity | `app` | Yes | `appName`, `appType`, `codePath` |
 | Packaging | `app` | Optional | `buildType` |
+| Database Migrations | `app` | Optional | `efMigrations` |
+| Approval Gates | `app` | Optional | `approvalEnvironments` |
 | Runtime Versions | `app` | Optional | `nodeVersion`, `pythonVersion`, `dotnetVersion`, `javaVersion` |
 | Scanning | `app` | Optional | `scanTool` |
 | Unit Testing | `app` | Optional | `unitTestTool` |

@@ -139,6 +139,32 @@ steps:
 
 
   ###########################################################################
+  # EF Core Migration Bundle (optional)
+  ###########################################################################
+  - ${{ if eq(parameters.efMigrations, 'true') }}:
+    - bash: |
+        set -euo pipefail
+
+        PROJECT_DIR="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        cd "$PROJECT_DIR"
+
+        echo ">> Installing dotnet-ef tool"
+        dotnet tool install --global dotnet-ef
+
+        echo ">> Generating EF Core migration bundle"
+        dotnet ef migrations bundle \
+          --configuration Release \
+          --self-contained \
+          --output .build/efbundle
+
+        chmod +x .build/efbundle
+
+        echo ">> Migration bundle created at .build/efbundle"
+      displayName: "Generate EF Core migration bundle"
+
+
+  ###########################################################################
   # Scan Artifact
   ###########################################################################
   - ${{ if and(eq(parameters.scan, 'true'), eq(parameters.scanTool, 'sonarqube')) }}:

@@ -1,0 +1,106 @@
+##################################
+# .NET build artifacts
+##################################
+bin/
+obj/
+out/
+publish/
+TestResults/
+coverage*/
+*.coverage
+*.coveragexml
+
+##################################
+# User-specific files
+##################################
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+##################################
+# Visual Studio / VS Code
+##################################
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+##################################
+# Rider / JetBrains
+##################################
+.idea/
+*.sln.iml
+
+##################################
+# OS-specific
+##################################
+.DS_Store
+Thumbs.db
+
+##################################
+# Logs
+##################################
+*.log
+logs/
+
+##################################
+# Secrets & sensitive config
+##################################
+.env
+.env.*
+secrets.json
+appsettings.Local.json
+appsettings.*.Local.json
+
+##################################
+# Auth artifacts
+##################################
+*.pfx
+*.cer
+*.key
+*.pem
+
+##################################
+# Test output
+##################################
+*.trx
+*.testlog
+
+##################################
+# NuGet
+##################################
+packages/
+*.nupkg
+*.snupkg
+.nuget/
+
+##################################
+# Docker
+##################################
+docker-compose.override.yml
+
+##################################
+# Terraform
+##################################
+.terraform/
+**/.terraform/
+terraform.tfstate
+terraform.tfstate.*
+*.tfstate
+*.tfstate.backup
+*.lock.hcl
+tfplan
+*.tfplan
+
+##################################
+# Misc
+##################################
+*.tmp
+*.bak
+*.swp
+*.orig
+tmp/
+temp/

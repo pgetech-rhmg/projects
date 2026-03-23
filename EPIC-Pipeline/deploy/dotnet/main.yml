@@ -20,6 +20,21 @@ steps:
 
 
   #############################################################################
+  # Check for EF Core Migration Bundle
+  #############################################################################
+  - bash: |
+      BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+      if [ -f "$BUILD_PATH/efbundle" ]; then
+        echo ">> EF Core migration bundle found"
+        echo "##vso[task.setvariable variable=EF_BUNDLE_EXISTS]true"
+      else
+        echo ">> No EF Core migration bundle — migrations will be skipped"
+        echo "##vso[task.setvariable variable=EF_BUNDLE_EXISTS]false"
+      fi
+    displayName: 'Check for EF migration bundle'
+
+
+  #############################################################################
   # Parse Output File (if available)
   #############################################################################
   - bash: |
@@ -111,6 +126,70 @@ steps:
         S3_BUCKET="$(BUCKET_NAME)"
 
         aws s3 cp "$ZIP_PATH" "s3://$S3_BUCKET/${{ parameters.appName }}.zip"
+
+
+  #############################################################################
+  # Run EF Core Migrations (optional — if efbundle exists in build artifact)
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Run EF Core migrations"
+    condition: and(succeeded(), eq(variables['EF_BUNDLE_EXISTS'], 'true'))
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-DEPLOY-ADO-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        INSTANCE_ID="$(INSTANCE_ID)"
+        S3_BUCKET="$(BUCKET_NAME)"
+        APP_NAME="${{ parameters.appName }}"
+
+        echo "Running EF Core migrations on $INSTANCE_ID"
+
+        COMMAND_ID=$(aws ssm send-command \
+          --instance-ids "$INSTANCE_ID" \
+          --document-name "AWS-RunShellScript" \
+          --comment "EF Core migrations for $APP_NAME (Build $(Build.BuildId))" \
+          --parameters commands="[
+            \"set -e\",
+            \"cd /opt/$APP_NAME\",
+            \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip /opt/$APP_NAME/\",
+            \"sudo unzip -o /opt/$APP_NAME/$APP_NAME.zip -d /opt/$APP_NAME/app\",
+            \"if [ -f /opt/$APP_NAME/app/efbundle ]; then\",
+            \"  echo 'Running migration bundle...'\",
+            \"  sudo chmod +x /opt/$APP_NAME/app/efbundle\",
+            \"  source /etc/systemd/system/$APP_NAME-api.service 2>/dev/null || true\",
+            \"  CONNECTION_STRING=$(grep 'ConnectionStrings__' /etc/systemd/system/$APP_NAME-api.service | sed 's/.*ConnectionStrings__EpicDb=//' | head -1)\",
+            \"  sudo /opt/$APP_NAME/app/efbundle --connection \\\"$CONNECTION_STRING\\\"\",
+            \"  echo 'Migrations complete'\",
+            \"else\",
+            \"  echo 'No efbundle found — skipping migrations'\",
+            \"fi\"
+          ]" \
+          --query 'Command.CommandId' \
+          --output text)
+
+        echo "SSM Command ID: $COMMAND_ID"
+
+        aws ssm wait command-executed \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$INSTANCE_ID"
+
+        echo "EF Core migrations complete."
 
 
   #############################################################################
