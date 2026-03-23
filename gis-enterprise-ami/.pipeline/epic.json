@@ -12,6 +12,12 @@
     "ssmParameterPrefix": "/ami_factory",
     "configDocPrefix": "ConfigDoc",
     "testDocPrefix": "TestDoc",
+    "componentDocSuffixes": {
+      "webadapter": "arcgiswebadaptor",
+      "portal": "arcgisportal",
+      "datastore": "arcgisdatastore",
+      "server": "arcgisserver"
+    },
     "instanceTags": {
       "webadapter": "sor-11-5-arcgis-webadaptor-sandbox",
       "server": "sor-11-5-arcgis-hosting-sandbox",

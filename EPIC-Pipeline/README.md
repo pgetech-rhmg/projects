@@ -298,7 +298,7 @@ Cloud deployment parameters are read from the `cloud` section of `.pipeline/epic
 
 ### AMI Deploy
 
-The `ami` deploy type publishes AMIs by applying an environment label to SSM parameter versions, then optionally runs SSM configuration and test documents against pre-existing instances. AMI-specific deploy configuration (`configDocPrefix`, `testDocPrefix`, `instanceTags`) is read from the `cloud` section of `epic.json`.
+The `ami` deploy type publishes AMIs by applying an environment label to SSM parameter versions, then optionally runs SSM configuration and test documents against pre-existing instances. AMI-specific deploy configuration (`configDocPrefix`, `testDocPrefix`, `componentDocSuffixes`, `instanceTags`) is read from the `cloud` section of `epic.json`. SSM document names are constructed as `{prefix}-{suffix}` where the suffix comes from `componentDocSuffixes` (or defaults to the component name if not mapped).
 
 ---
 
@@ -377,6 +377,12 @@ This file has two sections:
     "ssmParameterPrefix": "/ami_factory",
     "configDocPrefix": "ConfigDoc",
     "testDocPrefix": "TestDoc",
+    "componentDocSuffixes": {
+      "webadapter": "arcgiswebadaptor",
+      "portal": "arcgisportal",
+      "datastore": "arcgisdatastore",
+      "server": "arcgisserver"
+    },
     "instanceTags": {
       "webadapter": "sor-11-5-arcgis-webadaptor-sandbox",
       "server": "sor-11-5-arcgis-hosting-sandbox",
@@ -457,6 +463,7 @@ Required when `appType` is `ami`.
 | `ssmParameterPrefix` | SSM Parameter Store prefix for AMI IDs (default: `/ami_factory`) |
 | `configDocPrefix` | SSM document prefix for configuration (optional, deploy only) |
 | `testDocPrefix` | SSM document prefix for testing (optional, deploy only) |
+| `componentDocSuffixes` | Object mapping component names to SSM document suffixes (optional — defaults to component name) |
 | `instanceTags` | Object mapping component names to EC2 Name tags (optional, deploy only) |
 
 ### `cloud` Section — Azure Deployment Parameters
@@ -479,7 +486,7 @@ Required when `appType` is `ami`.
 | Unit Testing | `app` | Optional | `unitTestTool` |
 | Integration Testing | `app` | Optional | `integrationTestTool` |
 | AWS Deployment | `cloud` | Conditional | `awsAccountId`, `awsRegion`, `s3`, `cloudfront`, `ec2InstanceId`, `appExecutable` |
-| AMI Configuration | `cloud` | Conditional | `components`, `imageBuilderPipelinePrefix`, `ssmParameterPrefix`, `configDocPrefix`, `testDocPrefix`, `instanceTags` |
+| AMI Configuration | `cloud` | Conditional | `components`, `imageBuilderPipelinePrefix`, `ssmParameterPrefix`, `configDocPrefix`, `testDocPrefix`, `componentDocSuffixes`, `instanceTags` |
 | Azure Deployment | `cloud` | Conditional | `azureSubscription`, `azureResourceGroup` |
 
 ---

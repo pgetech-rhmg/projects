@@ -112,6 +112,12 @@ AMI-specific fields live in the `cloud` section alongside the standard AWS field
     "ssmParameterPrefix": "/ami_factory",
     "configDocPrefix": "ConfigDoc",
     "testDocPrefix": "TestDoc",
+    "componentDocSuffixes": {
+      "webadapter": "arcgiswebadaptor",
+      "portal": "arcgisportal",
+      "datastore": "arcgisdatastore",
+      "server": "arcgisserver"
+    },
     "instanceTags": {
       "webadapter": "sor-11-5-arcgis-webadaptor-sandbox",
       "server":     "sor-11-5-arcgis-hosting-sandbox",
@@ -122,16 +128,20 @@ AMI-specific fields live in the `cloud` section alongside the standard AWS field
 }
 ```
 
-### Component name mapping
+### Component-to-SSM-document suffix mapping
 
-The SSM document suffix differs from the component name:
+SSM document names are constructed as `{prefix}-{suffix}`. The suffix defaults to the component name, but can be overridden via the optional `componentDocSuffixes` map in the cloud config. This removes hardcoded ArcGIS-specific naming from EPIC and makes the pattern reusable for any AMI project.
 
-| Component | SSM Doc Suffix |
-|-----------|---------------|
-| `webadapter` | `arcgiswebadaptor` |
-| `portal` | `arcgisportal` |
-| `datastore` | `arcgisdatastore` |
-| `server` | `arcgisserver` |
+```json
+"componentDocSuffixes": {
+  "webadapter": "arcgiswebadaptor",
+  "portal": "arcgisportal",
+  "datastore": "arcgisdatastore",
+  "server": "arcgisserver"
+}
+```
+
+If `componentDocSuffixes` is omitted, the raw component name is used as the suffix (e.g., `ConfigDoc-webadapter`).
 
 ---
 

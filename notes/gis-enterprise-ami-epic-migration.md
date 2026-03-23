@@ -23,6 +23,12 @@ The contract file is already created at `gis-enterprise-ami/.pipeline/epic.json`
     "ssmParameterPrefix": "/ami_factory",
     "configDocPrefix": "ConfigDoc",
     "testDocPrefix": "TestDoc",
+    "componentDocSuffixes": {
+      "webadapter": "arcgiswebadaptor",
+      "portal": "arcgisportal",
+      "datastore": "arcgisdatastore",
+      "server": "arcgisserver"
+    },
     "instanceTags": {
       "webadapter": "sor-11-5-arcgis-webadaptor-sandbox",
       "server": "sor-11-5-arcgis-hosting-sandbox",
@@ -35,19 +41,12 @@ The contract file is already created at `gis-enterprise-ami/.pipeline/epic.json`
 
 **Verify before running:**
 
-- `awsAccountId` — confirm `587401437202` is the correct target account
-- `components` — confirm all 4 components should build (or adjust to subset)
-- `imageBuilderPipelinePrefix` — confirm Image Builder pipelines are named `ami-factory-{component}-{environment}`
+- `awsAccountId` — confirm `587401437202` is the correct target account. EPIC validates this field is present and will fail fast if missing.
+- `components` — confirm all 4 components should build (or adjust to subset). EPIC validates this is a non-empty array.
+- `imageBuilderPipelinePrefix` — confirm Image Builder pipelines are named `ami-factory-{component}-{environment}`. EPIC verifies each pipeline exists before triggering.
 - `ssmParameterPrefix` — confirm SSM parameters are at `/ami_factory/{component}/ami`
-- `configDocPrefix` / `testDocPrefix` — confirm SSM documents are named `ConfigDoc-{ssmDocSuffix}` and `TestDoc-{ssmDocSuffix}` where the suffix uses the component name mapping:
-
-  | Component | SSM Doc Suffix |
-  |-----------|---------------|
-  | `webadapter` | `arcgiswebadaptor` |
-  | `portal` | `arcgisportal` |
-  | `datastore` | `arcgisdatastore` |
-  | `server` | `arcgisserver` |
-
+- `configDocPrefix` / `testDocPrefix` — confirm SSM documents exist with the expected names (see Step 3)
+- `componentDocSuffixes` — maps component names to SSM document suffixes. Without this, EPIC uses the raw component name (e.g., `ConfigDoc-webadapter` instead of `ConfigDoc-arcgiswebadaptor`). This is optional — only needed when SSM doc names differ from component names.
 - `instanceTags` — confirm EC2 Name tags match running instances in the target environment
 
 ---
@@ -56,13 +55,21 @@ The contract file is already created at `gis-enterprise-ami/.pipeline/epic.json`
 
 Apply the `pge-epic-deployment-role` in the target account (`587401437202`).
 
+The role needs the `pge-epic-ami-deployment` policy which grants:
+- `imagebuilder:StartImagePipelineExecution`
+- `imagebuilder:GetImage`
+- `imagebuilder:GetImagePipeline`
+- `imagebuilder:ListImagePipelineImages`
+
+All other permissions (SSM, EC2, KMS) are covered by the existing infrastructure and application deployment policies.
+
 **Action:** Apply the updated Deploy Role Terraform (`EPIC AWS Resources/Deploy Role/`) to the target account if not already done.
 
 ---
 
 ## Step 3: Verify SSM documents exist
 
-EPIC's deploy stage sends SSM commands using document names constructed as `{configDocPrefix}-{ssmDocSuffix}` and `{testDocPrefix}-{ssmDocSuffix}`.
+EPIC's deploy stage sends SSM commands using document names constructed as `{configDocPrefix}-{suffix}` where the suffix comes from `componentDocSuffixes` (or defaults to the component name if not mapped).
 
 With the current config, EPIC will look for:
 
@@ -83,9 +90,10 @@ With the current config, EPIC will look for:
 
 If the documents don't exist or the naming doesn't match, either:
 - Create/rename the documents in AWS, or
-- Update `configDocPrefix` / `testDocPrefix` in `epic.json` to match the actual naming convention
+- Update `componentDocSuffixes` in `epic.json` to match the actual naming convention, or
+- Update `configDocPrefix` / `testDocPrefix` to match
 
-**Note:** If `configDocPrefix` or `testDocPrefix` are omitted or empty in `epic.json`, the config/test steps are skipped entirely. The same applies if `instanceTags` is empty — no instances to target means no config/test execution.
+**Note:** If `configDocPrefix` or `testDocPrefix` are omitted or empty in `epic.json`, the config/test steps are skipped entirely. The same applies if `instanceTags` is empty — no instances to target means no config/test execution. EPIC will log a warning if a doc prefix is set but `instanceTags` is empty.
 
 ---
 
@@ -107,15 +115,22 @@ Parameters:
 
 **What should happen:**
 1. EPIC clones the repo, reads `.pipeline/epic.json`
-2. `build/ami/main.yml` reads the `cloud` section
-3. Triggers Image Builder for each component (`ami-factory-{component}-dev`)
-4. Polls every 60s until all builds complete (up to 2hr timeout)
-5. Writes AMI IDs to `/ami_factory/{component}/ami` with `LATEST` label
-6. Publishes `ami-manifest.json` as the `epic-build` artifact
+2. `build/ami/main.yml` reads and validates the `cloud` section (fails fast if `awsAccountId` or `components` missing)
+3. Verifies each Image Builder pipeline exists (`ami-factory-{component}-dev`)
+4. Triggers Image Builder for each component
+5. Polls every 60s until all builds complete (up to 2hr timeout, with automatic STS credential refresh every 45min)
+6. Writes AMI IDs to `/ami_factory/{component}/ami` with `LATEST` label
+7. Publishes `ami-manifest.json` as the `epic-build` artifact
 
 **Verify after build:**
 - Check SSM parameters: `aws ssm get-parameter --name "/ami_factory/webadapter/ami"` (repeat for each component)
 - Each should have a `LATEST` label on the newest version
+
+**Common failure modes:**
+- "cloud.awsAccountId is required" — missing or null `awsAccountId` in epic.json
+- "cloud.components is required" — missing or empty `components` array
+- "Image Builder pipeline not found: ami-factory-webadapter-dev" — pipeline ARN doesn't exist in the account/region
+- STS credential errors during polling — should not happen with auto-refresh, but check if the role's max session duration is at least 1hr
 
 ---
 
@@ -135,11 +150,16 @@ Parameters:
 
 **What should happen:**
 1. Build stage runs (same as step 4)
-2. Deploy stage reads the manifest + cloud config
+2. Deploy stage reads the manifest + cloud config (validates manifest exists, SSM prefix present)
 3. Applies `dev` label to the LATEST SSM parameter versions
 4. If `instanceTags` are set: resolves EC2 instances by Name tag, waits for status OK + SSM agent
-5. If `configDocPrefix` is set: runs ConfigDoc SSM documents on each instance
-6. If `testDocPrefix` is set: runs TestDoc SSM documents on each instance
+5. If `configDocPrefix` is set: runs ConfigDoc SSM documents on each instance (with retry — 3 attempts per send-command)
+6. If `testDocPrefix` is set: runs TestDoc SSM documents on each instance (with retry)
+
+**Common failure modes:**
+- "No LATEST version found" — the build stage didn't write to SSM, or the parameter path doesn't match
+- "No running instance found for webadapter" — EC2 Name tag in `instanceTags` doesn't match any running instance
+- "Failed to send config command after 3 attempts" — SSM document doesn't exist or instance can't receive commands
 
 ---
 
@@ -222,6 +242,21 @@ terraform destroy \
 **Important:** Use `-target` flags to selectively destroy only the orchestration resources. Do NOT run a blanket `terraform destroy` — that would also remove the Image Builder infrastructure that EPIC depends on.
 
 After the targeted destroy, remove the Terraform files listed in Step 6, then run `terraform plan` to confirm a clean state with only the Image Builder infrastructure remaining.
+
+---
+
+## Hardening Features
+
+The EPIC AMI templates include the following resilience measures:
+
+| Feature | Where | What it does |
+|---------|-------|-------------|
+| **Required field validation** | Build + Deploy cloud config steps | Fails fast with clear error if `awsAccountId` or `components` is missing/empty |
+| **Pipeline existence check** | Build trigger step | Verifies each Image Builder pipeline ARN exists before starting execution |
+| **STS credential refresh** | Build polling step | Automatically re-assumes the deployment role every 45 minutes during the 2hr polling window |
+| **SSM send-command retry** | Deploy config + test steps | Retries `ssm:SendCommand` up to 3 times with exponential backoff on transient failures |
+| **Configurable doc suffixes** | Deploy config + test steps | `componentDocSuffixes` in epic.json maps component names to SSM document suffixes — no hardcoded project-specific naming |
+| **Empty instanceTags guard** | Deploy cloud config step | Logs a warning if doc prefixes are set but `instanceTags` is empty (steps will be skipped) |
 
 ---
 

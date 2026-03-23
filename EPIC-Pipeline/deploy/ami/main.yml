@@ -17,13 +17,15 @@
 #     "awsRegion": "us-west-2",
 #     "components": ["webadapter", "portal", "datastore", "server"],
 #     "ssmParameterPrefix": "/ami_factory",
-#     "configDocPrefix": "ConfigDoc",
-#     "testDocPrefix": "TestDoc",
-#     "instanceTags": {
+#     "configDocPrefix": "ConfigDoc",           (optional)
+#     "testDocPrefix": "TestDoc",               (optional)
+#     "componentDocSuffixes": {                  (optional — defaults to component name)
+#       "webadapter": "arcgiswebadaptor",
+#       "portal": "arcgisportal"
+#     },
+#     "instanceTags": {                          (optional — required for config/test)
 #       "webadapter": "sor-11-5-arcgis-webadaptor-sandbox",
-#       "server":     "sor-11-5-arcgis-hosting-sandbox",
-#       "datastore":  "sor-11-5-arcgis-datastore-sandbox",
-#       "portal":     "sor-11-5-arcgis-portal-sandbox"
+#       "server":     "sor-11-5-arcgis-hosting-sandbox"
 #     }
 #   }
 #
@@ -59,12 +61,34 @@ steps:
       CONFIG_DOC_PREFIX=$(jq -r '.cloud.configDocPrefix // ""' "$CONFIG")
       TEST_DOC_PREFIX=$(jq -r '.cloud.testDocPrefix // ""' "$CONFIG")
       INSTANCE_TAGS=$(jq -r '.cloud.instanceTags // {} | to_entries | map("\(.key)=\(.value)") | join(",")' "$CONFIG")
+      COMPONENT_DOC_SUFFIXES=$(jq -r '.cloud.componentDocSuffixes // {} | to_entries | map("\(.key)=\(.value)") | join(",")' "$CONFIG")
+
+      # Validate
+      if [ -z "$COMPONENTS" ]; then
+        echo "##vso[task.logissue type=error]No components found in ami-manifest.json"
+        exit 1
+      fi
+
+      if [ -z "$SSM_PREFIX" ] || [ "$SSM_PREFIX" = "null" ]; then
+        echo "##vso[task.logissue type=error]ssm_prefix not found in ami-manifest.json"
+        exit 1
+      fi
+
+      # Warn if config/test docs are set but no instance tags
+      if [ -n "$CONFIG_DOC_PREFIX" ] && [ -z "$INSTANCE_TAGS" ]; then
+        echo "##vso[task.logissue type=warning]configDocPrefix is set but instanceTags is empty — config docs will be skipped"
+      fi
+
+      if [ -n "$TEST_DOC_PREFIX" ] && [ -z "$INSTANCE_TAGS" ]; then
+        echo "##vso[task.logissue type=warning]testDocPrefix is set but instanceTags is empty — test docs will be skipped"
+      fi
 
       echo "##vso[task.setvariable variable=AMI_COMPONENTS]$COMPONENTS"
       echo "##vso[task.setvariable variable=SSM_PREFIX]$SSM_PREFIX"
       echo "##vso[task.setvariable variable=CONFIG_DOC_PREFIX]$CONFIG_DOC_PREFIX"
       echo "##vso[task.setvariable variable=TEST_DOC_PREFIX]$TEST_DOC_PREFIX"
       echo "##vso[task.setvariable variable=INSTANCE_TAGS]$INSTANCE_TAGS"
+      echo "##vso[task.setvariable variable=COMPONENT_DOC_SUFFIXES]$COMPONENT_DOC_SUFFIXES"
     displayName: "Read AMI manifest & cloud config"
 
 
@@ -240,13 +264,18 @@ steps:
 
         CONFIG_DOC_PREFIX="$(CONFIG_DOC_PREFIX)"
         INSTANCE_TAGS="$(INSTANCE_TAGS)"
+        COMPONENT_DOC_SUFFIXES="$(COMPONENT_DOC_SUFFIXES)"
 
-        # Component-to-SSM-doc-suffix mapping
-        declare -A COMPONENT_MAP
-        COMPONENT_MAP[webadapter]="arcgiswebadaptor"
-        COMPONENT_MAP[portal]="arcgisportal"
-        COMPONENT_MAP[datastore]="arcgisdatastore"
-        COMPONENT_MAP[server]="arcgisserver"
+        # Build suffix lookup from epic.json componentDocSuffixes
+        declare -A SUFFIX_MAP
+        if [ -n "$COMPONENT_DOC_SUFFIXES" ]; then
+          IFS=',' read -ra SUFFIX_PAIRS <<< "$COMPONENT_DOC_SUFFIXES"
+          for PAIR in "${SUFFIX_PAIRS[@]}"; do
+            KEY=$(echo "$PAIR" | cut -d'=' -f1)
+            VAL=$(echo "$PAIR" | cut -d'=' -f2)
+            SUFFIX_MAP[$KEY]="$VAL"
+          done
+        fi
 
         COMMAND_FILE="$(System.DefaultWorkingDirectory)/ssm-commands.json"
         echo "[]" > "$COMMAND_FILE"
@@ -256,7 +285,7 @@ steps:
         for PAIR in "${TAG_PAIRS[@]}"; do
           COMPONENT=$(echo "$PAIR" | cut -d'=' -f1)
           NAME_TAG=$(echo "$PAIR" | cut -d'=' -f2)
-          DOC_SUFFIX="${COMPONENT_MAP[$COMPONENT]:-$COMPONENT}"
+          DOC_SUFFIX="${SUFFIX_MAP[$COMPONENT]:-$COMPONENT}"
           DOC_NAME="${CONFIG_DOC_PREFIX}-${DOC_SUFFIX}"
 
           INSTANCE_ID=$(aws ec2 describe-instances \
@@ -271,12 +300,24 @@ steps:
 
           echo ">> Running $DOC_NAME on $INSTANCE_ID ($COMPONENT)"
 
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name "$DOC_NAME" \
-            --comment "EPIC AMI deploy - configure $COMPONENT (Build $(Build.BuildId))" \
-            --query 'Command.CommandId' \
-            --output text)
+          # Retry send-command up to 3 times (handles throttling / transient failures)
+          COMMAND_ID=""
+          for ATTEMPT in 1 2 3; do
+            COMMAND_ID=$(aws ssm send-command \
+              --instance-ids "$INSTANCE_ID" \
+              --document-name "$DOC_NAME" \
+              --comment "EPIC AMI deploy - configure $COMPONENT (Build $(Build.BuildId))" \
+              --query 'Command.CommandId' \
+              --output text 2>/dev/null) && break
+
+            echo "##vso[task.logissue type=warning]send-command failed for $COMPONENT (attempt $ATTEMPT/3)"
+            sleep $((ATTEMPT * 5))
+          done
+
+          if [ -z "$COMMAND_ID" ]; then
+            echo "##vso[task.logissue type=error]Failed to send config command for $COMPONENT after 3 attempts"
+            exit 1
+          fi
 
           echo ">> Command sent: $COMMAND_ID"
 
@@ -403,12 +444,18 @@ steps:
 
         TEST_DOC_PREFIX="$(TEST_DOC_PREFIX)"
         INSTANCE_TAGS="$(INSTANCE_TAGS)"
+        COMPONENT_DOC_SUFFIXES="$(COMPONENT_DOC_SUFFIXES)"
 
-        declare -A COMPONENT_MAP
-        COMPONENT_MAP[webadapter]="arcgiswebadaptor"
-        COMPONENT_MAP[portal]="arcgisportal"
-        COMPONENT_MAP[datastore]="arcgisdatastore"
-        COMPONENT_MAP[server]="arcgisserver"
+        # Build suffix lookup from epic.json componentDocSuffixes
+        declare -A SUFFIX_MAP
+        if [ -n "$COMPONENT_DOC_SUFFIXES" ]; then
+          IFS=',' read -ra SUFFIX_PAIRS <<< "$COMPONENT_DOC_SUFFIXES"
+          for PAIR in "${SUFFIX_PAIRS[@]}"; do
+            KEY=$(echo "$PAIR" | cut -d'=' -f1)
+            VAL=$(echo "$PAIR" | cut -d'=' -f2)
+            SUFFIX_MAP[$KEY]="$VAL"
+          done
+        fi
 
         TEST_COMMAND_FILE="$(System.DefaultWorkingDirectory)/ssm-test-commands.json"
         echo "[]" > "$TEST_COMMAND_FILE"
@@ -418,7 +465,7 @@ steps:
         for PAIR in "${TAG_PAIRS[@]}"; do
           COMPONENT=$(echo "$PAIR" | cut -d'=' -f1)
           NAME_TAG=$(echo "$PAIR" | cut -d'=' -f2)
-          DOC_SUFFIX="${COMPONENT_MAP[$COMPONENT]:-$COMPONENT}"
+          DOC_SUFFIX="${SUFFIX_MAP[$COMPONENT]:-$COMPONENT}"
           DOC_NAME="${TEST_DOC_PREFIX}-${DOC_SUFFIX}"
 
           INSTANCE_ID=$(aws ec2 describe-instances \
@@ -433,12 +480,24 @@ steps:
 
           echo ">> Running $DOC_NAME on $INSTANCE_ID ($COMPONENT)"
 
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name "$DOC_NAME" \
-            --comment "EPIC AMI deploy - test $COMPONENT (Build $(Build.BuildId))" \
-            --query 'Command.CommandId' \
-            --output text)
+          # Retry send-command up to 3 times
+          COMMAND_ID=""
+          for ATTEMPT in 1 2 3; do
+            COMMAND_ID=$(aws ssm send-command \
+              --instance-ids "$INSTANCE_ID" \
+              --document-name "$DOC_NAME" \
+              --comment "EPIC AMI deploy - test $COMPONENT (Build $(Build.BuildId))" \
+              --query 'Command.CommandId' \
+              --output text 2>/dev/null) && break
+
+            echo "##vso[task.logissue type=warning]send-command failed for $COMPONENT test (attempt $ATTEMPT/3)"
+            sleep $((ATTEMPT * 5))
+          done
+
+          if [ -z "$COMMAND_ID" ]; then
+            echo "##vso[task.logissue type=error]Failed to send test command for $COMPONENT after 3 attempts"
+            exit 1
+          fi
 
           echo ">> Test command sent: $COMMAND_ID"
 

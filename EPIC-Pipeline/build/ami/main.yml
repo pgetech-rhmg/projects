@@ -29,21 +29,36 @@ steps:
       echo ">> Reading cloud config from $CONFIG"
 
       # Core cloud config
-      echo "##vso[task.setvariable variable=CLOUD_AWS_ACCOUNT_ID]$(jq -r '.cloud.awsAccountId' "$CONFIG")"
-      echo "##vso[task.setvariable variable=CLOUD_AWS_REGION]$(jq -r '.cloud.awsRegion // "us-west-2"' "$CONFIG")"
+      AWS_ACCOUNT_ID=$(jq -r '.cloud.awsAccountId' "$CONFIG")
+      AWS_REGION=$(jq -r '.cloud.awsRegion // "us-west-2"' "$CONFIG")
 
       # AMI-specific cloud config
-      COMPONENTS=$(jq -r '.cloud.components | join(",")' "$CONFIG")
+      COMPONENTS=$(jq -r '.cloud.components // [] | join(",")' "$CONFIG")
       PIPELINE_PREFIX=$(jq -r '.cloud.imageBuilderPipelinePrefix // "ami-factory"' "$CONFIG")
       SSM_PREFIX=$(jq -r '.cloud.ssmParameterPrefix // "/ami_factory"' "$CONFIG")
 
+      # Validate required fields
+      if [ -z "$AWS_ACCOUNT_ID" ] || [ "$AWS_ACCOUNT_ID" = "null" ]; then
+        echo "##vso[task.logissue type=error]cloud.awsAccountId is required in epic.json"
+        exit 1
+      fi
+
+      if [ -z "$COMPONENTS" ]; then
+        echo "##vso[task.logissue type=error]cloud.components is required in epic.json (must be a non-empty array)"
+        exit 1
+      fi
+
+      echo "##vso[task.setvariable variable=CLOUD_AWS_ACCOUNT_ID]$AWS_ACCOUNT_ID"
+      echo "##vso[task.setvariable variable=CLOUD_AWS_REGION]$AWS_REGION"
       echo "##vso[task.setvariable variable=AMI_COMPONENTS]$COMPONENTS"
       echo "##vso[task.setvariable variable=PIPELINE_PREFIX]$PIPELINE_PREFIX"
       echo "##vso[task.setvariable variable=SSM_PREFIX]$SSM_PREFIX"
 
-      echo ">> Components: $COMPONENTS"
+      echo ">> Account:         $AWS_ACCOUNT_ID"
+      echo ">> Region:          $AWS_REGION"
+      echo ">> Components:      $COMPONENTS"
       echo ">> Pipeline prefix: $PIPELINE_PREFIX"
-      echo ">> SSM prefix: $SSM_PREFIX"
+      echo ">> SSM prefix:      $SSM_PREFIX"
     displayName: 'Read cloud config'
 
 
@@ -86,6 +101,14 @@ steps:
         for COMPONENT in "${COMPONENTS[@]}"; do
           PIPELINE_ARN="arn:aws:imagebuilder:${REGION}:${AWS_ACCOUNT_ID}:image-pipeline/${PIPELINE_PREFIX}-${COMPONENT}-${ENVIRONMENT}"
 
+          # Verify pipeline exists before triggering
+          echo ">> Verifying pipeline: $PIPELINE_ARN"
+          if ! aws imagebuilder get-image-pipeline --image-pipeline-arn "$PIPELINE_ARN" > /dev/null 2>&1; then
+            echo "##vso[task.logissue type=error]Image Builder pipeline not found: ${PIPELINE_PREFIX}-${COMPONENT}-${ENVIRONMENT}"
+            echo "   Expected ARN: $PIPELINE_ARN"
+            exit 1
+          fi
+
           echo ">> Starting pipeline: $PIPELINE_ARN"
 
           RESULT=$(aws imagebuilder start-image-pipeline-execution \
@@ -121,24 +144,41 @@ steps:
         set -euo pipefail
 
         AWS_ACCOUNT_ID=$1
+        ROLE_ARN="arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role"
+        POLL_INTERVAL=60
+        REFRESH_INTERVAL=2700  # Refresh credentials every 45 minutes
 
-        CREDS=$(aws sts assume-role \
-          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
-          --role-session-name "PGE-EPIC-AMI-POLL-$(Build.BuildId)" \
-          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
-          --output text)
+        # Function to assume role and export credentials
+        assume_role() {
+          CREDS=$(aws sts assume-role \
+            --role-arn "$ROLE_ARN" \
+            --role-session-name "PGE-EPIC-AMI-POLL-$(Build.BuildId)" \
+            --duration-seconds 3600 \
+            --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+            --output text)
 
-        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
-        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
-        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+          export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+          export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+          export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+        }
+
+        assume_role
+        LAST_REFRESH=$SECONDS
 
         EXECUTIONS_FILE="$(System.DefaultWorkingDirectory)/ami-executions.json"
         RESULTS_FILE="$(System.DefaultWorkingDirectory)/ami-build-results.json"
-        POLL_INTERVAL=60
 
         echo ">> Polling for build completion (every ${POLL_INTERVAL}s)..."
 
         while true; do
+          # Refresh credentials before they expire
+          ELAPSED=$((SECONDS - LAST_REFRESH))
+          if [ $ELAPSED -ge $REFRESH_INTERVAL ]; then
+            echo ">> Refreshing STS credentials (${ELAPSED}s since last refresh)..."
+            assume_role
+            LAST_REFRESH=$SECONDS
+          fi
+
           ALL_DONE=true
           HAS_FAILURE=false
 
