@@ -1,1 +1,0 @@
-you register the exact arn of your instance profile role in jfrog (arn:aws:iam::123456789:role/your-imagebuilder-role), mapped to the local user. when the token request comes in, jfrog calls sts to verify the identity of the requester, sees the role arn in the response, and matches it against its mapping table. if it finds a match, it issues a token for the mapped user.
