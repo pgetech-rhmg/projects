@@ -1,0 +1,20 @@
+aws side:
+identify the iam role attached to your image builder infrastructure configuration (the instance profile)
+add a policy to that role allowing it to call sts:GetCallerIdentity (jfrog uses this to verify the identity)
+that's it for the instance - it authenticates automatically via instance metadata
+
+jfrog side:
+go to administration > security > settings > enable "jfrog platform authentication via aws iam"
+add a new aws iam group mapping
+set the allowed arn pattern to match your instance profile role - e.g. arn:aws:iam::123456789:role/your-imagebuilder-role
+map that to a jfrog group with the permissions your build needs (read, deploy, etc.)
+in your image builder component script, call jfrog's auth endpoint with no credentials - it uses the instance metadata service to sign the request and get back a token
+use that token for the remainder of the build
+
+in the component script
+bash# get jfrog token via aws iam auth
+JFROG_TOKEN=$(curl -s -X POST "https://your-jfrog-instance/artifactory/api/security/token/authenticate/aws" -H "Content-Type: application/json" | jq -r '.access_token')
+
+# use it
+curl -H "Authorization: Bearer $JFROG_TOKEN" "https://your-jfrog-instance/artifactory/your-repo/your-artifact"
+the instance doesn't need stored credentials anywhere. jfrog verifies the aws identity and issues a short-lived token on the fly.
