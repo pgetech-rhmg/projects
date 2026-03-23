@@ -156,10 +156,14 @@ steps:
         dotnet ef migrations bundle \
           --configuration Release \
           --self-contained \
-          --runtime linux-x64 \
-          --output .build/efbundle
+          --target-runtime linux-x64 \
+          --output .build/efbundle \
+          --force
 
         chmod +x .build/efbundle
+
+        echo ">> Verifying bundle target:"
+        file .build/efbundle
 
         echo ">> Migration bundle created at .build/efbundle"
       displayName: "Generate EF Core migration bundle"
