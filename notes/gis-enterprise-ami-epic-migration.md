@@ -270,3 +270,22 @@ The EPIC AMI templates include the following resilience measures:
 | **Step 4** | Dry run — build only |
 | **Step 5** | Full run — build + deploy |
 | **Step 6–8** | Remove legacy CodePipeline orchestration |
+
+---
+
+## Original Process → EPIC Mapping
+
+| Original Process | EPIC Equivalent |
+|---|---|
+| TFC provisions Image Builder infra | `deployInfra: apply` runs `.infra/` Terraform |
+| CodePipeline Source stage (S3 poll) | EPIC orchestrator clones repo from GitHub |
+| `input_preparer` Lambda (filter components) | `epic.json` `cloud.components` array |
+| Step Functions (parallel Image Builder trigger + poll) | `build/ami/main.yml` (trigger, poll, credential refresh) |
+| `ami_writer` Lambda (write to SSM + LATEST label) | `build/ami/main.yml` SSM write step |
+| CodePipeline Approval gate | `ManualValidation@0` stage (prod only, via `approvalEnvironments`) |
+| `ami_publisher` Lambda (apply env label) | `deploy/ami/main.yml` publish step |
+| `config_manager` Lambda (run SSM docs, poll status) | `deploy/ami/main.yml` config/test steps (with retry) |
+| EventBridge golden AMI trigger | EPIC orchestrator trigger (manual or API) |
+| 5 Lambda functions + IAM roles | Gone — replaced by inline bash + `pge-epic-deployment-role` |
+| Step Functions state machine | Gone — EPIC stage ordering handles this |
+| KMS keys for CodePipeline/Lambda/SNS | Gone — only AMI + CloudWatch logs keys remain |
