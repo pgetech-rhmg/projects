@@ -100,10 +100,9 @@ builder.Services.AddScoped<IAppService, AppService>();
 // ---------------------------------------------------------------------------
 var app = builder.Build();
 
-// Auto-migrate in development (production migrations are handled by EPIC Pipeline)
-if (app.Environment.IsDevelopment())
+// Apply pending EF Core migrations on startup (idempotent)
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<EpicDbContext>();
     db.Database.Migrate();
 }

@@ -138,35 +138,6 @@ steps:
     displayName: "Publish or Pack"
 
 
-  ###########################################################################
-  # EF Core Migration Bundle (optional)
-  ###########################################################################
-  - ${{ if eq(parameters.efMigrations, 'true') }}:
-    - bash: |
-        set -euo pipefail
-
-        PROJECT_DIR="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
-
-        cd "$PROJECT_DIR"
-
-        echo ">> Installing dotnet-ef tool"
-        dotnet tool install --global dotnet-ef
-
-        echo ">> Generating EF Core migration bundle"
-        dotnet ef migrations bundle \
-          --configuration Release \
-          --self-contained \
-          --target-runtime linux-x64 \
-          --output .build/efbundle \
-          --force
-
-        chmod +x .build/efbundle
-
-        echo ">> Verifying bundle target:"
-        file .build/efbundle
-
-        echo ">> Migration bundle created at .build/efbundle"
-      displayName: "Generate EF Core migration bundle"
 
 
   ###########################################################################
