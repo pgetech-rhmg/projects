@@ -1,5 +1,0 @@
-  aws ssm get-command-invocation \
-    --command-id 1ac64075-a035-4a79-88f8-980124323a1c \
-    --instance-id i-055bc0c56b8e7003c \
-    --query 'StandardErrorContent' \
-    --output text

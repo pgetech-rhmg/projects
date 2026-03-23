@@ -234,24 +234,31 @@ steps:
 
         echo "Running EF Core migrations on $INSTANCE_ID"
 
-        # Write connection string to a temp file on the instance, run efbundle, then clean up
+        # Write migration script to S3, have EC2 download and execute it
+        SCRIPT_PATH="/tmp/ef-migrate-${APP_NAME}.sh"
+        cat > "$SCRIPT_PATH" <<MIGRATE_SCRIPT
+#!/bin/bash
+set -e
+cd /opt/${APP_NAME}
+aws s3 cp s3://${S3_BUCKET}/${APP_NAME}.zip /opt/${APP_NAME}/
+unzip -o /opt/${APP_NAME}/${APP_NAME}.zip -d /opt/${APP_NAME}/app
+if [ -f /opt/${APP_NAME}/app/efbundle ]; then
+  echo "Running migration bundle..."
+  chmod +x /opt/${APP_NAME}/app/efbundle
+  /opt/${APP_NAME}/app/efbundle --connection "${CONNECTION_STRING}"
+  echo "Migrations complete"
+else
+  echo "No efbundle found — skipping migrations"
+fi
+MIGRATE_SCRIPT
+
+        aws s3 cp "$SCRIPT_PATH" "s3://${S3_BUCKET}/${APP_NAME}-migrate.sh"
+
         COMMAND_ID=$(aws ssm send-command \
           --instance-ids "$INSTANCE_ID" \
           --document-name "AWS-RunShellScript" \
           --comment "EF Core migrations for $APP_NAME (Build $(Build.BuildId))" \
-          --parameters commands="[
-            \"set -e\",
-            \"sudo aws s3 cp s3://$S3_BUCKET/$APP_NAME.zip /opt/$APP_NAME/\",
-            \"sudo unzip -o /opt/$APP_NAME/$APP_NAME.zip -d /opt/$APP_NAME/app\",
-            \"if [ -f /opt/$APP_NAME/app/efbundle ]; then\",
-            \"  echo 'Running migration bundle...'\",
-            \"  sudo chmod +x /opt/$APP_NAME/app/efbundle\",
-            \"  sudo /opt/$APP_NAME/app/efbundle --connection '$CONNECTION_STRING'\",
-            \"  echo 'Migrations complete'\",
-            \"else\",
-            \"  echo 'No efbundle found — skipping migrations'\",
-            \"fi\"
-          ]" \
+          --parameters commands="[\"aws s3 cp s3://${S3_BUCKET}/${APP_NAME}-migrate.sh /tmp/migrate.sh && chmod +x /tmp/migrate.sh && /tmp/migrate.sh && rm -f /tmp/migrate.sh\"]" \
           --query 'Command.CommandId' \
           --output text)
 
