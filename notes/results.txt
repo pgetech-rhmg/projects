@@ -1,0 +1,46 @@
+2026-03-23T18:10:02.8706698Z ##[section]Starting: Run EF Core migrations
+2026-03-23T18:10:02.8712448Z ==============================================================================
+2026-03-23T18:10:02.8712562Z Task         : AWS Shell Script
+2026-03-23T18:10:02.8712633Z Description  : Run a shell script using Bash with AWS credentials as environment variables
+2026-03-23T18:10:02.8712728Z Version      : 1.24.0
+2026-03-23T18:10:02.8712795Z Author       : Amazon Web Services
+2026-03-23T18:10:02.8712861Z Help         : Runs a shell script in Bash, setting AWS credentials and region information into the shell environment using the standard environment keys _AWS_ACCESS_KEY_ID_, _AWS_SECRET_ACCESS_KEY_, _AWS_SESSION_TOKEN_ and _AWS_REGION_.
+
+More information on this task can be found in the [task reference](https://docs.aws.amazon.com/vsts/latest/userguide/awsshell.html).
+
+####Task Permissions
+Permissions for this task to call AWS service APIs depend on the activities in the supplied script.
+2026-03-23T18:10:02.8713167Z ==============================================================================
+2026-03-23T18:10:03.3033805Z Configuring credentials for task
+2026-03-23T18:10:03.3042088Z ...configuring AWS credentials from service endpoint 'd4d1385c-1185-470a-8044-26d6400b4223'
+2026-03-23T18:10:03.3044567Z Skipping Instance profile, we have OIDC enabled
+2026-03-23T18:10:03.3052073Z ...configuring AWS credentials from service endpoint 'd4d1385c-1185-470a-8044-26d6400b4223'
+2026-03-23T18:10:03.3054683Z Getting OIDC Token...
+2026-03-23T18:10:03.5931976Z OIDC Token generated: issuer: {https://vstoken.dev.azure.com/24ec78d4-db96-44e7-ac11-88d89473d472} sub: {sc://pgetech/EPIC-Pipeline/AWS}, aud: {api://AzureADTokenExchange}
+2026-03-23T18:10:03.5933231Z Configuring region for task
+2026-03-23T18:10:03.5936529Z ...configured to use region us-west-2, defined in task.
+2026-03-23T18:10:03.5956696Z Assuming role via OIDC Token...
+2026-03-23T18:10:04.2442459Z ...role assumed via OIDC Token: arn:aws:sts::750713712981:assumed-role/pge-epic-service-role/***
+2026-03-23T18:10:04.2443647Z Configuring region for task
+2026-03-23T18:10:04.2447915Z ...configured to use region us-west-2, defined in task.
+2026-03-23T18:10:04.2464030Z [command]/usr/bin/bash /home/vsts/work/_temp/awsshellscript_2384.sh 514712703977
+2026-03-23T18:10:05.1910002Z Running EF Core migrations on i-055bc0c56b8e7003c
+2026-03-23T18:10:08.2062248Z >> Secrets name: 
+2026-03-23T18:10:08.2092835Z jq: error: syntax error, unexpected INVALID_CHARACTER (Unix shell quoting issues?) at <top-level>, line 1:
+2026-03-23T18:10:08.2093658Z .ConnectionStrings__EpicDb // .\\\"ConnectionStrings:EpicDb\\\" // empty                               
+2026-03-23T18:10:08.2094487Z jq: error: try .["field"] instead of .field for unusually named fields at <top-level>, line 1:
+2026-03-23T18:10:08.2095063Z .ConnectionStrings__EpicDb // .\\\"ConnectionStrings:EpicDb\\\" // empty                              
+2026-03-23T18:10:08.2095466Z jq: 2 compile errors
+2026-03-23T18:10:08.8391687Z 
+2026-03-23T18:10:08.8395662Z aws: [ERROR]: An error occurred (ParamValidation): argument --secret-id: expected one argument
+2026-03-23T18:10:08.8396820Z 
+2026-03-23T18:10:08.8397489Z usage: aws [options] <command> <subcommand> [<subcommand> ...] [parameters]
+2026-03-23T18:10:08.8397838Z To see help text, you can run:
+2026-03-23T18:10:08.8398002Z 
+2026-03-23T18:10:08.8398264Z   aws help
+2026-03-23T18:10:08.8398590Z   aws <command> help
+2026-03-23T18:10:08.8398874Z   aws <command> <subcommand> help
+2026-03-23T18:10:08.9197114Z /home/vsts/work/_temp/awsshellscript_2384.sh: line 61: CONNECTION_STRING: unbound variable
+2026-03-23T18:10:08.9209093Z 
+2026-03-23T18:10:08.9256514Z ##[error]Error: The process '/usr/bin/bash' failed with exit code 1
+2026-03-23T18:10:08.9413998Z ##[section]Finishing: Run EF Core migrations
