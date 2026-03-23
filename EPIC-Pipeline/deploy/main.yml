@@ -13,10 +13,39 @@ jobs:
   steps:
 
     ###########################################################################
-    # Download App Artifact
+    # Download App Source (for cloud config)
     ###########################################################################
     - task: DownloadPipelineArtifact@2
-      displayName: "Download app artifact"
+      displayName: "Download app source"
+      inputs:
+        artifactName: epic-app
+        targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}"
+
+
+    ###########################################################################
+    # Read Cloud Config
+    ###########################################################################
+    - bash: |
+        set -euo pipefail
+
+        CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/.pipeline/epic.json"
+
+        echo ">> Reading cloud config from $CONFIG"
+
+        echo "##vso[task.setvariable variable=CLOUD_AWS_ACCOUNT_ID]$(jq -r '.cloud.awsAccountId' "$CONFIG")"
+        echo "##vso[task.setvariable variable=CLOUD_AWS_REGION]$(jq -r '.cloud.awsRegion // "us-west-2"' "$CONFIG")"
+        echo "##vso[task.setvariable variable=CLOUD_S3]$(jq -r '.cloud.s3 // empty' "$CONFIG")"
+        echo "##vso[task.setvariable variable=CLOUD_CLOUDFRONT]$(jq -r '.cloud.cloudfront // empty' "$CONFIG")"
+        echo "##vso[task.setvariable variable=CLOUD_EC2_INSTANCE_ID]$(jq -r '.cloud.ec2InstanceId // empty' "$CONFIG")"
+        echo "##vso[task.setvariable variable=CLOUD_APP_EXECUTABLE]$(jq -r '.cloud.appExecutable // empty' "$CONFIG")"
+      displayName: 'Read cloud config'
+
+
+    ###########################################################################
+    # Download Build Artifact
+    ###########################################################################
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download build artifact"
       inputs:
         artifactName: epic-build
         targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"

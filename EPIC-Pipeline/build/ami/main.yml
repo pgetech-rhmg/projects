@@ -1,0 +1,309 @@
+###############################################################################
+# AMI Build Steps
+#
+# Triggers AWS EC2 Image Builder pipelines for each component defined in the
+# cloud section of .pipeline/epic.json, polls until all builds complete,
+# extracts the resulting AMI IDs, writes them to SSM Parameter Store with a
+# LATEST label, and publishes a build manifest artifact for the deploy stage.
+#
+# Required cloud fields in .pipeline/epic.json:
+#   "cloud": {
+#     "awsAccountId": "...",
+#     "awsRegion": "us-west-2",
+#     "components": ["webadapter", "portal", "datastore", "server"],
+#     "imageBuilderPipelinePrefix": "ami-factory",
+#     "ssmParameterPrefix": "/ami_factory"
+#   }
+#
+###############################################################################
+steps:
+
+  #############################################################################
+  # Read Cloud Config
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/.pipeline/epic.json"
+
+      echo ">> Reading cloud config from $CONFIG"
+
+      # Core cloud config
+      echo "##vso[task.setvariable variable=CLOUD_AWS_ACCOUNT_ID]$(jq -r '.cloud.awsAccountId' "$CONFIG")"
+      echo "##vso[task.setvariable variable=CLOUD_AWS_REGION]$(jq -r '.cloud.awsRegion // "us-west-2"' "$CONFIG")"
+
+      # AMI-specific cloud config
+      COMPONENTS=$(jq -r '.cloud.components | join(",")' "$CONFIG")
+      PIPELINE_PREFIX=$(jq -r '.cloud.imageBuilderPipelinePrefix // "ami-factory"' "$CONFIG")
+      SSM_PREFIX=$(jq -r '.cloud.ssmParameterPrefix // "/ami_factory"' "$CONFIG")
+
+      echo "##vso[task.setvariable variable=AMI_COMPONENTS]$COMPONENTS"
+      echo "##vso[task.setvariable variable=PIPELINE_PREFIX]$PIPELINE_PREFIX"
+      echo "##vso[task.setvariable variable=SSM_PREFIX]$SSM_PREFIX"
+
+      echo ">> Components: $COMPONENTS"
+      echo ">> Pipeline prefix: $PIPELINE_PREFIX"
+      echo ">> SSM prefix: $SSM_PREFIX"
+    displayName: 'Read cloud config'
+
+
+  #############################################################################
+  # Trigger Image Builder Pipelines
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Trigger Image Builder pipelines"
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-AMI-BUILD-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        REGION="$(CLOUD_AWS_REGION)"
+        ENVIRONMENT="${{ parameters.environment }}"
+        PIPELINE_PREFIX="$(PIPELINE_PREFIX)"
+        IFS=',' read -ra COMPONENTS <<< "$(AMI_COMPONENTS)"
+
+        echo ">> Starting Image Builder pipelines for ${#COMPONENTS[@]} component(s)"
+
+        # File to track execution ARNs
+        EXECUTIONS_FILE="$(System.DefaultWorkingDirectory)/ami-executions.json"
+        echo "[]" > "$EXECUTIONS_FILE"
+
+        for COMPONENT in "${COMPONENTS[@]}"; do
+          PIPELINE_ARN="arn:aws:imagebuilder:${REGION}:${AWS_ACCOUNT_ID}:image-pipeline/${PIPELINE_PREFIX}-${COMPONENT}-${ENVIRONMENT}"
+
+          echo ">> Starting pipeline: $PIPELINE_ARN"
+
+          RESULT=$(aws imagebuilder start-image-pipeline-execution \
+            --image-pipeline-arn "$PIPELINE_ARN" \
+            --output json)
+
+          IMAGE_BUILD_ARN=$(echo "$RESULT" | jq -r '.imageBuildVersionArn')
+
+          echo ">> Started: $COMPONENT -> $IMAGE_BUILD_ARN"
+
+          # Append to executions file
+          jq --arg comp "$COMPONENT" --arg arn "$IMAGE_BUILD_ARN" \
+            '. += [{"component": $comp, "imageBuildVersionArn": $arn, "status": "BUILDING"}]' \
+            "$EXECUTIONS_FILE" > "${EXECUTIONS_FILE}.tmp" && mv "${EXECUTIONS_FILE}.tmp" "$EXECUTIONS_FILE"
+        done
+
+        echo ">> All pipelines triggered:"
+        cat "$EXECUTIONS_FILE"
+
+
+  #############################################################################
+  # Poll for Image Builder Completion
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Wait for Image Builder completion"
+    timeoutInMinutes: 120
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-AMI-POLL-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        EXECUTIONS_FILE="$(System.DefaultWorkingDirectory)/ami-executions.json"
+        RESULTS_FILE="$(System.DefaultWorkingDirectory)/ami-build-results.json"
+        POLL_INTERVAL=60
+
+        echo ">> Polling for build completion (every ${POLL_INTERVAL}s)..."
+
+        while true; do
+          ALL_DONE=true
+          HAS_FAILURE=false
+
+          COMPONENT_COUNT=$(jq length "$EXECUTIONS_FILE")
+
+          for i in $(seq 0 $((COMPONENT_COUNT - 1))); do
+            COMPONENT=$(jq -r ".[$i].component" "$EXECUTIONS_FILE")
+            ARN=$(jq -r ".[$i].imageBuildVersionArn" "$EXECUTIONS_FILE")
+            CURRENT_STATUS=$(jq -r ".[$i].status" "$EXECUTIONS_FILE")
+
+            # Skip already completed or failed
+            if [ "$CURRENT_STATUS" = "AVAILABLE" ] || [ "$CURRENT_STATUS" = "FAILED" ]; then
+              if [ "$CURRENT_STATUS" = "FAILED" ]; then
+                HAS_FAILURE=true
+              fi
+              continue
+            fi
+
+            # Check status
+            IMAGE_RESULT=$(aws imagebuilder get-image \
+              --image-build-version-arn "$ARN" \
+              --output json)
+
+            STATUS=$(echo "$IMAGE_RESULT" | jq -r '.image.state.status')
+            echo "   $COMPONENT: $STATUS"
+
+            # Update status in file
+            jq --argjson idx "$i" --arg status "$STATUS" \
+              '.[$idx].status = $status' \
+              "$EXECUTIONS_FILE" > "${EXECUTIONS_FILE}.tmp" && mv "${EXECUTIONS_FILE}.tmp" "$EXECUTIONS_FILE"
+
+            if [ "$STATUS" = "AVAILABLE" ]; then
+              # Extract AMI details
+              AMI_ID=$(echo "$IMAGE_RESULT" | jq -r '.image.outputResources.amis[0].image')
+              AMI_NAME=$(echo "$IMAGE_RESULT" | jq -r '.image.outputResources.amis[0].name // "unknown"')
+              AMI_REGION=$(echo "$IMAGE_RESULT" | jq -r '.image.outputResources.amis[0].region')
+
+              jq --argjson idx "$i" \
+                --arg ami_id "$AMI_ID" \
+                --arg ami_name "$AMI_NAME" \
+                --arg ami_region "$AMI_REGION" \
+                '.[$idx] += {"ami_id": $ami_id, "ami_name": $ami_name, "region": $ami_region}' \
+                "$EXECUTIONS_FILE" > "${EXECUTIONS_FILE}.tmp" && mv "${EXECUTIONS_FILE}.tmp" "$EXECUTIONS_FILE"
+
+              echo "   >> $COMPONENT complete: $AMI_ID ($AMI_REGION)"
+
+            elif [ "$STATUS" = "FAILED" ]; then
+              REASON=$(echo "$IMAGE_RESULT" | jq -r '.image.state.reason // "unknown"')
+              echo "##vso[task.logissue type=error]$COMPONENT build FAILED: $REASON"
+              HAS_FAILURE=true
+
+            else
+              ALL_DONE=false
+            fi
+          done
+
+          if [ "$ALL_DONE" = true ]; then
+            if [ "$HAS_FAILURE" = true ]; then
+              echo "##vso[task.logissue type=error]One or more AMI builds failed"
+              cat "$EXECUTIONS_FILE"
+              exit 1
+            fi
+            echo ">> All builds completed successfully"
+            break
+          fi
+
+          echo ">> Waiting ${POLL_INTERVAL}s before next poll..."
+          sleep $POLL_INTERVAL
+        done
+
+        # Write final results
+        jq '[.[] | {component, ami_id, ami_name, region}]' "$EXECUTIONS_FILE" > "$RESULTS_FILE"
+
+        echo ">> Build results:"
+        cat "$RESULTS_FILE"
+
+
+  #############################################################################
+  # Write AMI IDs to SSM Parameter Store
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Write AMI IDs to SSM"
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-AMI-SSM-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        RESULTS_FILE="$(System.DefaultWorkingDirectory)/ami-build-results.json"
+        SSM_PREFIX="$(SSM_PREFIX)"
+
+        COMPONENT_COUNT=$(jq length "$RESULTS_FILE")
+
+        echo ">> Writing $COMPONENT_COUNT AMI ID(s) to SSM Parameter Store"
+
+        for i in $(seq 0 $((COMPONENT_COUNT - 1))); do
+          COMPONENT=$(jq -r ".[$i].component" "$RESULTS_FILE")
+          AMI_ID=$(jq -r ".[$i].ami_id" "$RESULTS_FILE")
+
+          PARAM_NAME="${SSM_PREFIX}/${COMPONENT}/ami"
+
+          echo ">> Writing $PARAM_NAME = $AMI_ID"
+
+          VERSION=$(aws ssm put-parameter \
+            --name "$PARAM_NAME" \
+            --value "$AMI_ID" \
+            --type "String" \
+            --description "AMI ID for ${COMPONENT} - built by EPIC pipeline (Build $(Build.BuildId))" \
+            --overwrite \
+            --query 'Version' \
+            --output text)
+
+          echo ">> Applying LATEST label (version $VERSION)"
+
+          aws ssm label-parameter-version \
+            --name "$PARAM_NAME" \
+            --parameter-version "$VERSION" \
+            --labels "LATEST"
+
+          echo ">> Done: $COMPONENT -> $AMI_ID (SSM version $VERSION)"
+        done
+
+
+  #############################################################################
+  # Prepare Build Manifest
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      BUILD_DIR="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+      RESULTS_FILE="$(System.DefaultWorkingDirectory)/ami-build-results.json"
+
+      mkdir -p "$BUILD_DIR"
+
+      # Create build manifest with all metadata
+      jq --arg build_id "$(Build.BuildId)" \
+        --arg environment "${{ parameters.environment }}" \
+        --arg pipeline_prefix "$(PIPELINE_PREFIX)" \
+        --arg ssm_prefix "$(SSM_PREFIX)" \
+        --arg region "$(CLOUD_AWS_REGION)" \
+        --arg account_id "$(CLOUD_AWS_ACCOUNT_ID)" \
+        '{
+          build_id: $build_id,
+          environment: $environment,
+          aws_account_id: $account_id,
+          aws_region: $region,
+          pipeline_prefix: $pipeline_prefix,
+          ssm_prefix: $ssm_prefix,
+          ami_builds: .
+        }' "$RESULTS_FILE" > "$BUILD_DIR/ami-manifest.json"
+
+      echo ">> Build manifest:"
+      cat "$BUILD_DIR/ami-manifest.json"
+    displayName: "Prepare build manifest"

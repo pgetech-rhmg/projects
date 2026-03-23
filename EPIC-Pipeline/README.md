@@ -16,7 +16,7 @@ Applications define their intent in a single config file. EPIC handles execution
 
 ## High-Level Flow
 
-1. Orchestrator validates parameters and reads `.pipeline/epic.json` from the application repository
+1. Orchestrator validates parameters and reads the `app` section of `.pipeline/epic.json` from the application repository
 2. Orchestrator invokes the EPIC Engine pipeline via Azure DevOps REST API
 3. Application source is downloaded from GitHub
 4. Build is executed based on project type
@@ -26,13 +26,15 @@ Applications define their intent in a single config file. EPIC handles execution
 8. Application is deployed to the target environment
 9. Integration tests are run (optional)
 
+Stages that need cloud/deployment configuration (infra, deploy, AMI build) read the `cloud` section of `.pipeline/epic.json` directly from the downloaded source at runtime.
+
 ---
 
 ## Repository Structure
 
 ```
 EPIC-Pipeline/
-├── epic-orchestrator.yml        # REST-driven entry point; reads epic.json, invokes engine
+├── epic-orchestrator.yml        # REST-driven entry point; reads epic.json .app section, invokes engine
 ├── epic-engine.yml              # Control plane; wires stages, enforces ordering and gating
 ├── common/
 │   └── download.yml             # Clones application source from GitHub
@@ -40,6 +42,7 @@ EPIC-Pipeline/
 │   └── main.yml                 # Terraform provisioning (init, plan, apply, destroy)
 ├── build/
 │   ├── main.yml                 # Build dispatcher
+│   ├── ami/                     # EC2 Image Builder orchestration
 │   ├── angular/
 │   ├── dotnet/
 │   ├── dotnet_framework/
@@ -60,6 +63,7 @@ EPIC-Pipeline/
 │   └── wiz/
 ├── deploy/
 │   ├── main.yml                 # Deployment dispatcher
+│   ├── ami/                     # SSM-based AMI publish + config/test
 │   ├── basic/                   # HTML/Angular → S3 + CloudFront
 │   ├── dotnet/
 │   ├── java/
@@ -99,15 +103,17 @@ The entry point for external systems. Typical invocations include IDP-driven dep
 
 **What it does:**
 1. Validates `repo`, `branch`, and `environment` parameters
-2. Shallow-clones the application repository and reads `.pipeline/epic.json`
+2. Shallow-clones the application repository and reads the `app` section of `.pipeline/epic.json`
 3. Detects whether `/.infra` is present to determine Terraform behavior
-4. Builds a deployment payload (merges `epic.json` with orchestrator parameters)
+4. Builds a deployment payload (merges `app` fields with orchestrator parameters)
 5. POSTs to the Azure DevOps Pipelines REST API to trigger the EPIC Engine
 6. Returns a clickable URL to the triggered pipeline run
 
 ### `epic-engine.yml`
 
 The control plane. Accepts parameters from the orchestrator, determines which stages execute, and wires modular templates with proper dependency ordering. Contains no business logic — it is purely structural.
+
+The engine only receives `app`-level parameters (identity, build config, tooling) and runtime parameters (repo, branch, environment, stage toggles). Cloud/deployment parameters are not passed through the engine — stages read them directly from `epic.json` at runtime.
 
 ---
 
@@ -133,7 +139,7 @@ Each stage publishes a named artifact consumed by downstream stages:
 
 | Artifact | Published By | Consumed By |
 |----------|-------------|-------------|
-| `epic-app` | Download | Build, Test, Scan, Deploy |
+| `epic-app` | Download | Build, Test, Scan, Infra, Deploy |
 | `epic-build` | Build | Scan, Deploy |
 | `epic-unit-tests` | Test | Scan |
 | `terraform-outputs` | DeployInfra | Deploy |
@@ -169,7 +175,9 @@ The following secrets and variable groups must be configured in Azure DevOps:
 
 EPIC supports automated infrastructure provisioning via Terraform. This stage runs independently and does not block the build stage.
 
-When a `/.infra` folder is present in the application repository, EPIC automatically runs `terraform init`, `terraform plan`, and `terraform apply`. If `/.infra` is absent, the infra stage is skipped and EPIC uses the resource values provided in `epic.json`.
+When a `/.infra` folder is present in the application repository, EPIC automatically runs `terraform init`, `terraform plan`, and `terraform apply`. If `/.infra` is absent, the infra stage is skipped and EPIC uses the resource values provided in the `cloud` section of `epic.json`.
+
+Cloud credentials (`awsAccountId`, `awsRegion`) are read from the `cloud` section of `.pipeline/epic.json` at runtime.
 
 ### `/.infra` Folder Structure
 
@@ -207,11 +215,11 @@ EPIC handles backend configuration, state management, and credential injection a
 | Condition | EPIC Behavior |
 |-----------|---------------|
 | `/.infra` present | Runs `terraform init`, `plan`, and `apply` automatically |
-| `/.infra` absent | Skips infra stage; uses resource values from `epic.json` |
+| `/.infra` absent | Skips infra stage; uses resource values from `cloud` section of `epic.json` |
 
 ### Outputs
 
-Terraform outputs defined in `outputs.tf` are captured as `output.json` and published as the `terraform-outputs` artifact. The deploy stage reads this file and resolves S3 bucket names, CloudFront distribution IDs, and EC2 instance IDs automatically — overriding any equivalent values in `epic.json`.
+Terraform outputs defined in `outputs.tf` are captured as `output.json` and published as the `terraform-outputs` artifact. The deploy stage reads this file and resolves S3 bucket names, CloudFront distribution IDs, and EC2 instance IDs automatically — overriding any equivalent values in the `cloud` section.
 
 ---
 
@@ -221,16 +229,19 @@ Terraform outputs defined in `outputs.tf` are captured as `output.json` and publ
 
 Dispatcher that selects the correct build implementation based on `appType`. Each implementation installs tooling, runs the build, and normalizes output into a `.build/` folder.
 
-**Supported types:** Angular, .NET Core, .NET Framework, HTML, Java, Python
-
 | Type | Build Tool | Output |
 |------|-----------|--------|
 | `angular` | npm | `dist/` → `.build/` |
+| `ami` | EC2 Image Builder | AMI IDs → SSM → `.build/ami-manifest.json` |
 | `dotnet` | dotnet CLI | Published self-contained executable or NuGet package |
 | `dotnet_framework` | MSBuild | `.build/` |
 | `html` | (copy) | `.build/` |
 | `java` | Maven or Gradle | JAR → `.build/` |
 | `python` | pip / setuptools | Syntax check, wheel, egg, or sdist |
+
+### AMI Build
+
+The `ami` build type triggers EC2 Image Builder pipelines, polls for completion, writes AMI IDs to SSM Parameter Store with a `LATEST` label, and produces an `ami-manifest.json` artifact. AMI-specific configuration (`components`, `imageBuilderPipelinePrefix`, `ssmParameterPrefix`) is read from the `cloud` section of `epic.json`.
 
 ---
 
@@ -275,12 +286,19 @@ Security and quality scan dispatcher. Scanner selection is data-driven. Enforces
 
 Handles application deployment to the target runtime environment. No infrastructure creation occurs here — the infra stage handles that. Assumes infrastructure already exists, whether provisioned by EPIC or supplied externally.
 
+Cloud deployment parameters are read from the `cloud` section of `.pipeline/epic.json` at runtime and set as pipeline variables for the deploy sub-templates.
+
 | Type | Target | Mechanism |
 |------|--------|-----------|
 | `html` / `angular` | S3 + CloudFront | `aws s3 sync`, CloudFront invalidation |
 | `python` | EC2 via SSM | ZIP upload to S3, remote install + systemd restart |
 | `java` | EC2 via SSM | JAR upload to S3, remote install + systemd restart |
 | `dotnet` | EC2 via SSM | Executable upload to S3, remote install + systemd restart |
+| `ami` | SSM Parameter Store + SSM Documents | Label SSM params, run config/test documents |
+
+### AMI Deploy
+
+The `ami` deploy type publishes AMIs by applying an environment label to SSM parameter versions, then optionally runs SSM configuration and test documents against pre-existing instances. AMI-specific deploy configuration (`configDocPrefix`, `testDocPrefix`, `instanceTags`) is read from the `cloud` section of `epic.json`.
 
 ---
 
@@ -292,49 +310,103 @@ Each application must include a configuration file at:
 .pipeline/epic.json
 ```
 
-This file defines how EPIC builds, tests, scans, and deploys the application. If `/.infra` is absent, all AWS or Azure resource values must also be provided here.
+This file has two sections:
+
+- **`app`** — Application identity, build configuration, and tooling. Read by the orchestrator and passed as engine template parameters.
+- **`cloud`** — Cloud deployment targets and resource configuration. Read at runtime by infra and deploy stages directly from the downloaded source.
 
 ---
 
 ## Example `epic.json`
 
+### Standard application (Angular)
+
 ```json
 {
-  "appName": "my-app",
-  "appType": "angular",
-  "codePath": "/src",
-
-  "nodeVersion": "18",
-
-  "scanTool": "sonarqube",
-  "unitTestTool": "jest",
-  "integrationTestTool": "playwright",
-
-  "awsAccountId": "999999999999",
-  "s3": "pge-epic-my-app-web-dev",
-  "cloudfront": "X9X9X9XX99XX9X"
+  "app": {
+    "appName": "my-app",
+    "appType": "angular",
+    "codePath": "/",
+    "nodeVersion": "20",
+    "scanTool": "sonarqube",
+    "unitTestTool": "jest"
+  },
+  "cloud": {
+    "awsAccountId": "999999999999",
+    "awsRegion": "us-west-2",
+    "s3": "pge-epic-my-app-web-dev",
+    "cloudfront": "X9X9X9XX99XX9X"
+  }
 }
 ```
 
-If `/.infra` is present and outputs `s3` and `cloudfront`, those values do not need to be hardcoded in `epic.json` — EPIC will resolve them from Terraform output automatically.
+### EC2-deployed application (Python)
+
+```json
+{
+  "app": {
+    "appName": "my-api",
+    "appType": "python",
+    "codePath": ".",
+    "buildType": "wheel",
+    "pythonVersion": "3.11",
+    "scanTool": "sonarqube",
+    "unitTestTool": "pytest"
+  },
+  "cloud": {
+    "awsAccountId": "999999999999",
+    "awsRegion": "us-west-2"
+  }
+}
+```
+
+### AMI application
+
+```json
+{
+  "app": {
+    "appName": "gis-enterprise-ami",
+    "appType": "ami",
+    "codePath": "/"
+  },
+  "cloud": {
+    "awsAccountId": "999999999999",
+    "awsRegion": "us-west-2",
+    "components": ["webadapter", "portal", "datastore", "server"],
+    "imageBuilderPipelinePrefix": "ami-factory",
+    "ssmParameterPrefix": "/ami_factory",
+    "configDocPrefix": "ConfigDoc",
+    "testDocPrefix": "TestDoc",
+    "instanceTags": {
+      "webadapter": "sor-11-5-arcgis-webadaptor-sandbox",
+      "server": "sor-11-5-arcgis-hosting-sandbox",
+      "datastore": "sor-11-5-arcgis-datastore-sandbox",
+      "portal": "sor-11-5-arcgis-portal-sandbox"
+    }
+  }
+}
+```
+
+If `/.infra` is present and Terraform outputs include `bucket_name`, `distribution_id`, or `instance_id`, those values override the equivalent `cloud` fields automatically.
 
 ---
 
 ## Contract Parameters
 
-### Application Configuration
+### `app` Section — Application Configuration
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `appName` | Yes | Logical application name. Alphanumeric, hyphens, or underscores. No spaces. |
-| `appType` | Yes | Determines build implementation. See allowed values below. |
-| `codePath` | Yes | Relative path from repo root to application source (e.g., `/src`, `.`). |
+| `appType` | Yes | Determines build and deploy implementation. See allowed values below. |
+| `codePath` | Yes | Relative path from repo root to application source (e.g., `/`, `.`, `/src`). |
 | `buildType` | No | Defines packaging behavior. Omit for standard build. |
 
 **`appType` allowed values:**
 
 | Value | Description |
 |-------|-------------|
+| `ami` | AMI factory (EC2 Image Builder + SSM) |
 | `angular` | Angular frontend application |
 | `dotnet` | .NET Core / .NET 6+ application |
 | `dotnet_framework` | .NET Framework application |
@@ -342,9 +414,7 @@ If `/.infra` is present and outputs `s3` and `cloudfront`, those values do not n
 | `java` | Java application |
 | `python` | Python application |
 
----
-
-### Build Runtime Versions
+### `app` Section — Build Runtime Versions
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -353,9 +423,7 @@ If `/.infra` is present and outputs `s3` and `cloudfront`, those values do not n
 | `nodeVersion` | `18` | Node.js version |
 | `pythonVersion` | `3.11` | Python version |
 
----
-
-### Tool Configuration
+### `app` Section — Tool Configuration
 
 | Parameter | Description | Allowed Values |
 |-----------|-------------|----------------|
@@ -365,21 +433,33 @@ If `/.infra` is present and outputs `s3` and `cloudfront`, those values do not n
 
 ---
 
-### AWS Deployment Parameters
+### `cloud` Section — AWS Deployment Parameters
 
-Required when deploying to AWS and `/.infra` is absent. If `/.infra` is present, EPIC resolves these from Terraform outputs automatically.
+Required when deploying to AWS and `/.infra` is absent. If `/.infra` is present, EPIC resolves resource identifiers from Terraform outputs automatically.
 
 | Parameter | Description |
 |-----------|-------------|
 | `awsAccountId` | Target AWS account ID (12 digits) |
-| `s3` | Target S3 bucket name |
+| `awsRegion` | AWS region (defaults to `us-west-2`) |
+| `s3` | Target S3 bucket name (static/Angular apps) |
 | `cloudfront` | CloudFront distribution ID (static/Angular apps) |
 | `ec2InstanceId` | EC2 instance ID (.NET, Python, Java apps) |
 | `appExecutable` | Executable name (.NET apps) |
 
----
+### `cloud` Section — AMI Parameters
 
-### Azure Deployment Parameters
+Required when `appType` is `ami`.
+
+| Parameter | Description |
+|-----------|-------------|
+| `components` | Array of component names to build/deploy |
+| `imageBuilderPipelinePrefix` | Prefix for Image Builder pipeline ARNs (default: `ami-factory`) |
+| `ssmParameterPrefix` | SSM Parameter Store prefix for AMI IDs (default: `/ami_factory`) |
+| `configDocPrefix` | SSM document prefix for configuration (optional, deploy only) |
+| `testDocPrefix` | SSM document prefix for testing (optional, deploy only) |
+| `instanceTags` | Object mapping component names to EC2 Name tags (optional, deploy only) |
+
+### `cloud` Section — Azure Deployment Parameters
 
 | Parameter | Description |
 |-----------|-------------|
@@ -390,16 +470,17 @@ Required when deploying to AWS and `/.infra` is absent. If `/.infra` is present,
 
 ## Parameter Categories Summary
 
-| Category | Required | Parameters |
-|----------|----------|------------|
-| Application Identity | Yes | `appName`, `appType`, `codePath` |
-| Packaging | Optional | `buildType` |
-| Runtime Versions | Optional | `nodeVersion`, `pythonVersion`, `dotnetVersion`, `javaVersion` |
-| Scanning | Optional | `scanTool` |
-| Unit Testing | Optional | `unitTestTool` |
-| Integration Testing | Optional | `integrationTestTool` |
-| AWS Deployment | Conditional | `awsAccountId`, `s3`, `cloudfront`, `ec2InstanceId`, `appExecutable` |
-| Azure Deployment | Conditional | `azureSubscription`, `azureResourceGroup` |
+| Category | Section | Required | Parameters |
+|----------|---------|----------|------------|
+| Application Identity | `app` | Yes | `appName`, `appType`, `codePath` |
+| Packaging | `app` | Optional | `buildType` |
+| Runtime Versions | `app` | Optional | `nodeVersion`, `pythonVersion`, `dotnetVersion`, `javaVersion` |
+| Scanning | `app` | Optional | `scanTool` |
+| Unit Testing | `app` | Optional | `unitTestTool` |
+| Integration Testing | `app` | Optional | `integrationTestTool` |
+| AWS Deployment | `cloud` | Conditional | `awsAccountId`, `awsRegion`, `s3`, `cloudfront`, `ec2InstanceId`, `appExecutable` |
+| AMI Configuration | `cloud` | Conditional | `components`, `imageBuilderPipelinePrefix`, `ssmParameterPrefix`, `configDocPrefix`, `testDocPrefix`, `instanceTags` |
+| Azure Deployment | `cloud` | Conditional | `azureSubscription`, `azureResourceGroup` |
 
 ---
 
@@ -433,8 +514,9 @@ EPIC provides a standardized CI/CD backbone for enterprise application delivery.
 
 It separates:
 
+- **Application configuration** (`app` section — identity, tooling, build intent)
+- **Cloud deployment** (`cloud` section — targets, credentials, resources)
 - **Infrastructure provisioning** (`/.infra` + Terraform)
-- **Application lifecycle** (build, test, scan, deploy)
 - **Orchestration logic** (engine + orchestrator)
 
 This keeps pipelines clean, scalable, and governable across teams.

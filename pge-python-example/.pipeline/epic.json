@@ -1,12 +1,15 @@
 {
-  "appName": "pge-python-example",
-  "appType": "python",
-  "buildType": "wheel",
-  "codePath": ".",
-  "scanTool": "sonarqube",
-  "unitTestTool": "pytest",
-  "pythonVersion": "3.11",
-
-  "awsAccountId": "514712703977",
-  "awsRegion": "us-west-2"
+  "app": {
+    "appName": "pge-python-example",
+    "appType": "python",
+    "codePath": ".",
+    "buildType": "wheel",
+    "pythonVersion": "3.11",
+    "scanTool": "sonarqube",
+    "unitTestTool": "pytest"
+  },
+  "cloud": {
+    "awsAccountId": "514712703977",
+    "awsRegion": "us-west-2"
+  }
 }

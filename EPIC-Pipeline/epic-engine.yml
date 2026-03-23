@@ -55,36 +55,6 @@ parameters:
     type: string
     default: ""
 
-  # AWS
-  - name: awsAccountId
-    type: string
-    default: ""
-  - name: awsRegion
-    type: string
-    default: "us-west-2"
-
-  # AWS Resources
-  - name: s3
-    type: string
-    default: ""
-  - name: cloudfront
-    type: string
-    default: ""
-  - name: ec2InstanceId
-    type: string
-    default: ""
-  - name: appExecutable
-    type: string
-    default: ""
-
-  # Azure
-  - name: azureSubscription
-    type: string
-    default: ""
-  - name: azureResourceGroup
-    type: string
-    default: ""
-
   # Pipeline stages
   - name: build
     type: boolean

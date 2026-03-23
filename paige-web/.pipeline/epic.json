@@ -1,11 +1,14 @@
 {
-  "appName": "paige-web",
-  "appType": "angular",
-  "codePath": "/",
-  "scanTool": "sonarqube",
-  "unitTestTool": "jest",
-  "nodeVersion": "20",
-
-  "awsAccountId": "514712703977",
-  "awsRegion": "us-west-2"
+  "app": {
+    "appName": "paige-web",
+    "appType": "angular",
+    "codePath": "/",
+    "nodeVersion": "20",
+    "scanTool": "sonarqube",
+    "unitTestTool": "jest"
+  },
+  "cloud": {
+    "awsAccountId": "514712703977",
+    "awsRegion": "us-west-2"
+  }
 }

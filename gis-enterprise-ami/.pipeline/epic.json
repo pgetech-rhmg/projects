@@ -1,0 +1,22 @@
+{
+  "app": {
+    "appName": "gis-enterprise-ami",
+    "appType": "ami",
+    "codePath": "/"
+  },
+  "cloud": {
+    "awsAccountId": "587401437202",
+    "awsRegion": "us-west-2",
+    "components": ["webadapter", "portal", "datastore", "server"],
+    "imageBuilderPipelinePrefix": "ami-factory",
+    "ssmParameterPrefix": "/ami_factory",
+    "configDocPrefix": "ConfigDoc",
+    "testDocPrefix": "TestDoc",
+    "instanceTags": {
+      "webadapter": "sor-11-5-arcgis-webadaptor-sandbox",
+      "server": "sor-11-5-arcgis-hosting-sandbox",
+      "datastore": "sor-11-5-arcgis-datastore-sandbox",
+      "portal": "sor-11-5-arcgis-portal-sandbox"
+    }
+  }
+}

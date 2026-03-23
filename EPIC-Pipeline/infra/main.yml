@@ -23,6 +23,21 @@ jobs:
 
 
     ###########################################################################
+    # Read Cloud Config
+    ###########################################################################
+    - bash: |
+        set -euo pipefail
+
+        CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/.pipeline/epic.json"
+
+        echo ">> Reading cloud config from $CONFIG"
+
+        echo "##vso[task.setvariable variable=CLOUD_AWS_ACCOUNT_ID]$(jq -r '.cloud.awsAccountId' "$CONFIG")"
+        echo "##vso[task.setvariable variable=CLOUD_AWS_REGION]$(jq -r '.cloud.awsRegion // "us-west-2"' "$CONFIG")"
+      displayName: 'Read cloud config'
+
+
+    ###########################################################################
     # Install Terraform
     ###########################################################################
     - task: TerraformInstaller@1
@@ -48,13 +63,13 @@ jobs:
       displayName: 'Assume Target Account Role'
       inputs:
         awsCredentials: 'AWS'
-        regionName: ${{ parameters.awsRegion }}
+        regionName: $(CLOUD_AWS_REGION)
         scriptType: 'inline'
         inlineScript: |
           set -euo pipefail
-        
+
           aws sts assume-role \
-            --role-arn "arn:aws:iam::${{ parameters.awsAccountId }}:role/pge-epic-deployment-role" \
+            --role-arn "arn:aws:iam::$(CLOUD_AWS_ACCOUNT_ID):role/pge-epic-deployment-role" \
             --role-session-name "epic-terraform-deploy" \
             --duration-seconds 3600 \
             --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
@@ -72,18 +87,18 @@ jobs:
     - task: AWSShellScript@1
       displayName: 'Terraform Init'
       inputs:
-        regionName: ${{ parameters.awsRegion }}
+        regionName: $(CLOUD_AWS_REGION)
         scriptType: 'inline'
         inlineScript: |
           set -euo pipefail
-        
+
           cd ${{ parameters.appName }}/.infra
 
           terraform init \
             -backend-config="bucket=pge-epic-terraform-state" \
             -backend-config="use_lockfile=true" \
-            -backend-config="key=${{ parameters.awsAccountId }}/${{ parameters.appName }}-${{ parameters.appType }}/${{ parameters.environment }}/terraform.tfstate" \
-            -backend-config="region=${{ parameters.awsRegion }}" \
+            -backend-config="key=$(CLOUD_AWS_ACCOUNT_ID)/${{ parameters.appName }}-${{ parameters.appType }}/${{ parameters.environment }}/terraform.tfstate" \
+            -backend-config="region=$(CLOUD_AWS_REGION)" \
             -backend-config="encrypt=true"
 
 
@@ -93,7 +108,7 @@ jobs:
     - task: AWSShellScript@1
       displayName: 'Terraform Validate'
       inputs:
-        regionName: ${{ parameters.awsRegion }}
+        regionName: $(CLOUD_AWS_REGION)
         scriptType: 'inline'
         inlineScript: |
           set -euo pipefail
@@ -114,17 +129,17 @@ jobs:
       - task: AWSShellScript@1
         displayName: 'Terraform Plan'
         inputs:
-          regionName: ${{ parameters.awsRegion }}
+          regionName: $(CLOUD_AWS_REGION)
           scriptType: 'inline'
           inlineScript: |
             set -euo pipefail
-        
+
             cd ${{ parameters.appName }}/.infra
 
             terraform plan \
-              -var="aws_account_id=${{ parameters.awsAccountId }}" \
+              -var="aws_account_id=$(CLOUD_AWS_ACCOUNT_ID)" \
               -var="environment=${{ parameters.environment }}" \
-              -var="aws_region=${{ parameters.awsRegion }}" \
+              -var="aws_region=$(CLOUD_AWS_REGION)" \
               -out=tfplan
 
       #########################################################################
@@ -133,7 +148,7 @@ jobs:
       - task: AWSShellScript@1
         displayName: 'Terraform Apply'
         inputs:
-          regionName: ${{ parameters.awsRegion }}
+          regionName: $(CLOUD_AWS_REGION)
           scriptType: 'inline'
           inlineScript: |
             set -euo pipefail
@@ -166,17 +181,17 @@ jobs:
       - task: AWSShellScript@1
         displayName: 'Terraform Plan Destroy'
         inputs:
-          regionName: ${{ parameters.awsRegion }}
+          regionName: $(CLOUD_AWS_REGION)
           scriptType: 'inline'
           inlineScript: |
             set -euo pipefail
-        
+
             cd ${{ parameters.appName }}/.infra
 
             terraform plan -destroy \
-              -var="aws_account_id=${{ parameters.awsAccountId }}" \
+              -var="aws_account_id=$(CLOUD_AWS_ACCOUNT_ID)" \
               -var="environment=${{ parameters.environment }}" \
-              -var="aws_region=${{ parameters.awsRegion }}" \
+              -var="aws_region=$(CLOUD_AWS_REGION)" \
               -out=tfplan-destroy
 
       #########################################################################
@@ -185,7 +200,7 @@ jobs:
       - task: AWSShellScript@1
         displayName: 'Terraform Destroy'
         inputs:
-          regionName: ${{ parameters.awsRegion }}
+          regionName: $(CLOUD_AWS_REGION)
           scriptType: 'inline'
           inlineScript: |
             set -euo pipefail

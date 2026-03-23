@@ -1,13 +1,14 @@
 {
-  "appName": "epic-web",
-  "appType": "angular",
-  "codePath": "/",
-
-  "nodeVersion": "20",
-
-  "scanTool": "sonarqube",
-  "unitTestTool": "jest",
-
-  "awsAccountId": "514712703977",
-  "awsRegion": "us-west-2"
+  "app": {
+    "appName": "epic-web",
+    "appType": "angular",
+    "codePath": "/",
+    "nodeVersion": "20",
+    "scanTool": "sonarqube",
+    "unitTestTool": "jest"
+  },
+  "cloud": {
+    "awsAccountId": "514712703977",
+    "awsRegion": "us-west-2"
+  }
 }

@@ -1,0 +1,558 @@
+###############################################################################
+# AMI Deploy Steps
+#
+# Publishes built AMIs by applying the environment label to SSM parameters,
+# then optionally runs SSM configuration and test documents against
+# pre-existing instances to validate the deployment.
+#
+# Assumes all AWS infrastructure (Image Builder pipelines, EC2 instances,
+# SSM documents, IAM roles, KMS keys) is already provisioned and managed
+# outside of EPIC. EPIC never calls Terraform Cloud.
+#
+# Consumes the ami-manifest.json artifact produced by build/ami/main.yml.
+#
+# Required cloud fields in .pipeline/epic.json:
+#   "cloud": {
+#     "awsAccountId": "...",
+#     "awsRegion": "us-west-2",
+#     "components": ["webadapter", "portal", "datastore", "server"],
+#     "ssmParameterPrefix": "/ami_factory",
+#     "configDocPrefix": "ConfigDoc",
+#     "testDocPrefix": "TestDoc",
+#     "instanceTags": {
+#       "webadapter": "sor-11-5-arcgis-webadaptor-sandbox",
+#       "server":     "sor-11-5-arcgis-hosting-sandbox",
+#       "datastore":  "sor-11-5-arcgis-datastore-sandbox",
+#       "portal":     "sor-11-5-arcgis-portal-sandbox"
+#     }
+#   }
+#
+###############################################################################
+steps:
+
+  #############################################################################
+  # Read AMI Manifest & Cloud Config
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      MANIFEST_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build/ami-manifest.json"
+      CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/.pipeline/epic.json"
+
+      if [ ! -f "$MANIFEST_PATH" ]; then
+        echo "##vso[task.logissue type=error]ami-manifest.json not found at $MANIFEST_PATH"
+        exit 1
+      fi
+
+      echo ">> AMI manifest:"
+      cat "$MANIFEST_PATH"
+
+      echo ""
+      echo ">> Cloud config:"
+      jq '.cloud' "$CONFIG"
+
+      # Extract from manifest
+      COMPONENTS=$(jq -r '.ami_builds | map(.component) | join(",")' "$MANIFEST_PATH")
+      SSM_PREFIX=$(jq -r '.ssm_prefix' "$MANIFEST_PATH")
+
+      # Extract from cloud config
+      CONFIG_DOC_PREFIX=$(jq -r '.cloud.configDocPrefix // ""' "$CONFIG")
+      TEST_DOC_PREFIX=$(jq -r '.cloud.testDocPrefix // ""' "$CONFIG")
+      INSTANCE_TAGS=$(jq -r '.cloud.instanceTags // {} | to_entries | map("\(.key)=\(.value)") | join(",")' "$CONFIG")
+
+      echo "##vso[task.setvariable variable=AMI_COMPONENTS]$COMPONENTS"
+      echo "##vso[task.setvariable variable=SSM_PREFIX]$SSM_PREFIX"
+      echo "##vso[task.setvariable variable=CONFIG_DOC_PREFIX]$CONFIG_DOC_PREFIX"
+      echo "##vso[task.setvariable variable=TEST_DOC_PREFIX]$TEST_DOC_PREFIX"
+      echo "##vso[task.setvariable variable=INSTANCE_TAGS]$INSTANCE_TAGS"
+    displayName: "Read AMI manifest & cloud config"
+
+
+  #############################################################################
+  # Publish AMIs - Apply Environment Label to SSM Parameters
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Publish AMIs (label SSM parameters)"
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-AMI-PUBLISH-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        SSM_PREFIX="$(SSM_PREFIX)"
+        ENVIRONMENT="${{ parameters.environment }}"
+        IFS=',' read -ra COMPONENTS <<< "$(AMI_COMPONENTS)"
+
+        echo ">> Publishing ${#COMPONENTS[@]} AMI(s) for environment: $ENVIRONMENT"
+
+        for COMPONENT in "${COMPONENTS[@]}"; do
+          PARAM_NAME="${SSM_PREFIX}/${COMPONENT}/ami"
+
+          echo ">> Processing $PARAM_NAME"
+
+          # Find the version with the LATEST label
+          LATEST_VERSION=$(aws ssm get-parameter-history \
+            --name "$PARAM_NAME" \
+            --query "Parameters[?contains(Labels, 'LATEST')].Version | [0]" \
+            --output text)
+
+          if [ "$LATEST_VERSION" = "None" ] || [ -z "$LATEST_VERSION" ]; then
+            echo "##vso[task.logissue type=error]No LATEST version found for $PARAM_NAME"
+            exit 1
+          fi
+
+          AMI_ID=$(aws ssm get-parameter-history \
+            --name "$PARAM_NAME" \
+            --query "Parameters[?Version==\`$LATEST_VERSION\`].Value | [0]" \
+            --output text)
+
+          echo ">> Applying '$ENVIRONMENT' label to $PARAM_NAME version $LATEST_VERSION ($AMI_ID)"
+
+          aws ssm label-parameter-version \
+            --name "$PARAM_NAME" \
+            --parameter-version "$LATEST_VERSION" \
+            --labels "$ENVIRONMENT"
+
+          echo ">> Published: $COMPONENT -> $AMI_ID (version $LATEST_VERSION, label: $ENVIRONMENT)"
+        done
+
+
+  #############################################################################
+  # Wait for Instances to be Ready
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Wait for instances to be ready"
+    condition: and(succeeded(), ne(variables['CONFIG_DOC_PREFIX'], ''), ne(variables['INSTANCE_TAGS'], ''))
+    timeoutInMinutes: 15
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-AMI-WAIT-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        INSTANCE_TAGS="$(INSTANCE_TAGS)"
+
+        echo ">> Resolving instance IDs from tags..."
+
+        # Build instance ID list from Name tags
+        INSTANCE_IDS=""
+        IFS=',' read -ra TAG_PAIRS <<< "$INSTANCE_TAGS"
+
+        for PAIR in "${TAG_PAIRS[@]}"; do
+          COMPONENT=$(echo "$PAIR" | cut -d'=' -f1)
+          NAME_TAG=$(echo "$PAIR" | cut -d'=' -f2)
+
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=$NAME_TAG" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text)
+
+          if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
+            echo "##vso[task.logissue type=warning]No running instance found for $COMPONENT ($NAME_TAG)"
+            continue
+          fi
+
+          echo ">> Found $COMPONENT: $INSTANCE_ID ($NAME_TAG)"
+          INSTANCE_IDS="$INSTANCE_IDS $INSTANCE_ID"
+        done
+
+        INSTANCE_IDS=$(echo "$INSTANCE_IDS" | xargs)
+
+        if [ -z "$INSTANCE_IDS" ]; then
+          echo "##vso[task.logissue type=error]No instances found"
+          exit 1
+        fi
+
+        echo ">> Waiting for instance status checks: $INSTANCE_IDS"
+        aws ec2 wait instance-status-ok --instance-ids $INSTANCE_IDS
+
+        echo ">> Waiting for SSM agents..."
+        for INSTANCE_ID in $INSTANCE_IDS; do
+          timeout 300 bash -c "
+            until aws ssm describe-instance-information \
+              --filters Key=InstanceIds,Values=$INSTANCE_ID \
+              --query 'InstanceInformationList[0].PingStatus' \
+              --output text 2>/dev/null | grep -q Online; do
+              echo '   $INSTANCE_ID: SSM agent not ready yet...'
+              sleep 10
+            done
+          "
+          echo ">> $INSTANCE_ID: SSM agent online"
+        done
+
+        echo ">> All instances ready"
+
+
+  #############################################################################
+  # Run Configuration SSM Documents
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Run configuration documents"
+    condition: and(succeeded(), ne(variables['CONFIG_DOC_PREFIX'], ''), ne(variables['INSTANCE_TAGS'], ''))
+    timeoutInMinutes: 30
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-AMI-CONFIG-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        CONFIG_DOC_PREFIX="$(CONFIG_DOC_PREFIX)"
+        INSTANCE_TAGS="$(INSTANCE_TAGS)"
+
+        # Component-to-SSM-doc-suffix mapping
+        declare -A COMPONENT_MAP
+        COMPONENT_MAP[webadapter]="arcgiswebadaptor"
+        COMPONENT_MAP[portal]="arcgisportal"
+        COMPONENT_MAP[datastore]="arcgisdatastore"
+        COMPONENT_MAP[server]="arcgisserver"
+
+        COMMAND_FILE="$(System.DefaultWorkingDirectory)/ssm-commands.json"
+        echo "[]" > "$COMMAND_FILE"
+
+        IFS=',' read -ra TAG_PAIRS <<< "$INSTANCE_TAGS"
+
+        for PAIR in "${TAG_PAIRS[@]}"; do
+          COMPONENT=$(echo "$PAIR" | cut -d'=' -f1)
+          NAME_TAG=$(echo "$PAIR" | cut -d'=' -f2)
+          DOC_SUFFIX="${COMPONENT_MAP[$COMPONENT]:-$COMPONENT}"
+          DOC_NAME="${CONFIG_DOC_PREFIX}-${DOC_SUFFIX}"
+
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=$NAME_TAG" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text)
+
+          if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
+            echo "##vso[task.logissue type=warning]Skipping $COMPONENT - no running instance"
+            continue
+          fi
+
+          echo ">> Running $DOC_NAME on $INSTANCE_ID ($COMPONENT)"
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "$DOC_NAME" \
+            --comment "EPIC AMI deploy - configure $COMPONENT (Build $(Build.BuildId))" \
+            --query 'Command.CommandId' \
+            --output text)
+
+          echo ">> Command sent: $COMMAND_ID"
+
+          jq --arg comp "$COMPONENT" --arg inst "$INSTANCE_ID" --arg cmd "$COMMAND_ID" --arg doc "$DOC_NAME" \
+            '. += [{"component": $comp, "instance_id": $inst, "command_id": $cmd, "doc_name": $doc}]' \
+            "$COMMAND_FILE" > "${COMMAND_FILE}.tmp" && mv "${COMMAND_FILE}.tmp" "$COMMAND_FILE"
+        done
+
+        echo ">> All configuration documents sent"
+        cat "$COMMAND_FILE"
+
+
+  #############################################################################
+  # Wait for Configuration to Complete
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Wait for configuration to complete"
+    condition: and(succeeded(), ne(variables['CONFIG_DOC_PREFIX'], ''), ne(variables['INSTANCE_TAGS'], ''))
+    timeoutInMinutes: 30
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-AMI-CFGWAIT-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        COMMAND_FILE="$(System.DefaultWorkingDirectory)/ssm-commands.json"
+        POLL_INTERVAL=30
+
+        if [ ! -f "$COMMAND_FILE" ] || [ "$(jq length "$COMMAND_FILE")" -eq 0 ]; then
+          echo ">> No commands to wait for"
+          exit 0
+        fi
+
+        echo ">> Waiting for configuration commands to complete..."
+
+        COMMAND_COUNT=$(jq length "$COMMAND_FILE")
+        HAS_FAILURE=false
+
+        for i in $(seq 0 $((COMMAND_COUNT - 1))); do
+          COMPONENT=$(jq -r ".[$i].component" "$COMMAND_FILE")
+          INSTANCE_ID=$(jq -r ".[$i].instance_id" "$COMMAND_FILE")
+          COMMAND_ID=$(jq -r ".[$i].command_id" "$COMMAND_FILE")
+
+          echo ">> Waiting for $COMPONENT ($COMMAND_ID)..."
+
+          while true; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query 'Status' \
+              --output text 2>/dev/null || echo "InProgress")
+
+            case "$STATUS" in
+              Success)
+                echo ">> $COMPONENT: configuration succeeded"
+                break
+                ;;
+              Failed|Cancelled|TimedOut)
+                echo "##vso[task.logissue type=error]$COMPONENT: configuration $STATUS"
+                DETAIL=$(aws ssm get-command-invocation \
+                  --command-id "$COMMAND_ID" \
+                  --instance-id "$INSTANCE_ID" \
+                  --query 'StandardErrorContent' \
+                  --output text 2>/dev/null || echo "No error detail")
+                echo ">> Error detail: $DETAIL"
+                HAS_FAILURE=true
+                break
+                ;;
+              *)
+                sleep $POLL_INTERVAL
+                ;;
+            esac
+          done
+        done
+
+        if [ "$HAS_FAILURE" = true ]; then
+          echo "##vso[task.logissue type=error]One or more configuration commands failed"
+          exit 1
+        fi
+
+        echo ">> All configuration commands completed successfully"
+
+
+  #############################################################################
+  # Run Test SSM Documents
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Run test documents"
+    condition: and(succeeded(), ne(variables['TEST_DOC_PREFIX'], ''), ne(variables['INSTANCE_TAGS'], ''))
+    timeoutInMinutes: 30
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-AMI-TEST-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        TEST_DOC_PREFIX="$(TEST_DOC_PREFIX)"
+        INSTANCE_TAGS="$(INSTANCE_TAGS)"
+
+        declare -A COMPONENT_MAP
+        COMPONENT_MAP[webadapter]="arcgiswebadaptor"
+        COMPONENT_MAP[portal]="arcgisportal"
+        COMPONENT_MAP[datastore]="arcgisdatastore"
+        COMPONENT_MAP[server]="arcgisserver"
+
+        TEST_COMMAND_FILE="$(System.DefaultWorkingDirectory)/ssm-test-commands.json"
+        echo "[]" > "$TEST_COMMAND_FILE"
+
+        IFS=',' read -ra TAG_PAIRS <<< "$INSTANCE_TAGS"
+
+        for PAIR in "${TAG_PAIRS[@]}"; do
+          COMPONENT=$(echo "$PAIR" | cut -d'=' -f1)
+          NAME_TAG=$(echo "$PAIR" | cut -d'=' -f2)
+          DOC_SUFFIX="${COMPONENT_MAP[$COMPONENT]:-$COMPONENT}"
+          DOC_NAME="${TEST_DOC_PREFIX}-${DOC_SUFFIX}"
+
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=$NAME_TAG" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text)
+
+          if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
+            echo "##vso[task.logissue type=warning]Skipping $COMPONENT test - no running instance"
+            continue
+          fi
+
+          echo ">> Running $DOC_NAME on $INSTANCE_ID ($COMPONENT)"
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "$DOC_NAME" \
+            --comment "EPIC AMI deploy - test $COMPONENT (Build $(Build.BuildId))" \
+            --query 'Command.CommandId' \
+            --output text)
+
+          echo ">> Test command sent: $COMMAND_ID"
+
+          jq --arg comp "$COMPONENT" --arg inst "$INSTANCE_ID" --arg cmd "$COMMAND_ID" --arg doc "$DOC_NAME" \
+            '. += [{"component": $comp, "instance_id": $inst, "command_id": $cmd, "doc_name": $doc}]' \
+            "$TEST_COMMAND_FILE" > "${TEST_COMMAND_FILE}.tmp" && mv "${TEST_COMMAND_FILE}.tmp" "$TEST_COMMAND_FILE"
+        done
+
+        echo ">> All test documents sent"
+
+
+  #############################################################################
+  # Wait for Tests to Complete
+  #############################################################################
+  - task: AWSShellScript@1
+    displayName: "Wait for tests to complete"
+    condition: and(succeeded(), ne(variables['TEST_DOC_PREFIX'], ''), ne(variables['INSTANCE_TAGS'], ''))
+    timeoutInMinutes: 30
+    inputs:
+      awsCredentials: 'AWS'
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        AWS_ACCOUNT_ID=$1
+
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
+          --role-session-name "PGE-EPIC-AMI-TSTWAIT-$(Build.BuildId)" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)
+
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+
+        TEST_COMMAND_FILE="$(System.DefaultWorkingDirectory)/ssm-test-commands.json"
+        POLL_INTERVAL=30
+
+        if [ ! -f "$TEST_COMMAND_FILE" ] || [ "$(jq length "$TEST_COMMAND_FILE")" -eq 0 ]; then
+          echo ">> No test commands to wait for"
+          exit 0
+        fi
+
+        echo ">> Waiting for test commands to complete..."
+
+        COMMAND_COUNT=$(jq length "$TEST_COMMAND_FILE")
+        HAS_FAILURE=false
+
+        for i in $(seq 0 $((COMMAND_COUNT - 1))); do
+          COMPONENT=$(jq -r ".[$i].component" "$TEST_COMMAND_FILE")
+          INSTANCE_ID=$(jq -r ".[$i].instance_id" "$TEST_COMMAND_FILE")
+          COMMAND_ID=$(jq -r ".[$i].command_id" "$TEST_COMMAND_FILE")
+
+          echo ">> Waiting for $COMPONENT test ($COMMAND_ID)..."
+
+          while true; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query 'Status' \
+              --output text 2>/dev/null || echo "InProgress")
+
+            case "$STATUS" in
+              Success)
+                echo ">> $COMPONENT: test passed"
+                break
+                ;;
+              Failed|Cancelled|TimedOut)
+                echo "##vso[task.logissue type=error]$COMPONENT: test $STATUS"
+                DETAIL=$(aws ssm get-command-invocation \
+                  --command-id "$COMMAND_ID" \
+                  --instance-id "$INSTANCE_ID" \
+                  --query 'StandardErrorContent' \
+                  --output text 2>/dev/null || echo "No error detail")
+                echo ">> Error detail: $DETAIL"
+                HAS_FAILURE=true
+                break
+                ;;
+              *)
+                sleep $POLL_INTERVAL
+                ;;
+            esac
+          done
+        done
+
+        if [ "$HAS_FAILURE" = true ]; then
+          echo "##vso[task.logissue type=error]One or more tests failed"
+          exit 1
+        fi
+
+        echo ">> All tests passed"
+
+
+  #############################################################################
+  # Deployment Summary
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      MANIFEST_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build/ami-manifest.json"
+      ENVIRONMENT="${{ parameters.environment }}"
+
+      echo "============================================"
+      echo "  AMI Deployment Summary"
+      echo "============================================"
+      echo "  Environment:  $ENVIRONMENT"
+      echo "  Build ID:     $(Build.BuildId)"
+      echo ""
+
+      jq -r '.ami_builds[] | "  \(.component): \(.ami_id) (\(.region))"' "$MANIFEST_PATH"
+
+      echo ""
+      echo "============================================"
+    displayName: "Deployment summary"

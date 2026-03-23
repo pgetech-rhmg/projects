@@ -1,9 +1,12 @@
 {
-  "appName": "pge-website-example",
-  "appType": "html",
-  "codePath": "/",
-  "scanTool": "sonarqube",
-
-  "awsAccountId": "514712703977",
-  "awsRegion": "us-west-2"
+  "app": {
+    "appName": "pge-website-example",
+    "appType": "html",
+    "codePath": "/",
+    "scanTool": "sonarqube"
+  },
+  "cloud": {
+    "awsAccountId": "514712703977",
+    "awsRegion": "us-west-2"
+  }
 }

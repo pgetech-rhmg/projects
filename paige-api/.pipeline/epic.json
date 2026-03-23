@@ -1,12 +1,15 @@
 {
-  "appName": "paige-api",
-  "appType": "dotnet",
-  "codePath": "/Paige.Api",
-  "scanTool": "sonarqube",
-  "unitTestTool": "xunit",
-  "dotnetVersion": "10.x",
-  
-  "awsAccountId": "514712703977",
-  "awsRegion": "us-west-2",
-  "appExecutable": "Paige.Api"
+  "app": {
+    "appName": "paige-api",
+    "appType": "dotnet",
+    "codePath": "/Paige.Api",
+    "dotnetVersion": "10.x",
+    "scanTool": "sonarqube",
+    "unitTestTool": "xunit"
+  },
+  "cloud": {
+    "awsAccountId": "514712703977",
+    "awsRegion": "us-west-2",
+    "appExecutable": "Paige.Api"
+  }
 }

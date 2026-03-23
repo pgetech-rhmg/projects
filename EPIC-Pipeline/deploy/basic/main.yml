@@ -12,8 +12,8 @@ steps:
         DISTRIBUTION_ID=$(cat "${{ parameters.terraformOutputPath }}" | jq -r '.distribution_id.value // empty')
       fi
 
-      S3=${BUCKET_NAME:-${{ parameters.s3 }}}
-      CLOUDFRONT=${DISTRIBUTION_ID:-${{ parameters.cloudfront }}}
+      S3=${BUCKET_NAME:-$(CLOUD_S3)}
+      CLOUDFRONT=${DISTRIBUTION_ID:-$(CLOUD_CLOUDFRONT)}
 
       echo "##vso[task.setvariable variable=BUCKET_NAME]$S3"
       echo "##vso[task.setvariable variable=DISTRIBUTION_ID]$CLOUDFRONT"
@@ -27,37 +27,37 @@ steps:
     displayName: "Deploy ${{ parameters.appType }}"
     inputs:
       awsCredentials: 'AWS'
-      arguments: ${{ parameters.awsAccountId }}
-      regionName: ${{ parameters.awsRegion }}
+      arguments: $(CLOUD_AWS_ACCOUNT_ID)
+      regionName: $(CLOUD_AWS_REGION)
       scriptType: 'inline'
       inlineScript: |
         set -euo pipefail
-        
+
         AWS_ACCOUNT_ID=$1
-        
+
         # Assume the app account role using EPIC credentials
         CREDS=$(aws sts assume-role \
           --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/pge-epic-deployment-role" \
           --role-session-name "PGE-EPIC-DEPLOY-ADO-$(Build.BuildId)" \
           --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
           --output text)
-        
+
         export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1)
         export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2)
         export AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
-        
+
         echo "Deploying ${{ parameters.appType }}..."
-        
+
         BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
         BUCKET_NAME="$(BUCKET_NAME)"
         DISTRIBUTION_ID="$(DISTRIBUTION_ID)"
-        
+
         echo "Syncing to S3..."
         aws s3 sync "$BUILD_PATH" "s3://$BUCKET_NAME" --delete
-        
+
         echo "Invalidating CloudFront..."
         aws cloudfront create-invalidation \
           --distribution-id "$DISTRIBUTION_ID" \
           --paths "/*"
-        
+
         echo "Deployment complete."
