@@ -342,8 +342,6 @@ RestartSec=5
 User=ec2-user
 Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment=AWS_REGION=${var.aws_region}
-Environment=AWS_SECRETS_NAME=${module.secretmanager.secret_name}
 
 [Install]
 WantedBy=multi-user.target
