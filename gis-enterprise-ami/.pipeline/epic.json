@@ -2,7 +2,8 @@
   "app": {
     "appName": "gis-enterprise-ami",
     "appType": "ami",
-    "codePath": "/"
+    "codePath": "/",
+    "approvalEnvironments": ["prod"]
   },
   "cloud": {
     "awsAccountId": "587401437202",

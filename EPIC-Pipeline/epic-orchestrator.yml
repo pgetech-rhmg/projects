@@ -173,6 +173,15 @@ stages:
               DEPLOY=$(echo "$DEPLOY" | tr '[:upper:]' '[:lower:]')
               INTEGRATIONS=$(echo "$INTEGRATIONS" | tr '[:upper:]' '[:lower:]')
 
+              # Resolve approval gate: check if current environment is in approvalEnvironments array
+              REQUIRE_APPROVAL=$(jq -r \
+                --arg env "$ENVIRONMENT" \
+                'if .app.approvalEnvironments then
+                  (.app.approvalEnvironments | map(ascii_downcase) | index($env | ascii_downcase) != null)
+                else
+                  false
+                end' "$CONFIG_FILE")
+
               PAYLOAD=$(jq -n \
                 --arg repo "$REPO" \
                 --arg branch "$BRANCH" \
@@ -183,6 +192,7 @@ stages:
                 --argjson scan "$SCAN" \
                 --argjson deploy "$DEPLOY" \
                 --argjson integrations "$INTEGRATIONS" \
+                --argjson requireApproval "$REQUIRE_APPROVAL" \
                 --slurpfile config "$CONFIG_FILE" \
                 '{
                   templateParameters: (
@@ -199,7 +209,8 @@ stages:
                         tests: $tests,
                         scan: $scan,
                         deploy: $deploy,
-                        integrations: $integrations
+                        integrations: $integrations,
+                        requireApproval: $requireApproval
                       }
                     | with_entries(
                         {

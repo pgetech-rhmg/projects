@@ -77,6 +77,11 @@ parameters:
     type: string
     default: "none"
 
+  # Approval gate
+  - name: requireApproval
+    type: boolean
+    default: false
+
 
 ###############################################################################
 # Global Variables
@@ -178,12 +183,12 @@ stages:
 
 
   #############################################################################
-  # Deploy App
+  # Approval Gate (optional — driven by approvalEnvironments in epic.json)
   #############################################################################
-  - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true')) }}:
-    - stage: Deploy
-      displayName: "Deploy App"
-      dependsOn: 
+  - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true'), eq(parameters.requireApproval, 'true')) }}:
+    - stage: Approval
+      displayName: "Approval Gate"
+      dependsOn:
         - Download
         - Build
         - ${{ if eq(parameters.tests, 'true') }}:
@@ -192,6 +197,42 @@ stages:
           - Scan
         - ${{ if ne(parameters.terraformAction, 'none') }}:
           - DeployInfra
+
+      jobs:
+        - job: ApprovalJob
+          displayName: "Waiting for Approval"
+          pool: server
+          steps:
+            - task: ManualValidation@0
+              displayName: "Approve deployment to ${{ parameters.environment }}"
+              inputs:
+                notifyUsers: ""
+                instructions: |
+                  Approve deployment of **${{ parameters.appName }}** to **${{ parameters.environment }}**.
+
+                  - Branch: `${{ parameters.branch }}`
+                  - App Type: `${{ parameters.appType }}`
+
+                  Review the build and scan results before approving.
+
+
+  #############################################################################
+  # Deploy App
+  #############################################################################
+  - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true')) }}:
+    - stage: Deploy
+      displayName: "Deploy App"
+      dependsOn:
+        - Download
+        - Build
+        - ${{ if eq(parameters.tests, 'true') }}:
+          - UnitTest
+        - ${{ if eq(parameters.scan, 'true') }}:
+          - Scan
+        - ${{ if ne(parameters.terraformAction, 'none') }}:
+          - DeployInfra
+        - ${{ if eq(parameters.requireApproval, 'true') }}:
+          - Approval
 
       jobs:
         - template: /deploy/main.yml
