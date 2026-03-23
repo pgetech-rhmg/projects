@@ -108,6 +108,7 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Epic.Api.Auth.ICurrentUser, Epic.Api.Auth.HeaderCurrentUser>();
 builder.Services.AddHttpClient<IGitHubService, GitHubService>();
+builder.Services.AddHttpClient<IAdoService, AdoService>();
 builder.Services.AddScoped<IAppService, AppService>();
 
 // ---------------------------------------------------------------------------

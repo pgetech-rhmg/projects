@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Epic.Api.Services;
 
-public sealed class AppService(EpicDbContext db, IGitHubService gitHub, ICurrentUser currentUser) : IAppService
+public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoService ado, ICurrentUser currentUser) : IAppService
 {
     private string CurrentUserId => currentUser.UserId;
 
@@ -28,7 +28,113 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, ICurrent
 
         if (entity is null) return null;
 
+        // Refresh metadata from GitHub and runs from ADO
+        await RefreshFromGitHubAsync(entity, ct);
+        await RefreshRunsFromAdoAsync(entity, ct);
+
         return ToAppDetail(entity);
+    }
+
+    private async Task RefreshFromGitHubAsync(AppEntity entity, CancellationToken ct)
+    {
+        try
+        {
+            var repoInfo = await gitHub.GetRepoAsync(entity.GithubRepo, ct);
+            if (!repoInfo.Exists) return;
+
+            var technology = MapLanguageToTechnology(repoInfo.Language);
+            var appType = MapTechnologyToAppType(technology);
+            var hasChanges = false;
+
+            if (entity.Technology != technology)
+            {
+                entity.Technology = technology;
+                entity.AppType = appType;
+                hasChanges = true;
+            }
+
+            if (repoInfo.Description is not null && entity.Description != repoInfo.Description)
+            {
+                entity.Description = repoInfo.Description;
+                hasChanges = true;
+            }
+
+            if (hasChanges)
+            {
+                entity.LastUpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+            }
+        }
+        catch
+        {
+            // GitHub is unavailable — serve stale data rather than failing
+        }
+    }
+
+    private async Task RefreshRunsFromAdoAsync(AppEntity entity, CancellationToken ct)
+    {
+        try
+        {
+            var adoRuns = await ado.GetRunsForAppAsync(entity.Name, 20, ct);
+            if (adoRuns.Count == 0) return;
+
+            // Get existing run IDs to avoid duplicates
+            var existingRunIds = entity.Runs.Select(r => r.Id).ToHashSet();
+
+            var hasChanges = false;
+
+            foreach (var run in adoRuns)
+            {
+                if (existingRunIds.Contains(run.Id))
+                {
+                    // Update existing run (status may have changed if it was Running)
+                    var existing = entity.Runs.First(r => r.Id == run.Id);
+                    if (existing.Status != run.Status)
+                    {
+                        existing.Status = run.Status;
+                        existing.Duration = run.Duration;
+                        existing.StageBuild = run.Stages.Build.ToString();
+                        existing.StageTest = run.Stages.Test.ToString();
+                        existing.StageScan = run.Stages.Scan.ToString();
+                        existing.StageInfraDeploy = run.Stages.InfraDeploy.ToString();
+                        existing.StageAppDeploy = run.Stages.AppDeploy.ToString();
+                        hasChanges = true;
+                    }
+                }
+                else
+                {
+                    // New run from ADO — add to DB
+                    entity.Runs.Add(new PipelineRunEntity
+                    {
+                        Id = run.Id,
+                        AppId = entity.Id,
+                        Status = run.Status,
+                        TriggeredBy = run.TriggeredBy,
+                        Branch = run.Branch,
+                        Environment = run.Environment,
+                        StartedAt = run.StartedAt,
+                        Duration = run.Duration,
+                        StageBuild = run.Stages.Build.ToString(),
+                        StageTest = run.Stages.Test.ToString(),
+                        StageScan = run.Stages.Scan.ToString(),
+                        StageInfraDeploy = run.Stages.InfraDeploy.ToString(),
+                        StageAppDeploy = run.Stages.AppDeploy.ToString()
+                    });
+                    hasChanges = true;
+                }
+            }
+
+            if (hasChanges)
+            {
+                await db.SaveChangesAsync(ct);
+                // Reload runs sorted after save
+                entity.Runs = entity.Runs.OrderByDescending(r => r.StartedAt).ToList();
+            }
+        }
+        catch
+        {
+            // ADO is unavailable — serve stale data rather than failing
+        }
     }
 
     public async Task<RepoCheckResult> CheckRepoAsync(string repo, CancellationToken ct = default)
@@ -37,10 +143,10 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, ICurrent
 
         if (app is null)
         {
-            var repoExists = await gitHub.RepoExistsAsync(repo, ct);
+            var repoInfo = await gitHub.GetRepoAsync(repo, ct);
             return new RepoCheckResult
             {
-                Status = repoExists ? "available" : "not-found"
+                Status = repoInfo.Exists ? "available" : "not-found"
             };
         }
 
@@ -81,25 +187,32 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, ICurrent
 
     public async Task<AppDetail> OnboardAppAsync(string repo, string branch, CancellationToken ct = default)
     {
+        var repoInfo = await gitHub.GetRepoAsync(repo, ct);
+        if (!repoInfo.Exists)
+            throw new KeyNotFoundException($"GitHub repo '{repo}' not found");
+
+        var technology = MapLanguageToTechnology(repoInfo.Language);
+        var appType = MapTechnologyToAppType(technology);
+
         var entity = new AppEntity
         {
-            Name = repo.ToLowerInvariant().Replace("/", "-"),
-            DisplayName = repo,
-            AppType = "unknown",
-            Technology = "unknown",
+            Name = repo.ToLowerInvariant(),
+            DisplayName = FormatDisplayName(repo),
+            Description = repoInfo.Description,
+            AppType = appType,
+            Technology = technology,
             Cloud = "aws",
             Environment = "dev",
             Team = "unassigned",
             Domain = "",
             GithubRepo = repo,
-            GithubBranch = branch,
+            GithubBranch = branch.Length > 0 ? branch : repoInfo.DefaultBranch ?? "main",
             CreatedBy = CurrentUserId,
             LastUpdatedBy = CurrentUserId
         };
 
         db.Apps.Add(entity);
 
-        // Auto-track for the onboarding user
         db.UserApps.Add(new UserAppEntity
         {
             UserId = CurrentUserId,
@@ -110,6 +223,34 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, ICurrent
 
         return ToAppDetail(entity);
     }
+
+    private static string MapLanguageToTechnology(string? language) => language?.ToLowerInvariant() switch
+    {
+        "typescript" or "javascript" => "Angular",
+        "c#" => ".NET",
+        "python" => "Python",
+        "java" or "kotlin" => "Java",
+        "hcl" => "Terraform",
+        "html" or "css" => "HTML",
+        "go" => "Go",
+        "ruby" => "Ruby",
+        "shell" or "dockerfile" => "Shell",
+        _ => language ?? "Unknown"
+    };
+
+    private static string MapTechnologyToAppType(string technology) => technology switch
+    {
+        "Angular" => "angular",
+        ".NET" => "dotnet",
+        "Python" => "python",
+        "Java" => "java",
+        "HTML" => "html",
+        _ => "unknown"
+    };
+
+    private static string FormatDisplayName(string repo) =>
+        string.Join(' ', repo.Split('-', '_')
+            .Select(w => w.Length > 0 ? char.ToUpper(w[0]) + w[1..] : w));
 
     public Task<PipelineRun> TriggerRunAsync(string appName, string branch, string environment, CancellationToken ct = default)
     {

@@ -58,9 +58,10 @@ public_hosted_zone_id  = "Z184J8PCMR81S"
 secrets_description = "Appsettings for Epic.API"
 
 secrets = {
-  "ConnectionStrings__EpicDb" = "CHANGE_ME",
+  "ConnectionStrings__EpicDb" = "CHANGE_ME"
   "GITHUB_BASE_URL"           = "https://github.com/pgetech"
   "GITHUB_TOKEN"              = "CHANGE_ME"
+  "ADO_PAT"                   = "CHANGE_ME"
 }
 
 
