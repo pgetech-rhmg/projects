@@ -1,0 +1,1 @@
+this report is about compromised third-party github actions, not github actions as a platform. the attack vector is mutable version tags on community-maintained actions. if you pin to commit shas instead of tags, this specific attack doesn't work. that's a configuration decision, not a platform flaw.
