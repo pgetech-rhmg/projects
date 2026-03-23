@@ -82,7 +82,7 @@ terraform apply
 The pipeline is a dispatcher-based ADO YAML framework. Applications declare intent in `.pipeline/epic.json`; EPIC routes to the correct templates:
 
 ```
-epic-orchestrator.yml   ← REST entry point (reads epic.json, invokes engine)
+epic-orchestrator.yml   ← REST entry point (reads epic.json .app section, invokes engine)
 epic-engine.yml         ← Control plane (conditional stages, dependency ordering)
 build/main.yml          ← Dispatcher → build/{appType}/main.yml
 test/main.yml           ← Dispatcher → test/{unitTestTool}/main.yml
@@ -93,7 +93,7 @@ deploy/main.yml         ← Dispatcher → deploy/{appType}/main.yml
 
 **Stage execution:** Download → Build → UnitTest → Scan → DeployInfra → Deploy → IntegrationTest (each conditional on epic.json settings).
 
-**Supported appTypes:** `angular`, `html`, `python`, `java`, `dotnet`, `dotnet_framework`, `ami` (in progress).
+**Supported appTypes:** `angular`, `html`, `python`, `java`, `dotnet`, `dotnet_framework`, `ami`.
 
 **Key artifacts:** `epic-app` (source), `epic-build` (build output), `epic-unit-tests`, `terraform-outputs`.
 
@@ -136,7 +136,11 @@ All projects with infrastructure use `.infra/` containing: `terraform.tf` (backe
 
 ### GIS Enterprise AMI
 
-`gis-enterprise-ami` manages ArcGIS component AMIs (Server, Portal, DataStore, WebAdaptor) plus FME Flow/Form. Currently uses AWS CodePipeline + Step Functions + Lambda — being migrated to EPIC-Pipeline's new `ami` appType. EPIC will trigger EC2 Image Builder, poll for completion, write AMI IDs to SSM, and run SSM config/test documents.
+`gis-enterprise-ami` manages ArcGIS component AMIs (Server, Portal, DataStore, WebAdaptor) plus FME Flow/Form. Uses EPIC-Pipeline's `ami` appType — EPIC triggers EC2 Image Builder, polls for completion, writes AMI IDs to SSM, and runs SSM config/test documents. The legacy AWS CodePipeline orchestration (Step Functions, 5 Lambda functions, EventBridge triggers) is being removed; the Image Builder pipelines, SSM documents, KMS keys, and S3 buckets remain as infrastructure managed outside of EPIC.
+
+### EPIC AWS Resources
+
+`EPIC AWS Resources` contains shared infrastructure: the `pge-epic-deployment-role` IAM role (assumed by all EPIC pipeline stages via STS), the `pge-epic-terraform-state` S3 bucket, and the DynamoDB state lock table. The deployment role has policies for infrastructure provisioning, application deployment, AMI operations (Image Builder), and Terraform state access.
 
 ## ADO Template Conventions
 

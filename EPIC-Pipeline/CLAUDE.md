@@ -60,7 +60,7 @@ Download
 
 ---
 
-## AMI appType (In Progress)
+## AMI appType
 
 ### What it does
 
@@ -70,16 +70,10 @@ Replaces AWS CodePipeline for AMI-building projects. EPIC triggers pre-existing 
 
 All infrastructure (Image Builder pipelines, KMS keys, EC2 instances, SSM documents, IAM roles) is managed outside of EPIC. EPIC only orchestrates build and deploy actions.
 
-### Files created
+### Files
 
-- `build/ami/main.yml` — Build steps for AMI projects
-- `deploy/ami/main.yml` — Deploy steps for AMI projects
-
-### NOT yet wired up
-
-- `build/main.yml` — needs `ami` routing condition added
-- `deploy/main.yml` — needs `ami` routing condition added
-- `epic-engine.yml` — may need AMI-specific parameters added
+- `build/ami/main.yml` — Build steps (reads cloud config, triggers Image Builder, polls, writes SSM, produces manifest)
+- `deploy/ami/main.yml` — Deploy steps (publishes AMIs via SSM labels, runs config/test SSM documents)
 
 ### AMI build flow (`build/ami/main.yml`)
 
@@ -143,31 +137,40 @@ The SSM document suffix differs from the component name:
 
 ## Related Project: gis-enterprise-ami
 
-Located at `../gis-enterprise-ami/`. This is the AMI project that EPIC's new `ami` appType is designed to support.
+Located at `../gis-enterprise-ami/`. This is the AMI project that EPIC's `ami` appType supports.
 
-### What it currently uses (being replaced by EPIC)
+### What EPIC replaced
 
+The legacy orchestration layer has been removed:
 - AWS CodePipeline V2 (5 stages: Source, PrepareParameters, Build, Approval, Publish)
 - AWS Step Functions state machine (parallel Image Builder orchestration)
 - 5 Lambda functions: `input_preparer`, `ami_writer`, `tfc_runner`, `config_manager`, `ami_publisher`
-- EventBridge trigger on golden AMI SSM parameter change
+- EventBridge triggers, pipeline input JSON files
+- KMS keys for CodePipeline artifacts, Lambda env, SNS
 
 ### What stays in AWS (not EPIC's concern)
 
-- EC2 Image Builder pipelines, recipes, components, infrastructure configs
-- KMS keys (5 total: AMIs, logs, Lambda, SNS, CodePipeline artifacts)
-- SSM parameters and documents
+- EC2 Image Builder pipelines, recipes, components, infrastructure configs (`ami-pipeline/image_builder.tf`, `ami-pipeline/modules/`)
+- KMS keys for AMIs (cross-account sharing) and CloudWatch logs
+- SSM parameters (`/ami_factory/{component}/ami`) and documents (ConfigDoc/TestDoc)
 - S3 buckets for Image Builder logs and install scripts
-- IAM roles (need to trust `pge-epic-deployment-role`)
+- Image Builder IAM role and security group
 - Installation scripts in `ami-pipeline/arcgis_install_scripts/11.5/`
+- Installation/test YAML templates in `ami-pipeline/templates/`
+
+### IAM requirement
+
+`pge-epic-deployment-role` needs `imagebuilder:StartImagePipelineExecution`, `imagebuilder:GetImage`, `imagebuilder:GetImagePipeline`, and `imagebuilder:ListImagePipelineImages`. These are provisioned in `EPIC AWS Resources/Deploy Role/main.tf` under the `pge-epic-ami-deployment` policy. All other permissions (SSM, EC2, KMS) are covered by existing policies.
 
 ### Key paths in gis-enterprise-ami
 
-- `arcgis-enterprise-ami/ami-pipeline/` — main pipeline infra (Terraform)
-- `arcgis-enterprise-ami/ami-pipeline/lambda/` — 5 Lambda functions
-- `arcgis-enterprise-ami/ami-pipeline/step_functions/` — state machine templates
-- `arcgis-enterprise-ami/ami-pipeline/pipeline_inputs/` — component config JSONs
-- `arcgis-enterprise-ssm-config/` — SSM config/test documents
+- `arcgis-enterprise-ami/ami-pipeline/image_builder.tf` — Image Builder pipeline definitions (stays)
+- `arcgis-enterprise-ami/ami-pipeline/modules/` — Reusable Image Builder module (stays)
+- `arcgis-enterprise-ami/ami-pipeline/templates/` — Component installer/test YAML templates (stays)
+- `arcgis-enterprise-ami/ami-pipeline/arcgis_install_scripts/` — Installation configs (stays)
+- `arcgis-enterprise-ssm-config/` — SSM config/test documents (stays)
+- `arcgis-enterprise-ami/ami-sandbox/` — Manual testing environment (stays)
+- `.pipeline/epic.json` — EPIC contract with AMI cloud config
 
 ---
 
