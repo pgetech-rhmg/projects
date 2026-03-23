@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:7072",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7098;http://localhost:7072",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "Paige.Api": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:7072",
+      "environmentVariables": {
+        "AWS_REGION": "us-west-2",
+        "AWS_SECRETS_NAME": "pge-epic-paige-dev-secrets",
+        "GITHUB_BASE_URL": "https://github.com/pgetech",
+        "GITHUB_TOKEN": "xxx",
+        "PORTKEY_BASE_URL": "https://aws-ai-gateway.nonprod.pge.com/v1",
+        "PORTKEY_MODEL": "@bedrock-dev/us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "PORTKEY_MODEL_CLASSIFIER": "@bedrock-dev/us.anthropic.claude-3-haiku-20240307-v1:0",
+        "PORTKEY_API_KEY": "xxx",
+        "MCP_SERVER_BASE_URL": "https://paige-mcp-dev.nonprod.pge.com",
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
