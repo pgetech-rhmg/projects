@@ -1,0 +1,5 @@
+  aws ssm get-command-invocation \
+    --command-id <COMMAND_ID from the log> \
+    --instance-id i-055bc0c56b8e7003c \
+    --query '[StandardOutputContent, StandardErrorContent]' \
+    --output text
