@@ -53,7 +53,14 @@ if (!builder.Environment.IsDevelopment())
         new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
     ) ?? throw new InvalidOperationException("Failed to deserialize secrets.");
 
-    builder.Configuration.AddInMemoryCollection(secrets);
+    // Convert double-underscore keys to colon notation for .NET configuration
+    // (e.g., ConnectionStrings__EpicDb → ConnectionStrings:EpicDb)
+    var normalizedSecrets = secrets.ToDictionary(
+        kvp => kvp.Key.Replace("__", ":"),
+        kvp => kvp.Value
+    );
+
+    builder.Configuration.AddInMemoryCollection(normalizedSecrets);
 }
 
 // ---------------------------------------------------------------------------

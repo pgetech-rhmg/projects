@@ -233,7 +233,7 @@ Dispatcher that selects the correct build implementation based on `appType`. Eac
 |------|-----------|--------|
 | `angular` | npm | `dist/` → `.build/` |
 | `ami` | EC2 Image Builder | AMI IDs → SSM → `.build/ami-manifest.json` |
-| `dotnet` | dotnet CLI | Published self-contained executable or NuGet package (+ EF Core migration bundle if `efMigrations: true`) |
+| `dotnet` | dotnet CLI | Published self-contained executable or NuGet package |
 | `dotnet_framework` | MSBuild | `.build/` |
 | `html` | (copy) | `.build/` |
 | `java` | Maven or Gradle | JAR → `.build/` |
@@ -407,7 +407,6 @@ If `/.infra` is present and Terraform outputs include `bucket_name`, `distributi
 | `appType` | Yes | Determines build and deploy implementation. See allowed values below. |
 | `codePath` | Yes | Relative path from repo root to application source (e.g., `/`, `.`, `/src`). |
 | `buildType` | No | Defines packaging behavior. Omit for standard build. |
-| `efMigrations` | No | Set to `"true"` to generate an EF Core migration bundle during build and run it before deploy (.NET only). |
 | `approvalEnvironments` | No | Array of environment names that require manual approval before deploy (e.g., `["prod"]`). |
 
 **`appType` allowed values:**
@@ -454,17 +453,6 @@ Required when deploying to AWS and `/.infra` is absent. If `/.infra` is present,
 | `ec2InstanceId` | EC2 instance ID (.NET, Python, Java apps) |
 | `appExecutable` | Executable name (.NET apps) |
 
-### `cloud` Section — EF Core Migration Parameters
-
-Required when `efMigrations` is `"true"` in the `app` section.
-
-| Parameter | Description |
-|-----------|-------------|
-| `efSecretsName` | AWS Secrets Manager secret name containing the database connection string |
-| `efSecretsKey` | Key within the secret for the connection string (default: `ConnectionStrings__EpicDb`) |
-
-During deploy, EPIC fetches the connection string from Secrets Manager in the pipeline agent, then passes it to the `efbundle` on the EC2 via SSM. If `efSecretsName` is not set, migrations are skipped with a warning.
-
 ### `cloud` Section — AMI Parameters
 
 Required when `appType` is `ami`.
@@ -494,14 +482,12 @@ Required when `appType` is `ami`.
 |----------|---------|----------|------------|
 | Application Identity | `app` | Yes | `appName`, `appType`, `codePath` |
 | Packaging | `app` | Optional | `buildType` |
-| Database Migrations | `app` | Optional | `efMigrations` |
 | Approval Gates | `app` | Optional | `approvalEnvironments` |
 | Runtime Versions | `app` | Optional | `nodeVersion`, `pythonVersion`, `dotnetVersion`, `javaVersion` |
 | Scanning | `app` | Optional | `scanTool` |
 | Unit Testing | `app` | Optional | `unitTestTool` |
 | Integration Testing | `app` | Optional | `integrationTestTool` |
 | AWS Deployment | `cloud` | Conditional | `awsAccountId`, `awsRegion`, `s3`, `cloudfront`, `ec2InstanceId`, `appExecutable` |
-| EF Core Migrations | `cloud` | Conditional | `efSecretsName`, `efSecretsKey` |
 | AMI Configuration | `cloud` | Conditional | `components`, `imageBuilderPipelinePrefix`, `ssmParameterPrefix`, `configDocPrefix`, `testDocPrefix`, `componentDocSuffixes`, `instanceTags` |
 | Azure Deployment | `cloud` | Conditional | `azureSubscription`, `azureResourceGroup` |
 

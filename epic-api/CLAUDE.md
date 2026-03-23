@@ -161,7 +161,6 @@ DB entities (`Data/Entities/`) are separate from API models — `AppService` map
     "appType": "dotnet",
     "codePath": "/Epic.Api",
     "dotnetVersion": "10.x",
-    "efMigrations": "true",
     "scanTool": "sonarqube",
     "unitTestTool": "xunit"
   },
@@ -177,20 +176,15 @@ DB entities (`Data/Entities/`) are separate from API models — `AppService` map
 
 ## EF Core Migrations
 
-Locally, migrations auto-apply on startup (`db.Database.Migrate()` in Development mode).
+Migrations run automatically on app startup via `db.Database.Migrate()` in all environments. This is idempotent — EF Core checks `__EFMigrationsHistory` and only applies new migrations.
 
-In production, EPIC Pipeline handles migrations:
-1. **Build stage** — `efMigrations: "true"` in `epic.json` tells EPIC to generate a self-contained `efbundle` executable via `dotnet ef migrations bundle`
-2. **Deploy stage** — EPIC detects the `efbundle` in the build artifact, uploads it to the EC2, and runs it with the connection string before starting the app
-3. If the bundle doesn't exist (non-EF projects), the migration step is skipped
-
-To add a new migration locally:
+To add a new migration:
 ```bash
 cd Epic.Api
 dotnet ef migrations add <MigrationName> --output-dir Data/Migrations
 ```
 
-Commit the generated migration files — they're compiled into the app and used by the `efbundle`.
+Commit the generated migration files. On next deploy, the app starts, applies the new migration, then serves requests.
 
 ---
 
@@ -198,4 +192,4 @@ Commit the generated migration files — they're compiled into the app and used 
 
 - **ADO integration** — `TriggerRunAsync` should call the Azure DevOps REST API to invoke the EPIC orchestrator pipeline.
 - **Auth** — No authentication wired yet. Will need Azure AD / MSAL integration (same pattern as paige-api). The hardcoded `CurrentUserId` in AppService needs to be replaced with real identity.
-- **AWS connection string** — In production, the connection string is stored in AWS Secrets Manager (provisioned by `.infra/` Secrets Manager module). The EC2 user_data sets it as an environment variable from the systemd service file.
+- **AWS connection string** — In production, the connection string is stored in AWS Secrets Manager (provisioned by `.infra/` Secrets Manager module). The app loads it at startup via `Program.cs` (same pattern as paige-api).
