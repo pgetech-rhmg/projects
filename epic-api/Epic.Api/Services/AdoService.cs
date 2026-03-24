@@ -20,7 +20,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
     public async Task<List<AdoPipelineRun>> GetRunsForAppAsync(string appName, int? afterBuildId = null, int top = 20, CancellationToken ct = default)
     {
         // One API call — filter by appName tag
-        var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={top}&queryOrder=finishTimeDescending&api-version=7.1";
+        var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={top}&queryOrder=queueTimeDescending&api-version=7.1";
         var buildsJson = await CallApiAsync(url, ct);
 
         if (buildsJson is null) return [];
@@ -104,7 +104,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
 
     public async Task<AdoLatestRun?> GetLatestRunForAppAsync(string appName, CancellationToken ct = default)
     {
-        var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top=1&queryOrder=finishTimeDescending&api-version=7.1";
+        var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top=1&queryOrder=queueTimeDescending&api-version=7.1";
         var buildsJson = await CallApiAsync(url, ct);
 
         if (buildsJson is null) return null;
