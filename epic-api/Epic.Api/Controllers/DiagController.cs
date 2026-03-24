@@ -49,12 +49,24 @@ public sealed class DiagController(IAdoService adoService, IGitHubService gitHub
             var response = await client.GetAsync(url, ct);
             var body = await response.Content.ReadAsStringAsync(ct);
 
-            return Ok(new
+            var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
+            var builds = json.GetProperty("value").EnumerateArray().Take(2).Select(b =>
             {
-                requestUrl = url,
-                statusCode = (int)response.StatusCode,
-                responseBody = body.Length > 2000 ? body[..2000] + "..." : body
+                return new
+                {
+                    id = b.GetProperty("id").GetInt32(),
+                    requestedFor = b.TryGetProperty("requestedFor", out var rf)
+                        ? rf.GetProperty("displayName").GetString() : null,
+                    requestedBy = b.TryGetProperty("requestedBy", out var rb)
+                        ? rb.GetProperty("displayName").GetString() : null,
+                    hasTriggeredByBuild = b.TryGetProperty("triggeredByBuild", out _),
+                    triggeredByBuild = b.TryGetProperty("triggeredByBuild", out var tb)
+                        ? tb.ToString() : null,
+                    allKeys = b.EnumerateObject().Select(p => p.Name).ToList()
+                };
             });
+
+            return Ok(new { requestUrl = url, statusCode = (int)response.StatusCode, builds });
         }
         catch (Exception ex)
         {
