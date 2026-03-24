@@ -18,9 +18,9 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
 
     public async Task<List<AdoPipelineRun>> GetRunsForAppAsync(string appName, int top = 20, CancellationToken ct = default)
     {
-        // Use the Builds API — it returns parameters and supports filtering
-        var buildsUrl = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&$top=100&queryOrder=finishTimeDescending&api-version=7.1";
-        var buildsJson = await CallApiAsync(buildsUrl, ct);
+        // One API call — filter by appName tag
+        var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={top}&queryOrder=finishTimeDescending&api-version=7.1";
+        var buildsJson = await CallApiAsync(url, ct);
 
         if (buildsJson is null) return [];
 
@@ -28,30 +28,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
 
         foreach (var build in buildsJson.Value.GetProperty("value").EnumerateArray())
         {
-            if (results.Count >= top) break;
-
-            // Parameters are stored as a JSON string in the "parameters" field
-            var paramsString = build.TryGetProperty("parameters", out var p) && p.ValueKind == JsonValueKind.String
-                ? p.GetString() : null;
-
-            if (paramsString is null) continue;
-
-            JsonElement paramObj;
-            try { paramObj = JsonDocument.Parse(paramsString).RootElement; }
-            catch { continue; }
-
-            var runAppName = paramObj.TryGetProperty("appName", out var an)
-                ? an.GetString() : null;
-
-            if (!string.Equals(runAppName, appName, StringComparison.OrdinalIgnoreCase))
-                continue;
-
             var buildId = build.GetProperty("id").GetInt32();
-
-            var branch = paramObj.TryGetProperty("branch", out var br)
-                ? br.GetString() ?? "" : "";
-            var environment = paramObj.TryGetProperty("environment", out var env)
-                ? env.GetString() ?? "dev" : "dev";
 
             var adoStatus = build.TryGetProperty("status", out var st) ? st.GetString() : "unknown";
             var adoResult = build.TryGetProperty("result", out var res) ? res.GetString() : null;
@@ -60,6 +37,29 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
             var triggeredBy = build.TryGetProperty("requestedFor", out var rf)
                 && rf.TryGetProperty("displayName", out var dn)
                 ? dn.GetString() ?? "Unknown" : "Unknown";
+
+            // Extract branch and environment from the build's parameters
+            var branch = "";
+            var environment = "dev";
+            var paramsString = build.TryGetProperty("parameters", out var p) && p.ValueKind == JsonValueKind.String
+                ? p.GetString() : null;
+            if (paramsString is not null)
+            {
+                try
+                {
+                    var paramObj = JsonDocument.Parse(paramsString).RootElement;
+                    branch = paramObj.TryGetProperty("branch", out var br) ? br.GetString() ?? "" : "";
+                    environment = paramObj.TryGetProperty("environment", out var env) ? env.GetString() ?? "dev" : "dev";
+                }
+                catch { /* parameters not parseable — use defaults */ }
+            }
+
+            // Fall back to source branch if parameters didn't have it
+            if (string.IsNullOrEmpty(branch))
+            {
+                branch = build.TryGetProperty("sourceBranch", out var sb)
+                    ? sb.GetString()?.Replace("refs/heads/", "") ?? "" : "";
+            }
 
             var startedAt = build.TryGetProperty("startTime", out var st2)
                 && st2.ValueKind != JsonValueKind.Null
@@ -96,8 +96,8 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
 
     private async Task<PipelineStages> GetStageResultsAsync(int buildId, CancellationToken ct)
     {
-        var timelineUrl = $"{BaseUrl}/build/builds/{buildId}/timeline?api-version=7.1";
-        var timelineJson = await CallApiAsync(timelineUrl, ct);
+        var url = $"{BaseUrl}/build/builds/{buildId}/timeline?api-version=7.1";
+        var timelineJson = await CallApiAsync(url, ct);
 
         var stages = new PipelineStages
         {

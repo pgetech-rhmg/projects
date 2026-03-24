@@ -110,6 +110,41 @@ stages:
           repo: ${{ parameters.repo }}
           branch: ${{ parameters.branch }}
 
+      - job: TagBuild
+        displayName: "Tag Build"
+        dependsOn: DownloadJob
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - bash: |
+              set -euo pipefail
+
+              echo ">> Tagging build with: ${{ parameters.appName }}, ${{ parameters.appType }}, ${{ parameters.environment }}"
+
+              API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/tags"
+
+              # Tag with appName (primary — used for filtering)
+              curl -s -X PUT \
+                -H "Authorization: Bearer $(System.AccessToken)" \
+                -H "Content-Type: application/json" \
+                "$API_URL/${{ parameters.appName }}?api-version=7.1"
+
+              # Tag with appType and environment for additional filtering
+              curl -s -X PUT \
+                -H "Authorization: Bearer $(System.AccessToken)" \
+                -H "Content-Type: application/json" \
+                "$API_URL/${{ parameters.appType }}?api-version=7.1"
+
+              curl -s -X PUT \
+                -H "Authorization: Bearer $(System.AccessToken)" \
+                -H "Content-Type: application/json" \
+                "$API_URL/${{ parameters.environment }}?api-version=7.1"
+
+              echo ">> Build tagged"
+            displayName: "Tag build with app metadata"
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
 
   #############################################################################
   # Build App
