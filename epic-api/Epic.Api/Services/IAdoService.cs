@@ -19,6 +19,8 @@ public sealed class AdoLatestRun
     public int Id { get; set; }
     public required string Status { get; set; }
     public required string TriggeredBy { get; set; }
+    public required string Branch { get; set; }
+    public required string Environment { get; set; }
     public DateTime StartedAt { get; set; }
     public string? Duration { get; set; }
 }

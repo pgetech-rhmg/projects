@@ -121,6 +121,28 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
             && rf.TryGetProperty("displayName", out var dn)
             ? dn.GetString() ?? "Unknown" : "Unknown";
 
+        // Extract branch and environment from the build's parameters
+        var branch = "";
+        var environment = "dev";
+        var paramsString = build.TryGetProperty("parameters", out var p) && p.ValueKind == JsonValueKind.String
+            ? p.GetString() : null;
+        if (paramsString is not null)
+        {
+            try
+            {
+                var paramObj = JsonDocument.Parse(paramsString).RootElement;
+                branch = paramObj.TryGetProperty("branch", out var br) ? br.GetString() ?? "" : "";
+                environment = paramObj.TryGetProperty("environment", out var env) ? env.GetString() ?? "dev" : "dev";
+            }
+            catch { /* parameters not parseable — use defaults */ }
+        }
+
+        if (string.IsNullOrEmpty(branch))
+        {
+            branch = build.TryGetProperty("sourceBranch", out var sb)
+                ? sb.GetString()?.Replace("refs/heads/", "") ?? "" : "";
+        }
+
         var startedAt = build.TryGetProperty("startTime", out var st2)
             && st2.ValueKind != JsonValueKind.Null
             ? st2.GetDateTime()
@@ -139,6 +161,8 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
             Id = build.GetProperty("id").GetInt32(),
             Status = MapRunStatus(adoStatus, adoResult),
             TriggeredBy = orchestratorTriggeredBy ?? triggeredBy,
+            Branch = branch,
+            Environment = environment,
             StartedAt = startedAt,
             Duration = finishedAt.HasValue ? FormatDuration(finishedAt.Value - startedAt) : null
         };
