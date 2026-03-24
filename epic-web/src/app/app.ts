@@ -156,9 +156,25 @@ export class App implements OnInit, OnDestroy {
 
   protected initialsFor(name: string | null): string {
     if (!name) return '—';
-    return name === 'System'
-      ? '⚙'
-      : name.split(' ').map(n => n[0]).join('').toUpperCase();
+    if (name === 'System') return '⚙';
+
+    // Normalize: strip commas, split into parts, filter empties
+    const parts = name.replace(/,/g, '').split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '?';
+
+    // Detect "Last, First [Middle]" format (original had a comma)
+    if (name.includes(',') && parts.length >= 2) {
+      const first = parts[1]; // first name is after the comma
+      const last = parts[0];  // last name is before the comma
+      return (first[0] + last[0]).toUpperCase();
+    }
+
+    // "First Last" or "First Middle Last" — use first and last
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    return parts.length === 1
+      ? first[0].toUpperCase()
+      : (first[0] + last[0]).toUpperCase();
   }
 
   // ── Modals ────────────────────────────────────────────────────────────────
