@@ -237,7 +237,7 @@
               <tbody>
                 @for (run of appDetail()!.runs; track run.id) {
                   <tr>
-                    <td class="run-id"><button class="run-link" (click)="onRunClick(run.id)">#{{ run.id }}</button></td>
+                    <td class="run-id"><a class="run-link" [href]="getRunUrl(run.id)" target="_blank" rel="noopener" (click)="$event.stopPropagation()">#{{ run.id }}</a></td>
                     <td><span class="badge badge--status badge--status-{{ run.status | lowercase }}">{{ run.status }}</span></td>
                     <td class="run-branch">{{ run.branch }}</td>
                     <td><span class="badge badge--env badge--env-{{ run.environment }}">{{ run.environment }}</span></td>

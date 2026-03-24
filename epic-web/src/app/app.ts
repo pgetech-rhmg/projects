@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { LowerCasePipe } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
@@ -12,7 +12,7 @@ import { AppService } from './services/app.service';
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
-export class App implements OnInit {
+export class App implements OnInit, OnDestroy {
   private readonly appService = inject(AppService);
 
   protected readonly title = signal('epic-web');
@@ -22,8 +22,37 @@ export class App implements OnInit {
 
   protected readonly apps = signal<ManagedApp[]>([]);
 
+  private readonly refreshInterval = 5000;
+  private refreshTimer: ReturnType<typeof setInterval> | null = null;
+
   ngOnInit(): void {
     this.appService.getApps().subscribe(data => this.apps.set(data));
+    this.startAutoRefresh();
+  }
+
+  ngOnDestroy(): void {
+    this.stopAutoRefresh();
+  }
+
+  private startAutoRefresh(): void {
+    this.refreshTimer = setInterval(() => {
+      // Refresh main table
+      this.appService.getApps().subscribe(data => this.apps.set(data));
+
+      // Refresh modal detail if open
+      if (this.showManageModal() && this.selectedApp()) {
+        this.appService.getApp(this.selectedApp()!.name).subscribe({
+          next: detail => this.appDetail.set(detail)
+        });
+      }
+    }, this.refreshInterval);
+  }
+
+  private stopAutoRefresh(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
   }
 
   // ── Search & filters ──────────────────────────────────────────────────────
@@ -319,8 +348,8 @@ export class App implements OnInit {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly toastDuration = 5000;
 
-  protected onRunClick(runId: number): void {
-    this.showToast(`Run #${runId} — this will navigate to the ADO pipeline run once the integration is wired up.`);
+  protected getRunUrl(runId: number): string {
+    return `https://dev.azure.com/pgetech/EPIC-Pipeline/_build/results?buildId=${runId}&view=results`;
   }
 
   protected dismissToast(): void {
