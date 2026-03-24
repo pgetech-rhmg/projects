@@ -163,8 +163,8 @@ All projects with infrastructure use `.infra/` containing: `terraform.tf` (backe
 
 `epic-web` (Angular 20) + `epic-api` (.NET 10) form the EPIC management UI. The web app sends `X-Epic-User` header on all requests (interceptor, currently hardcoded to `Morgan, Robb`). The API integrates with:
 - **PostgreSQL** (Docker locally, Aurora Serverless v2 in AWS) via EF Core — stores apps, user-app tracking, pipeline runs
-- **GitHub API** — repo validation, description refresh, and `.pipeline/epic.json` file fetching on onboard
-- **ADO REST API** — queries engine pipeline (194) for run data and orchestrator pipeline (133) for triggeredBy
+- **GitHub API** — repo validation, description refresh, `.pipeline/epic.json` fetching on onboard (required), `.infra/` existence check
+- **ADO REST API** — queries engine pipeline (194) for run data, orchestrator pipeline (133) for triggeredBy, and triggers new runs via Pipelines API
 - **AWS Secrets Manager** — loads connection string + tokens at startup in production (key normalization: `__` → `:`)
 - EF Core migrations run on app startup (`db.Database.Migrate()`) — idempotent, no pipeline migration step
 

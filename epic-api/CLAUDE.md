@@ -76,8 +76,8 @@ dotnet publish                 # self-contained linux-x64
 | `DELETE` | `/api/users/me/apps/{name}` | Remove an app from user's tracked list |
 | `GET` | `/api/apps/{name}` | App detail + runs (refreshes from GitHub + ADO) |
 | `GET` | `/api/apps/check?repo={repo}` | Repo validation (GitHub API + DB check) |
-| `POST` | `/api/apps` | Onboard new app (reads epic.json from repo for appName/appType) |
-| `POST` | `/api/apps/{name}/runs` | Trigger pipeline run (stub — needs ADO REST) |
+| `POST` | `/api/apps` | Onboard new app (reads epic.json from repo for appName/appType, checks .infra/) |
+| `POST` | `/api/apps/{name}/runs` | Trigger pipeline run (calls ADO Pipelines API to invoke orchestrator) |
 | `DELETE` | `/api/diag/purge` | Purge all data from all tables |
 | `GET` | `/api/diag/ado/{appName}` | Diagnostic — test ADO tag query |
 | `GET` | `/api/diag/ado-raw/{appName}` | Diagnostic — raw ADO API response |
@@ -133,24 +133,25 @@ epic-api/
 
 ### GitHub API
 
-`GitHubService` calls three endpoints:
+`GitHubService` calls these endpoints:
 - `GET /repos/{org}/{repo}` — name, description, language, default branch
 - `GET /repos/{org}/{repo}/languages` — fallback language detection by bytes
-- `GET /repos/{org}/{repo}/contents/{path}?ref={branch}` — fetch file content (base64 decoded)
+- `GET /repos/{org}/{repo}/contents/{path}?ref={branch}` — fetch file content (base64 decoded) or check path existence
 
 Used by:
 - `CheckRepoAsync` — validates repo exists before onboarding
-- `OnboardAppAsync` — fetches `.pipeline/epic.json` for `appName`/`appType`, GitHub metadata for description
-- `GetAppAsync` — refreshes description on each detail view (technology/appType are NOT refreshed from GitHub — they come from epic.json at onboard time)
+- `OnboardAppAsync` — fetches `.pipeline/epic.json` (required — fails if missing) for `appName`/`appType`, checks `.infra/` existence for `HasInfra`, GitHub metadata for description
+- `GetAppAsync` → `RefreshFromGitHubAsync` — refreshes description and re-checks `.infra/` existence on each detail view (technology/appType are NOT refreshed — they come from epic.json at onboard time)
 
 ### ADO REST API
 
 `AdoService` queries two pipelines:
 - **Engine (ID 194)** — run data: status, stages, timing, branch, environment
   - `GET /build/builds?definitions=194&tagFilters={appName}&$top=N&queryOrder=queueTimeDescending` — finds runs for a specific app
-  - `GET /build/builds/{buildId}/timeline` — stage-level results (Build, Test, Scan, DeployInfra, Deploy)
-- **Orchestrator (ID 133)** — triggeredBy: the real `requestedFor` user
-  - `GET /build/builds?definitions=133&tagFilters={appName}&$top=N&queryOrder=finishTimeDescending` — matched to engine runs by time proximity
+  - `GET /build/builds/{buildId}/timeline` — stage-level results (Build, Test, Scan, DeployInfra, Deploy, IntegrationTest)
+- **Orchestrator (ID 133)** — triggeredBy + trigger runs
+  - `GET /build/builds?definitions=133&tagFilters={appName}&$top=N&queryOrder=finishTimeDescending` — matched to engine runs by time proximity for `requestedFor`
+  - `POST /pipelines/133/runs` — triggers a new orchestrator run with `templateParameters` (repo, branch, environment, build, tests, scan, deploy, integrations, deployInfra)
 
 Both pipelines are tagged with `appName` (engine by `TagBuild` job in `epic-engine.yml`, orchestrator by a tag step in `epic-orchestrator.yml`).
 
@@ -167,16 +168,6 @@ Used by:
 Loaded at startup in non-Development environments. Keys with `__` are normalized to `:` for .NET configuration compatibility (e.g., `ConnectionStrings__EpicDb` → `ConnectionStrings:EpicDb`).
 
 Required secrets: `ConnectionStrings__EpicDb`, `GITHUB_BASE_URL`, `GITHUB_TOKEN`, `ADO_PAT`
-
----
-
-## Database Schema
-
-| Table | Purpose | Key Columns |
-|-------|---------|-------------|
-| `apps` | All applications registered in EPIC | `name` (unique), `github_repo` (unique), `app_type`, `technology`, `cloud`, `environment` |
-| `pipeline_runs` | Pipeline execution history | `app_id` (FK), `status`, `branch`, `environment`, stage statuses |
-| `user_apps` | Which users track which apps | `user_id` + `app_id` (unique composite) |
 
 ---
 
@@ -197,14 +188,28 @@ Required secrets: `ConnectionStrings__EpicDb`, `GITHUB_BASE_URL`, `GITHUB_TOKEN`
 
 When `OnboardAppAsync` is called:
 1. Validates repo exists via GitHub API
-2. Fetches `.pipeline/epic.json` from the repo via `GetFileContentAsync`
+2. Fetches `.pipeline/epic.json` from the repo via `GetFileContentAsync` — **fails with 400 if missing** (repo is not configured for EPIC)
 3. Reads `app.appName` → becomes `Name` in the DB (falls back to repo name if missing)
 4. Reads `app.appType` → mapped to `Technology` via `MapAppTypeToTechnology()` (e.g., `angular` → `Angular`, `dotnet` → `.NET`)
 5. Detects cloud from `cloud.awsAccountId` or `cloud.azureSubscription` → normalized to `AWS` or `Azure`
-6. Fetches latest ADO run so the main table shows run data immediately
+6. Checks `.infra/` folder existence → stored as `HasInfra` (controls infrastructure deployment options in the UI)
+7. Fetches latest ADO run so the main table shows run data immediately
+
+## Refresh Behavior
+
+- **Main page refresh** (every 5s via `GetUserAppsAsync`) — lightweight: latest run per app from ADO engine pipeline, no GitHub calls
+- **Manage modal open** (`GetAppAsync`) — full refresh: GitHub description + `.infra/` re-check, ADO full run history with stages
+- **`.infra/` re-check** — runs on every manage modal open via `RefreshFromGitHubAsync`. If `.infra/` was added or removed since onboarding, `HasInfra` is updated in the DB immediately
+
+## Database Schema
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `apps` | All applications registered in EPIC | `name` (unique), `github_repo` (unique), `app_type`, `technology`, `cloud`, `has_infra`, `environment` |
+| `pipeline_runs` | Pipeline execution history | `app_id` (FK), `status`, `branch`, `environment`, stage statuses (build, test, scan, infra_deploy, app_deploy, integration_test) |
+| `user_apps` | Which users track which apps | `user_id` + `app_id` (unique composite) |
 
 ## Next Steps
 
-- **`TriggerRunAsync`** — Needs ADO REST API call to invoke the EPIC orchestrator pipeline.
 - **Auth** — Replace `X-Epic-User` header with MSAL/JWT (same pattern as paige-api).
 - **Remove DiagController** — Once ADO/GitHub integrations are verified working.

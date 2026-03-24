@@ -114,7 +114,7 @@ interface RepoCheckResult  // returned by checkRepo()
 ### Main page
 - **Header**: EPIC brand (left) + "Welcome / Morgan, Robb" avatar chip (right)
 - **Toolbar**: 5 filter dropdowns (Technology, Cloud, Environment, Run Status, Triggered By) + search input + "Clear" button
-- **Table**: 7 columns — App Name, Technology, Cloud, Last Pipeline Run, Environment, Run Status, Triggered By
+- **Table**: 8 columns — App Name, Technology, Cloud, Last Pipeline Run, Branch, Environment, Run Status, Triggered By
   - Default sort: A-Z by app name
   - Entire row is clickable → opens manage modal
   - Sticky headers — only the table scrolls, page does not
@@ -122,15 +122,18 @@ interface RepoCheckResult  // returned by checkRepo()
   - "Triggered By" column shows a user chip with initials (handles `Last, First`, `First Last`, `First Middle Last` formats); if it's the current user it shows "You"
   - Dates formatted as `MM/dd/yyyy hh:mm:ss` in local time
 - **+ New App button** → opens onboard modal
-- **Auto-refresh**: every 5 seconds, refreshes data without affecting scroll position
+- **Auto-refresh**: every 5 seconds, refreshes data without affecting scroll position. Preserves client-side "Pending" state for recently triggered runs until ADO catches up (compares `lastPipelineRun` timestamps)
+- **Loading overlay**: full-page semi-transparent overlay with spinner during Onboard and New Run API calls
 
 ### Manage modal
+- Fixed height (600px), scrollable runs table
 - Shows app metadata grid: GitHub Repo, Default Branch, Technology, Cloud
-- Pipeline runs table with columns: Run #, Status, Branch, Environment, Triggered By, Started, Duration, Build, Test, Scan, Deploy
+- Pipeline runs table with columns: Run #, Status, Branch, Environment, Triggered By, Started, Duration, Build, Test, Scan, Infra Deploy, App Deploy, Integration
   - Run # is a clickable link → opens the ADO pipeline run in a new tab (`https://dev.azure.com/pgetech/EPIC-Pipeline/_build/results?buildId={id}&view=results`)
   - Stage columns use colored dot indicators: green (success), red (failed), blue (running), grey filled (skipped), white with grey border (pending/not yet run), purple (external)
-  - If `runs` array is empty → shows a dashed empty-state message instead of the table
+  - If `runs` array is empty → shows "No pipeline runs recorded yet." in the table
   - Dates formatted as `MM/dd/yyyy hh:mm:ss` in local time
+  - `pageSize = 26`, paginated with prev/next + numbered page buttons (same pattern as main table)
 - **Auto-refresh**: every 5 seconds while modal is open
 - Footer: **Remove** (left, red — removes app from user's list) + **Close** + **New Run** (right)
 
@@ -138,16 +141,18 @@ interface RepoCheckResult  // returned by checkRepo()
 - Triggered from the manage modal's "New Run" button — closes the manage modal first, then opens this one
 - Shows a 3-tile metadata summary: GitHub Repo, Technology, Cloud
 - **Branch input** (required):
-  - `main` and `master` are blocked — shows red error: `"main" is not allowed — use a feature or release branch.`
   - If branch matches `release`, `release1`, `release2`, etc. (`/^release\d*$/i`), environment is forced to `prod` and the dropdown is disabled with a hint
   - Placeholder guides users: `e.g. feature/my-branch`
 - **Environment dropdown** (required):
   - Options: dev, test, qa, stage
   - Defaults to `dev`
   - `prod` is **not selectable** — it only appears (and is auto-selected) when a release branch is entered
+- **Stages** (checkboxes): Build App (default on), Run Unit Tests, Scan App, Deploy App, Run Integration Tests
+- **Infrastructure Deployment** (radio buttons): None (default), Apply, Destroy
+  - If app has no `.infra/` folder (`hasInfra = false`), all radio buttons are disabled with hint message, forced to `none`
 - **Run button** is disabled until branch is valid and environment is selected
-- On confirm → closes modal → fires toast: `A new pipeline run for "{name}" on branch "{branch}" for the "{env}" environment has been queued...`
-- Still a placeholder — no service call yet (`POST /api/apps/{name}/runs`)
+- On confirm → calls `POST /api/apps/{name}/runs` → ADO orchestrator pipeline is triggered → toast shows run ID
+- After trigger: main table immediately shows Pending status with branch, environment, triggeredBy, and trigger timestamp. Auto-refresh picks up real ADO data once the engine starts
 
 ### Onboard modal ("+ New App")
 - **Repo name input** with on-blur validation via `checkRepo()`
@@ -157,7 +162,7 @@ interface RepoCheckResult  // returned by checkRepo()
   - Red border + "Repo not found. Verify the name or check your access." → `not-found`
 - **Branch input** — hidden when status is `in-epic-not-mine` or `already-mine`
 - Footer button:
-  - **Onboard** (enabled only when `available` + both fields filled) → toast confirming submission
+  - **Onboard** (enabled only when `available` + both fields filled) → calls API, shows loading overlay. API validates `.pipeline/epic.json` exists on the selected branch — if missing, returns error toast: "not configured for EPIC"
   - **Add to My List** (shown when `in-epic-not-mine`) → adds app to table immediately + toast
 
 ### Toast system
