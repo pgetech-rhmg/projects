@@ -8,7 +8,7 @@
       <div class="avatar">RM</div>
       <div class="user-info">
         <span class="welcome">Welcome</span>
-        <span class="user-name">Robb Morgan</span>
+        <span class="user-name">Morgan, Robb</span>
       </div>
     </div>
   </header>
@@ -88,7 +88,7 @@
       <table>
         <thead>
           <tr>
-            <th>App Name</th>
+            <th>Repo</th>
             <th>Technology</th>
             <th>Cloud</th>
             <th>Environment</th>
@@ -276,8 +276,11 @@
       }
 
       <div class="modal-footer">
-        <button class="btn-secondary" (click)="closeManageModal()">Close</button>
-        <button class="btn-primary" (click)="onNewRun()">New Run</button>
+        <button class="btn-danger" (click)="onRemoveApp()">Remove</button>
+        <div class="modal-footer__right">
+          <button class="btn-secondary" (click)="closeManageModal()">Close</button>
+          <button class="btn-primary" (click)="onNewRun()">New Run</button>
+        </div>
       </div>
     </div>
   </div>

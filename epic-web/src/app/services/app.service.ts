@@ -49,6 +49,11 @@ export class AppService {
     );
   }
 
+  /** Remove an app from the current user's tracked list. */
+  removeFromMyApps(name: string): Observable<void> {
+    return this.http.delete<void>(`${this.api}/api/users/me/apps/${name}`);
+  }
+
   /** Trigger a new pipeline run. */
   triggerRun(appName: string, branch: string, env: string): Observable<PipelineRun> {
     return this.http.post<PipelineRun>(`${this.api}/api/apps/${appName}/runs`, {

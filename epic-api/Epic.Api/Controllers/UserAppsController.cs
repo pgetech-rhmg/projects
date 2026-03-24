@@ -37,4 +37,23 @@ public sealed class UserAppsController : ControllerBase
         var app = await _appService.AddToMyAppsAsync(request.Name, ct);
         return Created($"api/users/me/apps", app);
     }
+
+    /// <summary>
+    /// Remove an app from the current user's tracked list.
+    /// </summary>
+    [HttpDelete("{name}")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> RemoveFromMyApps(string name, CancellationToken ct)
+    {
+        try
+        {
+            await _appService.RemoveFromMyAppsAsync(name, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
 }

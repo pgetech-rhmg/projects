@@ -10,4 +10,5 @@ public interface IAppService
     Task<ManagedApp> AddToMyAppsAsync(string name, CancellationToken ct = default);
     Task<AppDetail> OnboardAppAsync(string repo, string branch, CancellationToken ct = default);
     Task<PipelineRun> TriggerRunAsync(string appName, string branch, string environment, CancellationToken ct = default);
+    Task RemoveFromMyAppsAsync(string name, CancellationToken ct = default);
 }

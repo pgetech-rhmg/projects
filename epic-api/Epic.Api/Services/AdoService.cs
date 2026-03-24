@@ -9,6 +9,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
     private const string Org = "pgetech";
     private const string Project = "EPIC-Pipeline";
     private const int EnginePipelineId = 194;
+    private const int OrchestratorPipelineId = 133;
 
     private string Pat =>
         configuration["ADO_PAT"]
@@ -95,6 +96,9 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
             });
         }
 
+        // Resolve real triggeredBy from orchestrator pipeline
+        await ResolveTriggeredByFromOrchestratorAsync(appName, results, ct);
+
         return results;
     }
 
@@ -127,14 +131,75 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
             && ft.ValueKind != JsonValueKind.Null
             ? ft.GetDateTime() : (DateTime?)null;
 
+        // Resolve real triggeredBy from orchestrator pipeline
+        var orchestratorTriggeredBy = await GetOrchestratorTriggeredByAsync(appName, startedAt, ct);
+
         return new AdoLatestRun
         {
             Id = build.GetProperty("id").GetInt32(),
             Status = MapRunStatus(adoStatus, adoResult),
-            TriggeredBy = triggeredBy,
+            TriggeredBy = orchestratorTriggeredBy ?? triggeredBy,
             StartedAt = startedAt,
             Duration = finishedAt.HasValue ? FormatDuration(finishedAt.Value - startedAt) : null
         };
+    }
+
+    /// <summary>
+    /// Queries orchestrator builds (tagged with appName) and matches each engine run
+    /// to its orchestrator run by time proximity, overriding TriggeredBy with the real user.
+    /// </summary>
+    private async Task ResolveTriggeredByFromOrchestratorAsync(string appName, List<AdoPipelineRun> engineRuns, CancellationToken ct)
+    {
+        if (engineRuns.Count == 0) return;
+
+        var url = $"{BaseUrl}/build/builds?definitions={OrchestratorPipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={engineRuns.Count + 5}&queryOrder=finishTimeDescending&api-version=7.1";
+        var json = await CallApiAsync(url, ct);
+        if (json is null) return;
+
+        var orchRuns = json.Value.GetProperty("value").EnumerateArray()
+            .Select(b =>
+            {
+                var ft = b.TryGetProperty("finishTime", out var f) && f.ValueKind != JsonValueKind.Null
+                    ? f.GetDateTime() : (DateTime?)null;
+                var reqFor = b.TryGetProperty("requestedFor", out var rf)
+                    && rf.TryGetProperty("displayName", out var dn)
+                    ? dn.GetString() : null;
+                return new { FinishTime = ft, RequestedFor = reqFor };
+            })
+            .Where(o => o.FinishTime.HasValue && o.RequestedFor is not null)
+            .OrderByDescending(o => o.FinishTime)
+            .ToList();
+
+        if (orchRuns.Count == 0) return;
+
+        foreach (var run in engineRuns)
+        {
+            // Find the orchestrator build that finished closest to (and before) the engine's start time
+            var match = orchRuns
+                .Where(o => o.FinishTime!.Value <= run.StartedAt.AddSeconds(30))
+                .MinBy(o => run.StartedAt - o.FinishTime!.Value);
+
+            if (match?.RequestedFor is not null)
+                run.TriggeredBy = match.RequestedFor;
+        }
+    }
+
+    /// <summary>
+    /// Gets the triggeredBy for a single engine run from the orchestrator (used by GetLatestRunForAppAsync).
+    /// </summary>
+    private async Task<string?> GetOrchestratorTriggeredByAsync(string appName, DateTime engineStartedAt, CancellationToken ct)
+    {
+        var url = $"{BaseUrl}/build/builds?definitions={OrchestratorPipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top=1&queryOrder=finishTimeDescending&api-version=7.1";
+        var json = await CallApiAsync(url, ct);
+        if (json is null) return null;
+
+        var builds = json.Value.GetProperty("value");
+        if (builds.GetArrayLength() == 0) return null;
+
+        var build = builds[0];
+        return build.TryGetProperty("requestedFor", out var rf)
+            && rf.TryGetProperty("displayName", out var dn)
+            ? dn.GetString() : null;
     }
 
     private async Task<PipelineStages> GetStageResultsAsync(int buildId, CancellationToken ct)

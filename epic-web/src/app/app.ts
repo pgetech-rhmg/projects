@@ -16,7 +16,7 @@ export class App implements OnInit {
   private readonly appService = inject(AppService);
 
   protected readonly title = signal('epic-web');
-  protected readonly currentUser = 'Robb Morgan';
+  protected readonly currentUser = 'Morgan, Robb';
 
   // ── Data ──────────────────────────────────────────────────────────────────
 
@@ -290,6 +290,20 @@ export class App implements OnInit {
         this.closeNewRunModal();
         this.showToast(`Failed to trigger pipeline run for "${displayName}" — the feature is not yet available.`);
       }
+    });
+  }
+
+  protected onRemoveApp(): void {
+    const app = this.selectedApp();
+    if (!app) return;
+
+    this.appService.removeFromMyApps(app.name).subscribe({
+      next: () => {
+        this.apps.update(list => list.filter(a => a.name !== app.name));
+        this.closeManageModal();
+        this.showToast(`"${app.name}" has been removed from your list.`);
+      },
+      error: () => this.showToast('Failed to remove app. Please try again.')
     });
   }
 

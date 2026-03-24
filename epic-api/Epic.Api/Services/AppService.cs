@@ -323,6 +323,19 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         string.Join(' ', repo.Split('-', '_')
             .Select(w => w.Length > 0 ? char.ToUpper(w[0]) + w[1..] : w));
 
+    public async Task RemoveFromMyAppsAsync(string name, CancellationToken ct = default)
+    {
+        var app = await db.Apps.FirstOrDefaultAsync(a => a.Name == name, ct)
+            ?? throw new KeyNotFoundException($"App '{name}' not found");
+
+        var userApp = await db.UserApps
+            .FirstOrDefaultAsync(ua => ua.UserId == CurrentUserId && ua.AppId == app.Id, ct)
+            ?? throw new KeyNotFoundException($"App '{name}' is not in your list");
+
+        db.UserApps.Remove(userApp);
+        await db.SaveChangesAsync(ct);
+    }
+
     public Task<PipelineRun> TriggerRunAsync(string appName, string branch, string environment, CancellationToken ct = default)
     {
         // TODO: Call ADO REST API to trigger the EPIC orchestrator pipeline
