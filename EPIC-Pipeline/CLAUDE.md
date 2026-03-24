@@ -186,6 +186,12 @@ The legacy orchestration layer has been removed:
 
 ## Patterns and Conventions
 
+### Build tagging
+
+The Download stage includes a `TagBuild` job that tags every engine build with `appName`, `appType`, and `environment` via the ADO REST API. This enables the EPIC API (`epic-api`) to query builds by tag using `GET /build/builds?tagFilters={appName}` instead of scanning all runs.
+
+**Important:** The engine build's `requestedFor` is the service account (because the orchestrator triggers it via REST). The real user is `requestedFor` on the orchestrator build.
+
 ### AWS credential flow (all deploy/build steps)
 
 Every `AWSShellScript@1` task follows this pattern:

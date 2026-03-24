@@ -59,49 +59,38 @@ epic-web/
         ├── app.scss               # All component styles
         ├── models/
         │   └── app.model.ts       # All TypeScript interfaces/types
+        ├── interceptors/
+        │   └── user.interceptor.ts  # Adds X-Epic-User header to all requests
         └── services/
-            └── app.service.ts     # All HTTP calls (mock → real API swap point)
+            └── app.service.ts     # All HTTP calls to epic-api
 ```
 
 ---
 
-## Data Layer (Mock → API)
+## Data Layer
 
-All mock data is in `public/data/`. The service is structured so swapping a URL is all that's needed to go live.
-
-### Three mock data files
-
-| File | Represents | Real API equivalent |
-|---|---|---|
-| `apps.json` | Apps the current user is tracking/contributing to | `GET /api/users/me/apps` |
-| `master-apps.json` | All apps registered in EPIC across all users | `GET /api/apps` |
-| `github-repos.json` | All PG&E GitHub repos (access check mock) | `GET /api/github/repos/{repo}` |
-| `apps/{name}.json` | Full detail + pipeline run history for one app | `GET /api/apps/{name}` |
+The frontend calls `epic-api` for all data. Environment config controls the API URL:
+- `src/environments/environment.ts` — `http://localhost:5000` (dev)
+- `src/environments/environment.prod.ts` — `https://epic-api-dev.nonprod.pge.com` (production)
 
 ### `AppService` methods
 
-```ts
-getApps(): Observable<ManagedApp[]>
-// Mock: GET data/apps.json
-// Real: GET /api/users/me/apps
+| Method | API Endpoint | Purpose |
+|--------|-------------|---------|
+| `getApps()` | `GET /api/users/me/apps` | User's tracked apps (main table) |
+| `getApp(name)` | `GET /api/apps/{name}` | App detail + pipeline run history (manage modal) |
+| `checkRepo(repo)` | `GET /api/apps/check?repo={repo}` | Repo validation for onboarding (GitHub + DB check) |
+| `addToMyApps(masterApp)` | `POST /api/users/me/apps` | Add existing EPIC app to user's list |
+| `onboardApp(repo, branch)` | `POST /api/apps` | Onboard new app (fetches GitHub metadata) |
+| `triggerRun(appName, branch, env)` | `POST /api/apps/{name}/runs` | Trigger pipeline run (stub — needs ADO REST) |
 
-getApp(name: string): Observable<AppDetail>
-// Mock: GET data/apps/{name}.json
-// Real: GET /api/apps/{name}
+### HTTP Interceptor
 
-checkRepo(repo: string): Observable<RepoCheckResult>
-// Mock: three sequential fetches (github-repos → master-apps → apps)
-// Real: GET /api/apps/check?repo={repo}  ← collapses all three checks server-side
-// Returns: { status: 'available' | 'in-epic-not-mine' | 'already-mine' | 'not-found', masterApp? }
+`interceptors/user.interceptor.ts` adds `X-Epic-User: rhmg` header to every request. Replace with MSAL identity when auth is wired up.
 
-addToMyApps(masterApp: AppLookup): Observable<ManagedApp>
-// Mock: returns constructed ManagedApp via of()
-// Real: POST /api/users/me/apps  { name: "grid-automation" }
-```
+### Error Handling
 
-### Still needs service calls (placeholders only today)
-- **Onboard new app** — `POST /api/apps` `{ repo, branch }` — currently fires a toast only
-- **Trigger new run** — `POST /api/apps/{name}/runs` — currently fires a toast only
+All subscribe calls use `{ next, error }` pattern with user-facing toast on failure.
 
 ---
 

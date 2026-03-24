@@ -13,6 +13,7 @@ This is a multi-project workspace for PG&E's **EPIC** (Enterprise Pipeline for I
 | **EPIC-Pipeline** | Azure DevOps CI/CD framework — template-based, data-driven pipeline engine | ADO YAML templates, AWS CLI, Terraform |
 | **epic-pipeline-modules** | Reusable Terraform modules for AWS/Azure infrastructure | Terraform (HCL) |
 | **epic-web** | Angular frontend for EPIC — app management, pipeline tracking, onboarding | Angular 20, TypeScript, SCSS |
+| **epic-api** | Backend API for EPIC — app management, pipeline runs, GitHub/ADO integration | .NET 10, C# 12, EF Core, PostgreSQL |
 | **paige-api** | Backend API for PAIGE (AI governance platform) — chat, repo analysis, CfnConvertor | .NET 10, C# 12, ASP.NET Core |
 | **paige-web** | Angular frontend for PAIGE — chat UI, repo analysis, IaC conversion | Angular 20, TypeScript, SCSS, Jest |
 | **paige-mcp** | Terraform knowledge base builder for PAIGE AI context | Python 3.11, FastAPI, MCP |
@@ -40,6 +41,15 @@ npm install
 npm run build            # production build
 ./scripts/test.sh        # Jest tests
 npm run test:coverage    # Jest with coverage
+```
+
+### epic-api
+```bash
+cd epic-api
+docker compose up -d     # local PostgreSQL
+dotnet build
+dotnet test              # xUnit
+cd Epic.Api && dotnet run  # http://localhost:5000, Swagger at /swagger
 ```
 
 ### paige-api
@@ -149,7 +159,21 @@ All projects with infrastructure use `.infra/` containing: `terraform.tf` (backe
 - **Agent pools:** `ubuntu-latest` (default), `windows-latest` (.NET Framework), `EPIC - Self-hosted` (.NET + SonarQube)
 - **Variable group:** `GV-account-access` (contains `GITHUB_PAT`, AWS service connection)
 
+### EPIC Web + API Stack
+
+`epic-web` (Angular 20) + `epic-api` (.NET 10) form the EPIC management UI. The web app sends `X-Epic-User` header on all requests (interceptor). The API integrates with:
+- **PostgreSQL** (Docker locally, Aurora Serverless v2 in AWS) via EF Core — stores apps, user-app tracking, pipeline runs
+- **GitHub API** — repo validation and metadata on onboard (language → technology/appType mapping)
+- **ADO REST API** — queries pipeline runs by build tags (engine builds tagged with appName in Download stage)
+- **AWS Secrets Manager** — loads connection string + tokens at startup in production (key normalization: `__` → `:`)
+- EF Core migrations run on app startup (`db.Database.Migrate()`) — idempotent, no pipeline migration step
+
+### EPIC Engine Build Tagging
+
+The engine (`epic-engine.yml`) tags each build with `appName`, `appType`, and `environment` in the Download stage. The EPIC API queries ADO using `tagFilters` to find runs for a specific app without scanning all builds. The orchestrator pipeline is the source of truth for `requestedFor` (who triggered the run) since the engine's `requestedFor` is the service account.
+
 ## Existing Sub-Project CLAUDE.md Files
 
 - `EPIC-Pipeline/CLAUDE.md` — detailed AMI appType architecture, build/deploy flows, config format
-- `epic-web/CLAUDE.md` — Angular 20 patterns, mock data layer, UI features, component state
+- `epic-web/CLAUDE.md` — Angular 20 patterns, UI features, component state
+- `epic-api/CLAUDE.md` — .NET 10 API, EF Core, GitHub/ADO integrations, infrastructure
