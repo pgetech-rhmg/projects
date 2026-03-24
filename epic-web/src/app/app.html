@@ -91,8 +91,8 @@
             <th>App Name</th>
             <th>Technology</th>
             <th>Cloud</th>
-            <th>Environment</th>
             <th>Last Pipeline Run</th>
+            <th>Environment</th>
             <th>Run Status</th>
             <th>Triggered By</th>
           </tr>
@@ -109,12 +109,12 @@
                   {{ app.cloud }}
                 </span>
               </td>
+              <td class="timestamp">{{ app.lastPipelineRun }}</td>
               <td>
                 <span class="badge badge--env badge--env-{{ app.environment }}">
                   {{ app.environment }}
                 </span>
               </td>
-              <td class="timestamp">{{ app.lastPipelineRun }}</td>
               <td>
                 <span class="badge badge--status badge--status-{{ app.runStatus | lowercase }}">
                   {{ app.runStatus }}
@@ -194,36 +194,20 @@
 
           <div class="detail-grid">
             <div class="detail-item">
-              <span class="detail-label">Team</span>
-              <span class="detail-value">{{ appDetail()!.team }}</span>
+              <span class="detail-label">GitHub Repo</span>
+              <span class="detail-value">{{ appDetail()!.github.repo }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Last Updated By</span>
-              <span class="detail-value">{{ appDetail()!.lastUpdatedBy }}</span>
+              <span class="detail-label">Default Branch</span>
+              <span class="detail-value">{{ appDetail()!.github.branch }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Technology</span>
               <span class="detail-value">{{ appDetail()!.technology }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Environment</span>
-              <span class="detail-value">{{ appDetail()!.environment }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">GitHub Repo</span>
-              <span class="detail-value">{{ appDetail()!.github.repo }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Branch</span>
-              <span class="detail-value">{{ appDetail()!.github.branch }}</span>
-            </div>
-            <div class="detail-item">
               <span class="detail-label">Cloud</span>
               <span class="detail-value">{{ appDetail()!.cloud }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Domain</span>
-              <span class="detail-value">{{ appDetail()!.domain }}</span>
             </div>
           </div>
 

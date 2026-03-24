@@ -50,7 +50,7 @@ export class App implements OnInit {
       (!env || app.environment === env) &&
       (!status || app.runStatus === status) &&
       (!triggeredBy || app.triggeredBy === triggeredBy)
-    );
+    ).sort((a, b) => a.name.localeCompare(b.name));
   });
 
   // ── Filter options ────────────────────────────────────────────────────────

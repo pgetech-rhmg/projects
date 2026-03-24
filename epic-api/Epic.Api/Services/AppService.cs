@@ -109,25 +109,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             var repoInfo = await gitHub.GetRepoAsync(entity.GithubRepo, ct);
             if (!repoInfo.Exists) return;
 
-            var technology = MapLanguageToTechnology(repoInfo.Language);
-            var appType = MapTechnologyToAppType(technology);
-            var hasChanges = false;
-
-            if (entity.Technology != technology)
-            {
-                entity.Technology = technology;
-                entity.AppType = appType;
-                hasChanges = true;
-            }
-
             if (repoInfo.Description is not null && entity.Description != repoInfo.Description)
             {
                 entity.Description = repoInfo.Description;
-                hasChanges = true;
-            }
-
-            if (hasChanges)
-            {
                 entity.LastUpdatedAt = DateTime.UtcNow;
                 await db.SaveChangesAsync(ct);
             }
@@ -242,7 +226,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
 
     public async Task<ManagedApp> AddToMyAppsAsync(string name, CancellationToken ct = default)
     {
-        var app = await db.Apps.FirstOrDefaultAsync(a => a.Name == name, ct)
+        var app = await db.Apps
+            .Include(a => a.Runs.OrderByDescending(r => r.StartedAt).Take(1))
+            .FirstOrDefaultAsync(a => a.Name == name, ct)
             ?? throw new KeyNotFoundException($"App '{name}' not found");
 
         db.UserApps.Add(new UserAppEntity
@@ -252,6 +238,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         });
 
         await db.SaveChangesAsync(ct);
+
+        // Refresh latest run from ADO
+        await RefreshLatestRunsFromAdoAsync([app], ct);
 
         return ToManagedApp(app);
     }
@@ -285,8 +274,8 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             catch { /* epic.json not parseable — fall back to GitHub metadata */ }
         }
 
-        var technology = MapLanguageToTechnology(repoInfo.Language);
-        var appType = epicAppType ?? MapTechnologyToAppType(technology);
+        var appType = epicAppType ?? MapTechnologyToAppType(MapLanguageToTechnology(repoInfo.Language));
+        var technology = MapAppTypeToTechnology(appType);
         var appName = epicAppName ?? repo.ToLowerInvariant();
 
         var entity = new AppEntity
@@ -316,6 +305,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
 
         await db.SaveChangesAsync(ct);
 
+        // Fetch latest run from ADO so the main table shows run data immediately
+        await RefreshLatestRunsFromAdoAsync([entity], ct);
+
         return ToAppDetail(entity);
     }
 
@@ -341,6 +333,17 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         "Java" => "java",
         "HTML" => "html",
         _ => "unknown"
+    };
+
+    private static string MapAppTypeToTechnology(string appType) => appType switch
+    {
+        "angular" => "Angular",
+        "dotnet" or "dotnet_framework" => ".NET",
+        "python" => "Python",
+        "java" => "Java",
+        "html" => "HTML",
+        "ami" => "AMI",
+        _ => appType
     };
 
     private static string FormatDisplayName(string repo) =>
