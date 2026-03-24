@@ -110,9 +110,24 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             var repoInfo = await gitHub.GetRepoAsync(entity.GithubRepo, ct);
             if (!repoInfo.Exists) return;
 
+            var hasChanges = false;
+
             if (repoInfo.Description is not null && entity.Description != repoInfo.Description)
             {
                 entity.Description = repoInfo.Description;
+                hasChanges = true;
+            }
+
+            // Re-check .infra/ folder existence
+            var hasInfra = await gitHub.PathExistsAsync(entity.GithubRepo, ".infra", entity.GithubBranch, ct);
+            if (entity.HasInfra != hasInfra)
+            {
+                entity.HasInfra = hasInfra;
+                hasChanges = true;
+            }
+
+            if (hasChanges)
+            {
                 entity.LastUpdatedAt = DateTime.UtcNow;
                 await db.SaveChangesAsync(ct);
             }
