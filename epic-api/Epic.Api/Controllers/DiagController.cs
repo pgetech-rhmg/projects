@@ -19,8 +19,42 @@ public sealed class DiagController(IAdoService adoService, IGitHubService gitHub
     {
         try
         {
-            var runs = await adoService.GetRunsForAppAsync(appName, 5, ct);
+            var runs = await adoService.GetRunsForAppAsync(appName, top: 5, ct: ct);
             return Ok(new { appName, runCount = runs.Count, runs });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { error = ex.Message, type = ex.GetType().Name });
+        }
+    }
+
+    /// <summary>
+    /// Raw ADO tag query — see exactly what the API returns.
+    /// </summary>
+    [HttpGet("ado-raw/{appName}")]
+    public async Task<IActionResult> TestAdoRaw(string appName, CancellationToken ct)
+    {
+        try
+        {
+            var pat = HttpContext.RequestServices.GetRequiredService<IConfiguration>()["ADO_PAT"];
+            if (string.IsNullOrEmpty(pat))
+                return Ok(new { error = "ADO_PAT not configured" });
+
+            var url = $"https://dev.azure.com/pgetech/EPIC-Pipeline/_apis/build/builds?definitions=194&tagFilters={Uri.EscapeDataString(appName)}&$top=5&queryOrder=finishTimeDescending&api-version=7.1";
+
+            using var client = new HttpClient();
+            var creds = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{pat}"));
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", creds);
+
+            var response = await client.GetAsync(url, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+
+            return Ok(new
+            {
+                requestUrl = url,
+                statusCode = (int)response.StatusCode,
+                responseBody = body.Length > 2000 ? body[..2000] + "..." : body
+            });
         }
         catch (Exception ex)
         {

@@ -12,12 +12,16 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
 
     public async Task<List<ManagedApp>> GetUserAppsAsync(CancellationToken ct = default)
     {
-        return await db.UserApps
+        var userApps = await db.UserApps
             .Where(ua => ua.UserId == CurrentUserId)
             .Include(ua => ua.App)
                 .ThenInclude(a => a.Runs.OrderByDescending(r => r.StartedAt).Take(1))
-            .Select(ua => ToManagedApp(ua.App))
             .ToListAsync(ct);
+
+        // Lightweight refresh — fetch latest run per app from ADO (no timeline/stage detail)
+        await RefreshLatestRunsFromAdoAsync(userApps.Select(ua => ua.App).ToList(), ct);
+
+        return userApps.Select(ua => ToManagedApp(ua.App)).ToList();
     }
 
     public async Task<AppDetail?> GetAppAsync(string name, CancellationToken ct = default)
@@ -33,6 +37,69 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         await RefreshRunsFromAdoAsync(entity, ct);
 
         return ToAppDetail(entity);
+    }
+
+    private async Task RefreshLatestRunsFromAdoAsync(List<AppEntity> apps, CancellationToken ct)
+    {
+        try
+        {
+            // Fetch latest run for each app in parallel
+            var tasks = apps.Select(async app =>
+            {
+                var latest = await ado.GetLatestRunForAppAsync(app.Name, ct);
+                return (app, latest);
+            });
+
+            var results = await Task.WhenAll(tasks);
+            var hasChanges = false;
+
+            foreach (var (app, latest) in results)
+            {
+                if (latest is null) continue;
+
+                var existingRun = app.Runs.FirstOrDefault();
+
+                if (existingRun is null || existingRun.Id != latest.Id)
+                {
+                    // New run we haven't seen — add a lightweight record
+                    if (!app.Runs.Any(r => r.Id == latest.Id))
+                    {
+                        app.Runs.Add(new PipelineRunEntity
+                        {
+                            Id = latest.Id,
+                            AppId = app.Id,
+                            Status = latest.Status,
+                            TriggeredBy = latest.TriggeredBy,
+                            Branch = "",
+                            Environment = "",
+                            StartedAt = latest.StartedAt,
+                            Duration = latest.Duration,
+                            StageBuild = "Skipped",
+                            StageTest = "Skipped",
+                            StageScan = "Skipped",
+                            StageInfraDeploy = "Skipped",
+                            StageAppDeploy = "Skipped"
+                        });
+                        hasChanges = true;
+                    }
+                }
+                else if (existingRun.Status != latest.Status)
+                {
+                    // Existing run changed status (e.g., Running → Success)
+                    existingRun.Status = latest.Status;
+                    existingRun.Duration = latest.Duration;
+                    existingRun.TriggeredBy = latest.TriggeredBy;
+                    hasChanges = true;
+                }
+            }
+
+            if (hasChanges)
+                await db.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            // ADO unavailable — serve stale data
+        }
     }
 
     private async Task RefreshFromGitHubAsync(AppEntity entity, CancellationToken ct)
@@ -75,19 +142,24 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
     {
         try
         {
-            var adoRuns = await ado.GetRunsForAppAsync(entity.Name, 20, ct);
+            // Find the latest completed run ID we have — only fetch newer ones
+            // But also re-check any "Running" runs we have in case they've finished
+            var latestCompletedId = entity.Runs
+                .Where(r => r.Status != "Running")
+                .Select(r => r.Id)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            var adoRuns = await ado.GetRunsForAppAsync(entity.Name, latestCompletedId > 0 ? latestCompletedId : null, 20, ct);
             if (adoRuns.Count == 0) return;
 
-            // Get existing run IDs to avoid duplicates
             var existingRunIds = entity.Runs.Select(r => r.Id).ToHashSet();
-
             var hasChanges = false;
 
             foreach (var run in adoRuns)
             {
                 if (existingRunIds.Contains(run.Id))
                 {
-                    // Update existing run (status may have changed if it was Running)
                     var existing = entity.Runs.First(r => r.Id == run.Id);
                     if (existing.Status != run.Status)
                     {
@@ -103,7 +175,6 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                 }
                 else
                 {
-                    // New run from ADO — add to DB
                     entity.Runs.Add(new PipelineRunEntity
                     {
                         Id = run.Id,

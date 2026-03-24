@@ -16,7 +16,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
 
     private string BaseUrl => $"https://dev.azure.com/{Org}/{Project}/_apis";
 
-    public async Task<List<AdoPipelineRun>> GetRunsForAppAsync(string appName, int top = 20, CancellationToken ct = default)
+    public async Task<List<AdoPipelineRun>> GetRunsForAppAsync(string appName, int? afterBuildId = null, int top = 20, CancellationToken ct = default)
     {
         // One API call — filter by appName tag
         var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={top}&queryOrder=finishTimeDescending&api-version=7.1";
@@ -29,6 +29,10 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         foreach (var build in buildsJson.Value.GetProperty("value").EnumerateArray())
         {
             var buildId = build.GetProperty("id").GetInt32();
+
+            // Skip builds we already have (everything at or before afterBuildId)
+            if (afterBuildId.HasValue && buildId <= afterBuildId.Value)
+                continue;
 
             var adoStatus = build.TryGetProperty("status", out var st) ? st.GetString() : "unknown";
             var adoResult = build.TryGetProperty("result", out var res) ? res.GetString() : null;
@@ -92,6 +96,45 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         }
 
         return results;
+    }
+
+    public async Task<AdoLatestRun?> GetLatestRunForAppAsync(string appName, CancellationToken ct = default)
+    {
+        var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top=1&queryOrder=finishTimeDescending&api-version=7.1";
+        var buildsJson = await CallApiAsync(url, ct);
+
+        if (buildsJson is null) return null;
+
+        var builds = buildsJson.Value.GetProperty("value");
+        if (builds.GetArrayLength() == 0) return null;
+
+        var build = builds[0];
+
+        var adoStatus = build.TryGetProperty("status", out var st) ? st.GetString() : "unknown";
+        var adoResult = build.TryGetProperty("result", out var res) ? res.GetString() : null;
+
+        var triggeredBy = build.TryGetProperty("requestedFor", out var rf)
+            && rf.TryGetProperty("displayName", out var dn)
+            ? dn.GetString() ?? "Unknown" : "Unknown";
+
+        var startedAt = build.TryGetProperty("startTime", out var st2)
+            && st2.ValueKind != JsonValueKind.Null
+            ? st2.GetDateTime()
+            : build.TryGetProperty("queueTime", out var qt)
+                ? qt.GetDateTime() : DateTime.UtcNow;
+
+        var finishedAt = build.TryGetProperty("finishTime", out var ft)
+            && ft.ValueKind != JsonValueKind.Null
+            ? ft.GetDateTime() : (DateTime?)null;
+
+        return new AdoLatestRun
+        {
+            Id = build.GetProperty("id").GetInt32(),
+            Status = MapRunStatus(adoStatus, adoResult),
+            TriggeredBy = triggeredBy,
+            StartedAt = startedAt,
+            Duration = finishedAt.HasValue ? FormatDuration(finishedAt.Value - startedAt) : null
+        };
     }
 
     private async Task<PipelineStages> GetStageResultsAsync(int buildId, CancellationToken ct)
