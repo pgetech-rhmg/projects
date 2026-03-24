@@ -493,6 +493,12 @@
   </div>
 }
 
+@if (loading()) {
+  <div class="loading-overlay">
+    <div class="loading-spinner"></div>
+  </div>
+}
+
 @if (toastMessage()) {
   <div class="toast" (mouseenter)="pauseToast()" (mouseleave)="resumeToast()">
     <span>{{ toastMessage() }}</span>

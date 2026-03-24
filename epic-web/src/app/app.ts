@@ -21,6 +21,7 @@ export class App implements OnInit, OnDestroy {
   // ── Data ──────────────────────────────────────────────────────────────────
 
   protected readonly apps = signal<ManagedApp[]>([]);
+  protected readonly loading = signal(false);
 
   private readonly refreshInterval = 5000;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -287,13 +288,18 @@ export class App implements OnInit, OnDestroy {
     if (!this.canOnboard) return;
     const repo = this.newAppRepo.trim();
     const branch = this.newAppBranch.trim();
+    this.loading.set(true);
     this.appService.onboardApp(repo, branch).subscribe({
       next: app => {
+        this.loading.set(false);
         this.apps.update(list => [app, ...list]);
         this.closeAddModal();
         this.showToast(`"${repo}" on branch "${branch}" has been onboarded into EPIC.`);
       },
-      error: () => this.showToast(`Failed to onboard "${repo}" — please try again.`)
+      error: () => {
+        this.loading.set(false);
+        this.showToast(`Failed to onboard "${repo}" — please try again.`);
+      }
     });
   }
 
@@ -378,6 +384,7 @@ export class App implements OnInit, OnDestroy {
     const branch = this.newRunBranch.trim();
     const env = this.newRunEnvironment;
     if (!appName) return;
+    this.loading.set(true);
     this.appService.triggerRun(appName, {
       branch,
       environment: env,
@@ -389,10 +396,18 @@ export class App implements OnInit, OnDestroy {
       deployInfra: this.newRunDeployInfra
     }).subscribe({
       next: (result) => {
+        this.loading.set(false);
         this.closeNewRunModal();
+        // Update the app row immediately with pending state
+        this.apps.update(list => list.map(a =>
+          a.name === appName
+            ? { ...a, runStatus: 'Pending' as const, branch, environment: env, triggeredBy: this.currentUser, lastPipelineRun: null }
+            : a
+        ));
         this.showToast(`Pipeline run #${result.runId} has been queued for "${appName}" on branch "${branch}" (${env}).`);
       },
       error: () => {
+        this.loading.set(false);
         this.showToast(`Failed to trigger pipeline run for "${appName}".`);
       }
     });
