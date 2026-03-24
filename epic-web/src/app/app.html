@@ -173,7 +173,7 @@
 
       <div class="modal-header">
         <div>
-          <h3>{{ appDetail()?.displayName ?? selectedApp()!.name }}</h3>
+          <h3>{{ appDetail()?.name ?? selectedApp()!.name }}</h3>
           @if (appDetail()) {
             <p class="modal-subtitle">{{ appDetail()!.description }}</p>
           }

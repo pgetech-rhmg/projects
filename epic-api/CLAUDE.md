@@ -72,13 +72,16 @@ dotnet publish                 # self-contained linux-x64
 |--------|----------|---------|
 | `GET` | `/api/health` | Health check (used by ALB) |
 | `GET` | `/api/users/me/apps` | User's tracked apps (refreshes latest run from ADO) |
-| `POST` | `/api/users/me/apps` | Add an existing EPIC app to user's list |
+| `POST` | `/api/users/me/apps` | Add an existing EPIC app to user's list (refreshes latest run) |
+| `DELETE` | `/api/users/me/apps/{name}` | Remove an app from user's tracked list |
 | `GET` | `/api/apps/{name}` | App detail + runs (refreshes from GitHub + ADO) |
 | `GET` | `/api/apps/check?repo={repo}` | Repo validation (GitHub API + DB check) |
-| `POST` | `/api/apps` | Onboard new app (fetches GitHub metadata for technology/appType) |
+| `POST` | `/api/apps` | Onboard new app (reads epic.json from repo for appName/appType) |
 | `POST` | `/api/apps/{name}/runs` | Trigger pipeline run (stub — needs ADO REST) |
+| `DELETE` | `/api/diag/purge` | Purge all data from all tables |
 | `GET` | `/api/diag/ado/{appName}` | Diagnostic — test ADO tag query |
 | `GET` | `/api/diag/ado-raw/{appName}` | Diagnostic — raw ADO API response |
+| `GET` | `/api/diag/ado-orchestrator/{appName}` | Diagnostic — raw orchestrator pipeline builds |
 | `GET` | `/api/diag/github/{repo}` | Diagnostic — test GitHub repo lookup |
 
 ---
@@ -130,26 +133,30 @@ epic-api/
 
 ### GitHub API
 
-`GitHubService` calls two endpoints:
+`GitHubService` calls three endpoints:
 - `GET /repos/{org}/{repo}` — name, description, language, default branch
 - `GET /repos/{org}/{repo}/languages` — fallback language detection by bytes
+- `GET /repos/{org}/{repo}/contents/{path}?ref={branch}` — fetch file content (base64 decoded)
 
 Used by:
 - `CheckRepoAsync` — validates repo exists before onboarding
-- `OnboardAppAsync` — populates technology, appType, description from GitHub
-- `GetAppAsync` — refreshes metadata on each detail view
-
-Language mapping: `TypeScript` → Angular, `C#` → .NET, `Python` → Python, `Java` → Java, etc.
+- `OnboardAppAsync` — fetches `.pipeline/epic.json` for `appName`/`appType`, GitHub metadata for description
+- `GetAppAsync` — refreshes description on each detail view (technology/appType are NOT refreshed from GitHub — they come from epic.json at onboard time)
 
 ### ADO REST API
 
-`AdoService` queries engine pipeline (ID 194) builds filtered by tags:
-- `GET /build/builds?definitions=194&tagFilters={appName}&$top=N` — finds runs for a specific app
-- `GET /build/builds/{buildId}/timeline` — stage-level results (Build, Test, Scan, DeployInfra, Deploy)
+`AdoService` queries two pipelines:
+- **Engine (ID 194)** — run data: status, stages, timing, branch, environment
+  - `GET /build/builds?definitions=194&tagFilters={appName}&$top=N&queryOrder=queueTimeDescending` — finds runs for a specific app
+  - `GET /build/builds/{buildId}/timeline` — stage-level results (Build, Test, Scan, DeployInfra, Deploy)
+- **Orchestrator (ID 133)** — triggeredBy: the real `requestedFor` user
+  - `GET /build/builds?definitions=133&tagFilters={appName}&$top=N&queryOrder=finishTimeDescending` — matched to engine runs by time proximity
 
-Engine builds are tagged with `appName`, `appType`, and `environment` by the `TagBuild` job in `epic-engine.yml`.
+Both pipelines are tagged with `appName` (engine by `TagBuild` job in `epic-engine.yml`, orchestrator by a tag step in `epic-orchestrator.yml`).
 
-**Important:** The orchestrator pipeline (not the engine) has the real `requestedFor` user. The engine's `requestedFor` is the service account because it's triggered via REST.
+The engine's `requestedFor` is the service account (triggered via REST). The orchestrator's `requestedFor` is the real user. `AdoService` resolves this by querying orchestrator builds and matching to engine builds by time proximity.
+
+Stage statuses: `Success`, `Failed`, `Running`, `Cancelled`, `Skipped` (intentionally skipped), `Pending` (hasn't run yet), `External`.
 
 Used by:
 - `GetUserAppsAsync` — lightweight refresh (latest run per app, parallel, no timeline)
@@ -186,9 +193,18 @@ Required secrets: `ConnectionStrings__EpicDb`, `GITHUB_BASE_URL`, `GITHUB_TOKEN`
 
 ---
 
+## Onboarding Data Flow
+
+When `OnboardAppAsync` is called:
+1. Validates repo exists via GitHub API
+2. Fetches `.pipeline/epic.json` from the repo via `GetFileContentAsync`
+3. Reads `app.appName` → becomes `Name` in the DB (falls back to repo name if missing)
+4. Reads `app.appType` → mapped to `Technology` via `MapAppTypeToTechnology()` (e.g., `angular` → `Angular`, `dotnet` → `.NET`)
+5. Detects cloud from `cloud.awsAccountId` or `cloud.azureSubscription` → normalized to `AWS` or `Azure`
+6. Fetches latest ADO run so the main table shows run data immediately
+
 ## Next Steps
 
-- **Orchestrator `requestedFor`** — Engine builds show the service account as triggeredBy. Need to resolve the real user from the orchestrator build that triggered the engine run.
 - **`TriggerRunAsync`** — Needs ADO REST API call to invoke the EPIC orchestrator pipeline.
 - **Auth** — Replace `X-Epic-User` header with MSAL/JWT (same pattern as paige-api).
 - **Remove DiagController** — Once ADO/GitHub integrations are verified working.

@@ -6,6 +6,7 @@
 
 - GitHub org: `pgetech`
 - Pipeline ID (engine): `194`
+- Pipeline ID (orchestrator): `133`
 - Variable group: `GV-account-access` (contains `GITHUB_PAT`, AWS service connection)
 
 ---
@@ -188,9 +189,12 @@ The legacy orchestration layer has been removed:
 
 ### Build tagging
 
-The Download stage includes a `TagBuild` job that tags every engine build with `appName`, `appType`, and `environment` via the ADO REST API. This enables the EPIC API (`epic-api`) to query builds by tag using `GET /build/builds?tagFilters={appName}` instead of scanning all runs.
+Both pipelines are tagged with `appName` via the ADO REST API, enabling the EPIC API to query builds by tag:
 
-**Important:** The engine build's `requestedFor` is the service account (because the orchestrator triggers it via REST). The real user is `requestedFor` on the orchestrator build.
+- **Engine** — The Download stage's `TagBuild` job tags each build with `appName`, `appType`, and `environment`.
+- **Orchestrator** — The `DownloadGenerate` stage tags each build with `appName` (extracted from the epic.json payload via `jq`).
+
+**`requestedFor` resolution:** The engine's `requestedFor` is the service account (because the orchestrator triggers it via REST). The real user is `requestedFor` on the orchestrator build. The EPIC API resolves this by querying both pipelines by `tagFilters={appName}` and matching orchestrator builds to engine builds by time proximity.
 
 ### AWS credential flow (all deploy/build steps)
 

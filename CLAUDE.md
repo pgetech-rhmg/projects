@@ -161,16 +161,24 @@ All projects with infrastructure use `.infra/` containing: `terraform.tf` (backe
 
 ### EPIC Web + API Stack
 
-`epic-web` (Angular 20) + `epic-api` (.NET 10) form the EPIC management UI. The web app sends `X-Epic-User` header on all requests (interceptor). The API integrates with:
+`epic-web` (Angular 20) + `epic-api` (.NET 10) form the EPIC management UI. The web app sends `X-Epic-User` header on all requests (interceptor, currently hardcoded to `Morgan, Robb`). The API integrates with:
 - **PostgreSQL** (Docker locally, Aurora Serverless v2 in AWS) via EF Core — stores apps, user-app tracking, pipeline runs
-- **GitHub API** — repo validation and metadata on onboard (language → technology/appType mapping)
-- **ADO REST API** — queries pipeline runs by build tags (engine builds tagged with appName in Download stage)
+- **GitHub API** — repo validation, description refresh, and `.pipeline/epic.json` file fetching on onboard
+- **ADO REST API** — queries engine pipeline (194) for run data and orchestrator pipeline (133) for triggeredBy
 - **AWS Secrets Manager** — loads connection string + tokens at startup in production (key normalization: `__` → `:`)
 - EF Core migrations run on app startup (`db.Database.Migrate()`) — idempotent, no pipeline migration step
 
-### EPIC Engine Build Tagging
+### EPIC Build Tagging
 
-The engine (`epic-engine.yml`) tags each build with `appName`, `appType`, and `environment` in the Download stage. The EPIC API queries ADO using `tagFilters` to find runs for a specific app without scanning all builds. The orchestrator pipeline is the source of truth for `requestedFor` (who triggered the run) since the engine's `requestedFor` is the service account.
+Both pipelines are tagged with `appName` via the ADO REST API:
+- **Engine** (`epic-engine.yml`) — tags each build with `appName`, `appType`, and `environment` in the Download stage's `TagBuild` job
+- **Orchestrator** (`epic-orchestrator.yml`) — tags each build with `appName` (extracted from the epic.json payload) in the `DownloadGenerate` stage
+
+The EPIC API queries both pipelines using `tagFilters` to find runs for a specific app. Run data (status, stages, timing) comes from the engine; `requestedFor` (who triggered the run) comes from the orchestrator, since the engine's `requestedFor` is the service account.
+
+### Onboarding Data Flow
+
+When an app is onboarded, the API reads `.pipeline/epic.json` from the repo via the GitHub Contents API. The `appName` field becomes the app's identity in the database (not the repo name). Technology is derived from `appType` (e.g., `angular` → `Angular`, `dotnet` → `.NET`). Cloud is normalized to `AWS` or `Azure`.
 
 ## Existing Sub-Project CLAUDE.md Files
 

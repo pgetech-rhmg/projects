@@ -6,7 +6,7 @@
 
 - Live URL (dev): `https://epic-dev.nonprod.pge.com`
 - GitHub repo: `pgetech/epic-web`
-- Logged-in user (hardcoded for now): **Robb Morgan**
+- Logged-in user (hardcoded for now): **Morgan, Robb** (matches ADO `requestedFor.displayName` format)
 
 ---
 
@@ -81,12 +81,13 @@ The frontend calls `epic-api` for all data. Environment config controls the API 
 | `getApp(name)` | `GET /api/apps/{name}` | App detail + pipeline run history (manage modal) |
 | `checkRepo(repo)` | `GET /api/apps/check?repo={repo}` | Repo validation for onboarding (GitHub + DB check) |
 | `addToMyApps(masterApp)` | `POST /api/users/me/apps` | Add existing EPIC app to user's list |
-| `onboardApp(repo, branch)` | `POST /api/apps` | Onboard new app (fetches GitHub metadata) |
+| `removeFromMyApps(name)` | `DELETE /api/users/me/apps/{name}` | Remove an app from user's tracked list |
+| `onboardApp(repo, branch)` | `POST /api/apps` | Onboard new app (reads epic.json for appName/appType) |
 | `triggerRun(appName, branch, env)` | `POST /api/apps/{name}/runs` | Trigger pipeline run (stub — needs ADO REST) |
 
 ### HTTP Interceptor
 
-`interceptors/user.interceptor.ts` adds `X-Epic-User: rhmg` header to every request. Replace with MSAL identity when auth is wired up.
+`interceptors/user.interceptor.ts` adds `X-Epic-User: Morgan, Robb` header to every request. The value must match the ADO `requestedFor.displayName` format (`Last, First`) for the "You" chip to work in the Triggered By column. Replace with MSAL identity when auth is wired up.
 
 ### Error Handling
 
@@ -97,7 +98,7 @@ All subscribe calls use `{ next, error }` pattern with user-facing toast on fail
 ## Models (`app.model.ts`)
 
 ```ts
-type RunStatus = 'Success' | 'Failed' | 'Running' | 'Cancelled' | 'Skipped'
+type RunStatus = 'Success' | 'Failed' | 'Running' | 'Cancelled' | 'Skipped' | 'External' | 'Pending'
 
 interface ManagedApp       // flat row in the main table
 interface AppDetail        // full detail shown in the manage modal
@@ -111,22 +112,27 @@ interface RepoCheckResult  // returned by checkRepo()
 ## UI Features
 
 ### Main page
-- **Header**: EPIC brand (left) + "Welcome / Robb Morgan" avatar chip (right)
+- **Header**: EPIC brand (left) + "Welcome / Morgan, Robb" avatar chip (right)
 - **Toolbar**: 5 filter dropdowns (Technology, Cloud, Environment, Run Status, Triggered By) + search input + "Clear" button
-- **Table**: 7 columns — App Name, Technology, Cloud, Environment, Last Pipeline Run, Run Status, Triggered By
+- **Table**: 7 columns — App Name, Technology, Cloud, Last Pipeline Run, Environment, Run Status, Triggered By
+  - Default sort: A-Z by app name
   - Entire row is clickable → opens manage modal
   - Sticky headers — only the table scrolls, page does not
   - `pageSize = 25`, paginated with prev/next + numbered page buttons
-  - "Triggered By" column shows a user chip; if it's the current user it shows "You"
+  - "Triggered By" column shows a user chip with initials (handles `Last, First`, `First Last`, `First Middle Last` formats); if it's the current user it shows "You"
+  - Dates formatted as `MM/dd/yyyy hh:mm:ss` in local time
 - **+ New App button** → opens onboard modal
+- **Auto-refresh**: every 5 seconds, refreshes data without affecting scroll position
 
 ### Manage modal
-- Shows app metadata grid (Team, Last Updated By, Technology, Environment, GitHub Repo, Branch, Cloud, Domain)
+- Shows app metadata grid: GitHub Repo, Default Branch, Technology, Cloud
 - Pipeline runs table with columns: Run #, Status, Branch, Environment, Triggered By, Started, Duration, Build, Test, Scan, Deploy
-  - Run # is a clickable link → fires a toast (placeholder for ADO run navigation)
-  - Stage columns use colored dot indicators
+  - Run # is a clickable link → opens the ADO pipeline run in a new tab (`https://dev.azure.com/pgetech/EPIC-Pipeline/_build/results?buildId={id}&view=results`)
+  - Stage columns use colored dot indicators: green (success), red (failed), blue (running), grey filled (skipped), white with grey border (pending/not yet run), purple (external)
   - If `runs` array is empty → shows a dashed empty-state message instead of the table
-- Footer: **Close** + **New Run** (closes manage modal and opens the New Run modal)
+  - Dates formatted as `MM/dd/yyyy hh:mm:ss` in local time
+- **Auto-refresh**: every 5 seconds while modal is open
+- Footer: **Remove** (left, red — removes app from user's list) + **Close** + **New Run** (right)
 
 ### New Run modal
 - Triggered from the manage modal's "New Run" button — closes the manage modal first, then opens this one
@@ -195,9 +201,8 @@ Key values:
 
 ## Known Gaps / Next Steps
 
-- Only 6 apps have detail JSON files (`apps/{name}.json`). The other 49 apps in `apps.json` will show "Loading..." if their row is clicked. Need to either generate the remaining files or add a 404 handler in the modal.
-- `onboardApp()` and `onConfirmNewRun()` fire toasts only — need real service calls once the API exists.
-- Auth is hardcoded (`currentUser = 'Robb Morgan'`). Will need to wire up real identity.
+- Auth is hardcoded (`currentUser = 'Morgan, Robb'`, interceptor sends `X-Epic-User: Morgan, Robb`). Will need to wire up MSAL/JWT.
+- `triggerRun()` fires a toast only — needs real ADO REST call via `POST /api/apps/{name}/runs`.
 - No unit tests written yet (`app.spec.ts` is the default scaffold).
 
 ### Component state for the New Run modal
