@@ -23,6 +23,9 @@ export class App implements OnInit, OnDestroy {
   protected readonly apps = signal<ManagedApp[]>([]);
   protected readonly loading = signal(false);
 
+  // Track apps with locally-set pending state until ADO picks up the new run
+  private pendingApps = new Map<string, ManagedApp>();
+
   private readonly refreshInterval = 5000;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -37,8 +40,24 @@ export class App implements OnInit, OnDestroy {
 
   private startAutoRefresh(): void {
     this.refreshTimer = setInterval(() => {
-      // Refresh main table
-      this.appService.getApps().subscribe(data => this.apps.set(data));
+      // Refresh main table — preserve pending state until ADO catches up
+      this.appService.getApps().subscribe(data => {
+        if (this.pendingApps.size === 0) {
+          this.apps.set(data);
+        } else {
+          this.apps.set(data.map(app => {
+            const pending = this.pendingApps.get(app.name);
+            if (!pending) return app;
+            // ADO has caught up if the API's last run is newer than when we triggered
+            if (app.lastPipelineRun && new Date(app.lastPipelineRun) > new Date(pending.lastPipelineRun!)) {
+              this.pendingApps.delete(app.name);
+              return app;
+            }
+            // Still stale — keep our pending overlay
+            return { ...app, runStatus: 'Pending' as const, branch: pending.branch, environment: pending.environment, triggeredBy: pending.triggeredBy, lastPipelineRun: pending.lastPipelineRun };
+          }));
+        }
+      });
 
       // Refresh modal detail if open
       if (this.showManageModal() && this.selectedApp()) {
@@ -398,10 +417,21 @@ export class App implements OnInit, OnDestroy {
       next: (result) => {
         this.loading.set(false);
         this.closeNewRunModal();
+        // Record the trigger time so refresh can detect when ADO catches up
+        const triggeredAt = new Date().toISOString();
+        const currentApp = this.apps().find(a => a.name === appName);
+        this.pendingApps.set(appName, {
+          ...(currentApp ?? { name: appName, technology: '', cloud: '', environment: env }),
+          lastPipelineRun: triggeredAt,
+          branch,
+          environment: env,
+          triggeredBy: this.currentUser,
+          runStatus: 'Pending'
+        });
         // Update the app row immediately with pending state
         this.apps.update(list => list.map(a =>
           a.name === appName
-            ? { ...a, runStatus: 'Pending' as const, branch, environment: env, triggeredBy: this.currentUser, lastPipelineRun: null }
+            ? { ...a, runStatus: 'Pending' as const, branch, environment: env, triggeredBy: this.currentUser, lastPipelineRun: triggeredAt }
             : a
         ));
         this.showToast(`Pipeline run #${result.runId} has been queued for "${appName}" on branch "${branch}" (${env}).`);
