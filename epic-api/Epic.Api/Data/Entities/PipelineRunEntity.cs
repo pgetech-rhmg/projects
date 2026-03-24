@@ -17,6 +17,7 @@ public sealed class PipelineRunEntity
     public string StageScan { get; set; } = "Skipped";
     public string StageInfraDeploy { get; set; } = "Skipped";
     public string StageAppDeploy { get; set; } = "Skipped";
+    public string StageIntegrationTest { get; set; } = "Skipped";
 
     // Navigation
     public AppEntity App { get; set; } = null!;

@@ -14,4 +14,5 @@ public interface IGitHubService
 {
     Task<GitHubRepoInfo> GetRepoAsync(string repo, CancellationToken ct = default);
     Task<string?> GetFileContentAsync(string repo, string path, string branch, CancellationToken ct = default);
+    Task<bool> PathExistsAsync(string repo, string path, string branch, CancellationToken ct = default);
 }

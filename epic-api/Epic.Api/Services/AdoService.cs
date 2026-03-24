@@ -237,7 +237,8 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
             Test = RunStatus.Skipped,
             Scan = RunStatus.Skipped,
             InfraDeploy = RunStatus.Skipped,
-            AppDeploy = RunStatus.Skipped
+            AppDeploy = RunStatus.Skipped,
+            IntegrationTest = RunStatus.Skipped
         };
 
         if (timelineJson is null) return stages;
@@ -268,6 +269,9 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
                     break;
                 case "Deploy" or "Deploy App":
                     stages.AppDeploy = stageStatus;
+                    break;
+                case "IntegrationTest" or "Integration Tests":
+                    stages.IntegrationTest = stageStatus;
                     break;
             }
         }

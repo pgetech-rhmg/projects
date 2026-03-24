@@ -231,6 +231,7 @@
                   <th class="stage-col">Scan</th>
                   <th class="stage-col">Infra Deploy</th>
                   <th class="stage-col">App Deploy</th>
+                  <th class="stage-col">Integration</th>
                 </tr>
               </thead>
               <tbody>
@@ -248,10 +249,11 @@
                     <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.scan | lowercase }}"></span></td>
                     <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.infraDeploy | lowercase }}" [title]="run.stages.infraDeploy === 'External' ? 'Infrastructure provided' : run.stages.infraDeploy"></span></td>
                     <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.appDeploy | lowercase }}"></span></td>
+                    <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.integrationTest | lowercase }}"></span></td>
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="12" class="no-results">No pipeline runs recorded yet.</td>
+                    <td colspan="13" class="no-results">No pipeline runs recorded yet.</td>
                   </tr>
                 }
               </tbody>
@@ -468,17 +470,20 @@
 
           <div class="form-field">
             <label>Infrastructure Deployment</label>
+            @if (!newRunApp()!.hasInfra) {
+              <span class="field-hint field-hint--info">No .infra/ folder found — infrastructure deployment is not available.</span>
+            }
             <div class="radio-group">
-              <label class="radio-label">
-                <input type="radio" name="deployInfra" value="none" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunApp()!.hasInfra">
+                <input type="radio" name="deployInfra" value="none" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunApp()!.hasInfra" />
                 None
               </label>
-              <label class="radio-label">
-                <input type="radio" name="deployInfra" value="apply" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunApp()!.hasInfra">
+                <input type="radio" name="deployInfra" value="apply" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunApp()!.hasInfra" />
                 Apply
               </label>
-              <label class="radio-label">
-                <input type="radio" name="deployInfra" value="destroy" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunApp()!.hasInfra">
+                <input type="radio" name="deployInfra" value="destroy" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunApp()!.hasInfra" />
                 Destroy
               </label>
             </div>

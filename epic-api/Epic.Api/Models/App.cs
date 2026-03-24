@@ -52,6 +52,7 @@ public sealed class PipelineStages
     public RunStatus Scan { get; set; }
     public RunStatus InfraDeploy { get; set; }
     public RunStatus AppDeploy { get; set; }
+    public RunStatus IntegrationTest { get; set; }
 }
 
 public sealed class PipelineRun
@@ -97,6 +98,7 @@ public sealed class AppDetail
     public required string LastUpdatedBy { get; set; }
     public required string Domain { get; set; }
     public required GitHubInfo Github { get; set; }
+    public bool HasInfra { get; set; }
     public AwsConfig? Aws { get; set; }
     public AzureConfig? Azure { get; set; }
     public required List<PipelineRun> Runs { get; set; }

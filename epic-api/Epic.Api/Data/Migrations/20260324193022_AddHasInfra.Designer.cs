@@ -3,6 +3,7 @@ using System;
 using Epic.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Epic.Api.Data.Migrations
 {
     [DbContext(typeof(EpicDbContext))]
-    partial class EpicDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260324193022_AddHasInfra")]
+    partial class AddHasInfra
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -162,10 +165,6 @@ namespace Epic.Api.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("StageInfraDeploy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("StageIntegrationTest")
                         .IsRequired()
                         .HasColumnType("text");
 

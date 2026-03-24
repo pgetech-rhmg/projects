@@ -39,6 +39,7 @@ export interface PipelineRun {
     scan: RunStatus;
     infraDeploy: RunStatus;
     appDeploy: RunStatus;
+    integrationTest: RunStatus;
   };
 }
 
@@ -61,6 +62,7 @@ export interface AppDetail {
     repo: string;
     branch: string;
   };
+  hasInfra: boolean;
   aws?: {
     accountId: string;
     s3?: string;

@@ -64,6 +64,13 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         };
     }
 
+    public async Task<bool> PathExistsAsync(string repo, string path, string branch, CancellationToken ct = default)
+    {
+        var url = $"https://api.github.com/repos/{OrgName}/{repo}/contents/{path}?ref={Uri.EscapeDataString(branch)}";
+        var json = await CallApiAsync(url, ct);
+        return json is not null;
+    }
+
     public async Task<string?> GetFileContentAsync(string repo, string path, string branch, CancellationToken ct = default)
     {
         var url = $"https://api.github.com/repos/{OrgName}/{repo}/contents/{path}?ref={Uri.EscapeDataString(branch)}";

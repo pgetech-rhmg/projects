@@ -78,7 +78,8 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                             StageTest = "Skipped",
                             StageScan = "Skipped",
                             StageInfraDeploy = "Skipped",
-                            StageAppDeploy = "Skipped"
+                            StageAppDeploy = "Skipped",
+                            StageIntegrationTest = "Skipped"
                         });
                         hasChanges = true;
                     }
@@ -154,6 +155,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                         existing.StageScan = run.Stages.Scan.ToString();
                         existing.StageInfraDeploy = run.Stages.InfraDeploy.ToString();
                         existing.StageAppDeploy = run.Stages.AppDeploy.ToString();
+                        existing.StageIntegrationTest = run.Stages.IntegrationTest.ToString();
                         hasChanges = true;
                     }
                 }
@@ -173,7 +175,8 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                         StageTest = run.Stages.Test.ToString(),
                         StageScan = run.Stages.Scan.ToString(),
                         StageInfraDeploy = run.Stages.InfraDeploy.ToString(),
-                        StageAppDeploy = run.Stages.AppDeploy.ToString()
+                        StageAppDeploy = run.Stages.AppDeploy.ToString(),
+                        StageIntegrationTest = run.Stages.IntegrationTest.ToString()
                     });
                     hasChanges = true;
                 }
@@ -253,26 +256,29 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
 
         var resolvedBranch = branch.Length > 0 ? branch : repoInfo.DefaultBranch ?? "main";
 
-        // Read epic.json from the repo to get the real appName and appType
+        // Read epic.json from the repo — required for onboarding
         var epicJson = await gitHub.GetFileContentAsync(repo, ".pipeline/epic.json", resolvedBranch, ct);
+        if (epicJson is null)
+            throw new InvalidOperationException($"Repository '{repo}' on branch '{resolvedBranch}' does not have a .pipeline/epic.json file and is not configured for EPIC.");
+
         string? epicAppName = null;
         string? epicAppType = null;
         string? epicCloud = null;
-        if (epicJson is not null)
+        try
         {
-            try
-            {
-                var config = System.Text.Json.JsonDocument.Parse(epicJson).RootElement;
-                var appSection = config.TryGetProperty("app", out var app) ? app : config;
-                epicAppName = appSection.TryGetProperty("appName", out var an) ? an.GetString() : null;
-                epicAppType = appSection.TryGetProperty("appType", out var at) ? at.GetString() : null;
-                epicCloud = config.TryGetProperty("cloud", out var cl)
-                    && cl.TryGetProperty("awsAccountId", out _) ? "aws"
-                    : config.TryGetProperty("cloud", out var cl2)
-                        && cl2.TryGetProperty("azureSubscription", out _) ? "azure" : null;
-            }
-            catch { /* epic.json not parseable — fall back to GitHub metadata */ }
+            var config = System.Text.Json.JsonDocument.Parse(epicJson).RootElement;
+            var appSection = config.TryGetProperty("app", out var app) ? app : config;
+            epicAppName = appSection.TryGetProperty("appName", out var an) ? an.GetString() : null;
+            epicAppType = appSection.TryGetProperty("appType", out var at) ? at.GetString() : null;
+            epicCloud = config.TryGetProperty("cloud", out var cl)
+                && cl.TryGetProperty("awsAccountId", out _) ? "aws"
+                : config.TryGetProperty("cloud", out var cl2)
+                    && cl2.TryGetProperty("azureSubscription", out _) ? "azure" : null;
         }
+        catch { /* epic.json not parseable — use defaults */ }
+
+        // Check if .infra/ folder exists
+        var hasInfra = await gitHub.PathExistsAsync(repo, ".infra", resolvedBranch, ct);
 
         var appType = epicAppType ?? MapTechnologyToAppType(MapLanguageToTechnology(repoInfo.Language));
         var technology = MapAppTypeToTechnology(appType);
@@ -291,6 +297,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             Domain = "",
             GithubRepo = repo,
             GithubBranch = resolvedBranch,
+            HasInfra = hasInfra,
             CreatedBy = CurrentUserId,
             LastUpdatedBy = CurrentUserId
         };
@@ -434,6 +441,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         Team = entity.Team,
         LastUpdatedBy = entity.LastUpdatedBy,
         Domain = entity.Domain,
+        HasInfra = entity.HasInfra,
         Github = new GitHubInfo
         {
             Repo = entity.GithubRepo,
@@ -470,7 +478,8 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                 Test = Enum.Parse<RunStatus>(r.StageTest, true),
                 Scan = Enum.Parse<RunStatus>(r.StageScan, true),
                 InfraDeploy = Enum.Parse<RunStatus>(r.StageInfraDeploy, true),
-                AppDeploy = Enum.Parse<RunStatus>(r.StageAppDeploy, true)
+                AppDeploy = Enum.Parse<RunStatus>(r.StageAppDeploy, true),
+                IntegrationTest = Enum.Parse<RunStatus>(r.StageIntegrationTest, true)
             }
         }).ToList()
     };

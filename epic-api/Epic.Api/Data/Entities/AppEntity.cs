@@ -14,6 +14,7 @@ public sealed class AppEntity
     public required string Domain { get; set; }
     public required string GithubRepo { get; set; }
     public string GithubBranch { get; set; } = "main";
+    public bool HasInfra { get; set; }
 
     // Version fields (nullable — only relevant for certain appTypes)
     public string? NodeVersion { get; set; }

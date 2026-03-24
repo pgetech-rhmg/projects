@@ -315,9 +315,10 @@ export class App implements OnInit, OnDestroy {
         this.closeAddModal();
         this.showToast(`"${repo}" on branch "${branch}" has been onboarded into EPIC.`);
       },
-      error: () => {
+      error: (err) => {
         this.loading.set(false);
-        this.showToast(`Failed to onboard "${repo}" — please try again.`);
+        const msg = err?.error?.error ?? `Failed to onboard "${repo}" — please try again.`;
+        this.showToast(msg);
       }
     });
   }

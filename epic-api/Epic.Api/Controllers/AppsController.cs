@@ -51,8 +51,19 @@ public sealed class AppsController : ControllerBase
     [ProducesResponseType(400)]
     public async Task<IActionResult> OnboardApp([FromBody] OnboardAppRequest request, CancellationToken ct)
     {
-        var app = await _appService.OnboardAppAsync(request.Repo, request.Branch, ct);
-        return CreatedAtAction(nameof(GetApp), new { name = app.Name }, app);
+        try
+        {
+            var app = await _appService.OnboardAppAsync(request.Repo, request.Branch, ct);
+            return CreatedAtAction(nameof(GetApp), new { name = app.Name }, app);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     /// <summary>
