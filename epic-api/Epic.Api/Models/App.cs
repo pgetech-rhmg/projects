@@ -16,6 +16,7 @@ public sealed class ManagedApp
     public required string Name { get; set; }
     public required string Technology { get; set; }
     public string? LastPipelineRun { get; set; }
+    public string? Branch { get; set; }
     public RunStatus? RunStatus { get; set; }
     public string? TriggeredBy { get; set; }
     public required string Cloud { get; set; }

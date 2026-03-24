@@ -18,6 +18,7 @@ export interface ManagedApp {
   name: string;
   technology: string;
   lastPipelineRun: string | null;
+  branch: string | null;
   runStatus: RunStatus | null;
   triggeredBy: string | null;
   cloud: string;

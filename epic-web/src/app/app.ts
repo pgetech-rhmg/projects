@@ -315,7 +315,8 @@ export class App implements OnInit, OnDestroy {
   protected onNewRunBranchChange(): void {
     const branch = this.newRunBranch.trim().toLowerCase();
     if (branch === 'main' || branch === 'master') {
-      this.newRunBranchError.set(`"${this.newRunBranch.trim()}" is not allowed — use a feature or release branch.`);
+      this.newRunBranchError.set(null);
+      // this.newRunBranchError.set(`"${this.newRunBranch.trim()}" is not allowed — use a feature or release branch.`);
     } else {
       this.newRunBranchError.set(null);
     }

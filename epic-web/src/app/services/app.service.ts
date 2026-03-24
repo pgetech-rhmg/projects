@@ -43,6 +43,7 @@ export class AppService {
         cloud: detail.cloud,
         environment: detail.environment,
         lastPipelineRun: null,
+        branch: null,
         runStatus: null,
         triggeredBy: null
       }))

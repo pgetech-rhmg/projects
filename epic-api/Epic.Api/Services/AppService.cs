@@ -402,6 +402,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             Cloud = entity.Cloud,
             Environment = entity.Environment,
             LastPipelineRun = lastRun?.StartedAt.ToString("o"),
+            Branch = lastRun?.Branch,
             RunStatus = lastRun is not null ? Enum.Parse<RunStatus>(lastRun.Status, true) : null,
             TriggeredBy = lastRun?.TriggeredBy
         };

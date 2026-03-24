@@ -92,6 +92,7 @@
             <th>Technology</th>
             <th>Cloud</th>
             <th>Last Pipeline Run</th>
+            <th>Branch</th>
             <th>Environment</th>
             <th>Run Status</th>
             <th>Triggered By</th>
@@ -110,6 +111,7 @@
                 </span>
               </td>
               <td class="timestamp">{{ formatDate(app.lastPipelineRun) }}</td>
+              <td>{{ app.branch ?? '—' }}</td>
               <td>
                 <span class="badge badge--env badge--env-{{ app.environment }}">
                   {{ app.environment }}
@@ -129,7 +131,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="7" class="no-results">
+              <td colspan="8" class="no-results">
                 {{ apps().length === 0 ? 'No records found.' : 'No apps match your search or filters.' }}
               </td>
             </tr>
