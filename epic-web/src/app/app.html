@@ -5,6 +5,14 @@
       <p class="subtitle">Enterprise Pipeline for Infrastructure &amp; Cloud</p>
     </div>
     <div class="header-user">
+      <button class="help-btn" (click)="openHowTo()" title="How to use EPIC">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </button>
       <div class="avatar">RM</div>
       <div class="user-info">
         <span class="welcome">Welcome</span>
@@ -501,6 +509,108 @@
 @if (loading()) {
   <div class="loading-overlay">
     <div class="loading-spinner"></div>
+  </div>
+}
+
+@if (showHowToModal()) {
+  <div class="modal-overlay" (click)="closeHowTo()">
+    <div class="modal modal--wide" (click)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <div>
+          <h3>How to Use EPIC</h3>
+          <p class="modal-subtitle">Get your application configured and deploying through EPIC.</p>
+        </div>
+        <button class="modal-close" (click)="closeHowTo()" title="Close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body howto-body">
+        <div class="howto-section">
+          <h4>Overview</h4>
+          <p>EPIC (Enterprise Pipeline for Infrastructure &amp; Cloud) is PG&amp;E's CI/CD framework built on Azure DevOps. Applications declare their build, test, and deployment intent in a configuration file, and EPIC handles the rest.</p>
+          <p>The process is simple:</p>
+          <ol>
+            <li>Add a <code>.pipeline/epic.json</code> file to your GitHub repository</li>
+            <li>Optionally add a <code>.infra/</code> folder with Terraform configurations for infrastructure</li>
+            <li>Onboard your app through the <strong>+ New App</strong> button above</li>
+            <li>Trigger pipeline runs from the app's detail view</li>
+          </ol>
+        </div>
+
+        <div class="howto-section">
+          <h4>The epic.json File</h4>
+          <p>Create <code>.pipeline/epic.json</code> at the root of your repository. This file has two sections:</p>
+          <ul>
+            <li><strong>app</strong> — Your application's identity, build configuration, and tooling</li>
+            <li><strong>cloud</strong> — Your deployment target (AWS account, region, and any app-type-specific settings)</li>
+          </ul>
+
+          <table class="howto-fields">
+            <thead>
+              <tr><th>Field</th><th>Required</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>app.appName</code></td><td>Yes</td><td>Unique name for your application in EPIC</td></tr>
+              <tr><td><code>app.appType</code></td><td>Yes</td><td>angular, dotnet, python, java, html, or ami</td></tr>
+              <tr><td><code>app.codePath</code></td><td>No</td><td>Path to source code relative to repo root (default: <code>/</code>)</td></tr>
+              <tr><td><code>app.scanTool</code></td><td>No</td><td>Code scan tool (e.g., <code>sonarqube</code>)</td></tr>
+              <tr><td><code>app.unitTestTool</code></td><td>No</td><td>Test runner: jest, pytest, junit, xunit</td></tr>
+              <tr><td><code>cloud.awsAccountId</code></td><td>Yes</td><td>Target AWS account ID</td></tr>
+              <tr><td><code>cloud.awsRegion</code></td><td>Yes</td><td>Target AWS region (e.g., <code>us-west-2</code>)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="howto-section">
+          <h4>Sample Configuration</h4>
+          <p>Select your application type to see a sample <code>epic.json</code>:</p>
+          <div class="howto-sample-controls">
+            <select [(ngModel)]="howToAppType" [ngModelOptions]="{ standalone: true }">
+              <option value="angular">Angular</option>
+              <option value="dotnet">.NET</option>
+              <option value="python">Python</option>
+              <option value="java">Java</option>
+              <option value="html">HTML / Static</option>
+              <option value="ami">AMI</option>
+            </select>
+            <button class="btn-secondary" (click)="copySample()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              Copy
+            </button>
+          </div>
+          <pre class="howto-code">{{ currentSample }}</pre>
+        </div>
+
+        <div class="howto-section">
+          <h4>Infrastructure (Optional)</h4>
+          <p>If your app requires AWS infrastructure (EC2, S3, CloudFront, Aurora, etc.), add a <code>.infra/</code> folder at the root of your repository with standard Terraform files:</p>
+          <ul>
+            <li><code>terraform.tf</code> — Backend and provider configuration</li>
+            <li><code>main.tf</code> — Resource definitions</li>
+            <li><code>variables.tf</code> — Input variables</li>
+            <li><code>outputs.tf</code> — Output values</li>
+            <li><code>terraform.auto.tfvars</code> — Variable values</li>
+          </ul>
+          <p>EPIC will automatically detect the <code>.infra/</code> folder and enable the Infrastructure Deployment option when triggering runs.</p>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="modal-footer__right">
+          <button class="btn-secondary" (click)="closeHowTo()">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
 }
 

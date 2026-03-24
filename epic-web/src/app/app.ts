@@ -207,6 +207,114 @@ export class App implements OnInit, OnDestroy {
       : (first[0] + last[0]).toUpperCase();
   }
 
+  // ── How To modal ─────────────────────────────────────────────────────────
+
+  protected showHowToModal = signal(false);
+  protected howToAppType = 'angular';
+
+  protected readonly epicJsonSamples: Record<string, string> = {
+    angular: `{
+  "app": {
+    "appName": "my-angular-app",
+    "appType": "angular",
+    "codePath": "/",
+    "nodeVersion": "20",
+    "scanTool": "sonarqube",
+    "unitTestTool": "jest"
+  },
+  "cloud": {
+    "awsAccountId": "123456789012",
+    "awsRegion": "us-west-2"
+  }
+}`,
+    dotnet: `{
+  "app": {
+    "appName": "my-dotnet-app",
+    "appType": "dotnet",
+    "codePath": "/src/MyApp",
+    "dotnetVersion": "10.x",
+    "scanTool": "sonarqube",
+    "unitTestTool": "xunit"
+  },
+  "cloud": {
+    "awsAccountId": "123456789012",
+    "awsRegion": "us-west-2",
+    "appExecutable": "MyApp"
+  }
+}`,
+    python: `{
+  "app": {
+    "appName": "my-python-app",
+    "appType": "python",
+    "codePath": "/",
+    "pythonVersion": "3.11",
+    "scanTool": "sonarqube",
+    "unitTestTool": "pytest"
+  },
+  "cloud": {
+    "awsAccountId": "123456789012",
+    "awsRegion": "us-west-2"
+  }
+}`,
+    java: `{
+  "app": {
+    "appName": "my-java-app",
+    "appType": "java",
+    "codePath": "/",
+    "javaVersion": "17",
+    "scanTool": "sonarqube",
+    "unitTestTool": "junit"
+  },
+  "cloud": {
+    "awsAccountId": "123456789012",
+    "awsRegion": "us-west-2"
+  }
+}`,
+    html: `{
+  "app": {
+    "appName": "my-static-site",
+    "appType": "html",
+    "codePath": "/"
+  },
+  "cloud": {
+    "awsAccountId": "123456789012",
+    "awsRegion": "us-west-2"
+  }
+}`,
+    ami: `{
+  "app": {
+    "appName": "my-ami-project",
+    "appType": "ami"
+  },
+  "cloud": {
+    "awsAccountId": "123456789012",
+    "awsRegion": "us-west-2",
+    "components": ["server", "portal"],
+    "imageBuilderPipelinePrefix": "ami-factory",
+    "ssmParameterPrefix": "/ami_factory"
+  }
+}`
+  };
+
+  protected get currentSample(): string {
+    return this.epicJsonSamples[this.howToAppType] ?? this.epicJsonSamples['angular'];
+  }
+
+  protected openHowTo(): void {
+    this.howToAppType = 'angular';
+    this.showHowToModal.set(true);
+  }
+
+  protected closeHowTo(): void {
+    this.showHowToModal.set(false);
+  }
+
+  protected copySample(): void {
+    navigator.clipboard.writeText(this.currentSample).then(() => {
+      this.showToast('Sample epic.json copied to clipboard.');
+    });
+  }
+
   // ── Modals ────────────────────────────────────────────────────────────────
 
   protected showAddModal = signal(false);

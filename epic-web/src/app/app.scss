@@ -780,6 +780,118 @@ tbody {
   &:hover { color: #2c5282; }
 }
 
+// ── Help button ─────────────────────────────────────────────────────────────
+
+.help-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #a0aec0;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+}
+
+// ── How To modal ────────────────────────────────────────────────────────────
+
+.howto-body {
+  font-size: 0.875rem;
+  color: #4a5568;
+  line-height: 1.7;
+
+  h4 {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+
+  p { margin: 0 0 10px; }
+
+  ol, ul {
+    margin: 0 0 12px;
+    padding-left: 20px;
+  }
+
+  li { margin-bottom: 4px; }
+
+  code {
+    background: #edf2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.82rem;
+  }
+}
+
+.howto-section {
+  margin-bottom: 20px;
+
+  &:last-child { margin-bottom: 0; }
+}
+
+.howto-fields {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin-bottom: 8px;
+
+  th {
+    text-align: left;
+    padding: 6px 10px;
+    background: #f0f2f5;
+    font-weight: 600;
+    color: #718096;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #edf2f7;
+  }
+}
+
+.howto-sample-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+
+  select {
+    padding: 6px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: #fff;
+  }
+
+  .btn-secondary {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+}
+
+.howto-code {
+  background: #1a1a2e;
+  color: #e2e8f0;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  overflow-x: auto;
+  line-height: 1.6;
+  margin: 0;
+}
+
 // ── Toast ────────────────────────────────────────────────────────────────────
 
 .toast {
