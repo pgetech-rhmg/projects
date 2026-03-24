@@ -215,9 +215,6 @@
 
           <h4 class="runs-heading">Pipeline Runs</h4>
 
-          @if (appDetail()!.runs.length === 0) {
-            <p class="runs-empty">No pipeline runs recorded yet for this app.</p>
-          } @else {
           <div class="runs-table-wrapper">
             <table class="runs-table">
               <thead>
@@ -237,7 +234,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (run of appDetail()!.runs; track run.id) {
+                @for (run of pagedRuns(); track run.id) {
                   <tr>
                     <td class="run-id"><a class="run-link" [href]="getRunUrl(run.id)" target="_blank" rel="noopener" (click)="$event.stopPropagation()">#{{ run.id }}</a></td>
                     <td><span class="badge badge--status badge--status-{{ run.status | lowercase }}">{{ run.status }}</span></td>
@@ -252,10 +249,40 @@
                     <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.infraDeploy | lowercase }}" [title]="run.stages.infraDeploy === 'External' ? 'Infrastructure provided' : run.stages.infraDeploy"></span></td>
                     <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.appDeploy | lowercase }}"></span></td>
                   </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="12" class="no-results">No pipeline runs recorded yet.</td>
+                  </tr>
                 }
               </tbody>
             </table>
           </div>
+
+          @if (appDetail()!.runs.length > 0) {
+            <div class="runs-pagination">
+              <span class="pagination__info">
+                {{ (runsCurrentPage() - 1) * runsPageSize + 1 }}–{{ runsPageRangeEnd() }} of {{ appDetail()!.runs.length }} runs
+              </span>
+              <div class="pagination__controls">
+                <button class="page-btn" (click)="goToRunsPage(runsCurrentPage() - 1)" [disabled]="runsCurrentPage() === 1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"/>
+                  </svg>
+                </button>
+                @for (page of runsPageNumbers(); track page) {
+                  <button class="page-btn" [class.page-btn--active]="page === runsCurrentPage()" (click)="goToRunsPage(page)">
+                    {{ page }}
+                  </button>
+                }
+                <button class="page-btn" (click)="goToRunsPage(runsCurrentPage() + 1)" [disabled]="runsCurrentPage() === runsTotalPages()">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
           }
 
         </div>

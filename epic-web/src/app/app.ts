@@ -194,6 +194,35 @@ export class App implements OnInit, OnDestroy {
   protected selectedApp = signal<ManagedApp | null>(null);
   protected appDetail = signal<AppDetail | null>(null);
 
+  // Runs pagination
+  protected readonly runsPageSize = 5;
+  protected runsCurrentPage = signal(1);
+
+  protected readonly runsTotalPages = computed(() => {
+    const runs = this.appDetail()?.runs ?? [];
+    return Math.max(1, Math.ceil(runs.length / this.runsPageSize));
+  });
+
+  protected readonly pagedRuns = computed(() => {
+    const runs = this.appDetail()?.runs ?? [];
+    const page = this.runsCurrentPage();
+    const start = (page - 1) * this.runsPageSize;
+    return runs.slice(start, start + this.runsPageSize);
+  });
+
+  protected readonly runsPageNumbers = computed(() =>
+    Array.from({ length: this.runsTotalPages() }, (_, i) => i + 1)
+  );
+
+  protected readonly runsPageRangeEnd = computed(() => {
+    const runs = this.appDetail()?.runs ?? [];
+    return Math.min(this.runsCurrentPage() * this.runsPageSize, runs.length);
+  });
+
+  protected goToRunsPage(page: number): void {
+    this.runsCurrentPage.set(page);
+  }
+
   // New Run modal
   protected showNewRunModal = signal(false);
   protected newRunApp = signal<AppDetail | null>(null);
@@ -284,6 +313,7 @@ export class App implements OnInit, OnDestroy {
   protected onManageApp(app: ManagedApp): void {
     this.selectedApp.set(app);
     this.appDetail.set(null);
+    this.runsCurrentPage.set(1);
     this.showManageModal.set(true);
     this.appService.getApp(app.name).subscribe({
       next: detail => this.appDetail.set(detail),

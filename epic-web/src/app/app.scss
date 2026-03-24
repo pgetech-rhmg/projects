@@ -428,6 +428,7 @@ tbody {
 
   &--wide {
     width: 860px;
+    height: 580px;
     max-height: calc(100vh - 80px);
     display: flex;
     flex-direction: column;
@@ -517,10 +518,17 @@ tbody {
 
 .runs-table-wrapper {
   overflow-x: auto;
-  overflow-y: auto;
-  max-height: 280px;
   border-radius: 6px;
   border: 1px solid #e2e8f0;
+}
+
+.runs-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: #718096;
 }
 
 .runs-table {
@@ -619,6 +627,8 @@ tbody {
 .modal-body {
   padding: 16px 24px 20px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 
   p {
     margin: 0 0 10px;
