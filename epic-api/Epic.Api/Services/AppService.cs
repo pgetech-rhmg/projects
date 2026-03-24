@@ -285,7 +285,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             Description = repoInfo.Description,
             AppType = appType,
             Technology = technology,
-            Cloud = epicCloud ?? "aws",
+            Cloud = MapCloud(epicCloud),
             Environment = "dev",
             Team = "unassigned",
             Domain = "",
@@ -344,6 +344,13 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         "html" => "HTML",
         "ami" => "AMI",
         _ => appType
+    };
+
+    private static string MapCloud(string? cloud) => cloud?.ToLowerInvariant() switch
+    {
+        "aws" => "AWS",
+        "azure" => "Azure",
+        _ => cloud ?? "AWS"
     };
 
     private static string FormatDisplayName(string repo) =>
