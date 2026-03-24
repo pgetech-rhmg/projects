@@ -152,6 +152,16 @@ export class App implements OnInit, OnDestroy {
     this.currentPage.set(page);
   }
 
+  // ── Formatting ──────────────────────────────────────────────────────────
+
+  protected formatDate(iso: string | null): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
   // ── User ──────────────────────────────────────────────────────────────────
 
   protected initialsFor(name: string | null): string {

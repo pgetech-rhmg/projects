@@ -109,7 +109,7 @@
                   {{ app.cloud }}
                 </span>
               </td>
-              <td class="timestamp">{{ app.lastPipelineRun }}</td>
+              <td class="timestamp">{{ formatDate(app.lastPipelineRun) }}</td>
               <td>
                 <span class="badge badge--env badge--env-{{ app.environment }}">
                   {{ app.environment }}
@@ -242,7 +242,7 @@
                     <td class="run-branch">{{ run.branch }}</td>
                     <td><span class="badge badge--env badge--env-{{ run.environment }}">{{ run.environment }}</span></td>
                     <td class="timestamp">{{ run.triggeredBy }}</td>
-                    <td class="timestamp">{{ run.startedAt }}</td>
+                    <td class="timestamp">{{ formatDate(run.startedAt) }}</td>
                     <td class="timestamp">{{ run.duration ?? '—' }}</td>
                     <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.build | lowercase }}"></span></td>
                     <td class="stage-col"><span class="stage-dot stage-dot--{{ run.stages.test | lowercase }}"></span></td>
