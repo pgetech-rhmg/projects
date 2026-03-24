@@ -234,6 +234,30 @@ stages:
             env:
               GITHUB_PAT: $(GITHUB_PAT)
 
+          - bash: |
+              set -euo pipefail
+
+              APP_NAME=$(jq -r '.templateParameters.appName' payload.json)
+
+              if [[ -z "$APP_NAME" || "$APP_NAME" == "null" ]]; then
+                echo "!! WARNING: appName not found in payload — skipping tag"
+                exit 0
+              fi
+
+              echo ">> Tagging orchestrator build with: $APP_NAME"
+
+              API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/tags"
+
+              curl -s -X PUT -d "" \
+                -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                -H "Content-Type: application/json" \
+                "$API_URL/${APP_NAME}?api-version=7.1"
+
+              echo ">> Orchestrator build tagged"
+            displayName: "Tag build with appName"
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
           - task: PublishPipelineArtifact@1
             displayName: "Publish payload artifact"
             inputs:

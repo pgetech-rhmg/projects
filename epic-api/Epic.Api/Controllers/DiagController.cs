@@ -98,20 +98,8 @@ public sealed class DiagController(IAdoService adoService, IGitHubService gitHub
 
             var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
 
-            // Filter client-side: match orchestrator runs whose parameters contain this appName
+            // No filter — just show raw orchestrator builds so we can see what's there
             var builds = json.GetProperty("value").EnumerateArray()
-                .Where(b =>
-                {
-                    if (!b.TryGetProperty("parameters", out var p) || p.ValueKind != System.Text.Json.JsonValueKind.String)
-                        return false;
-                    try
-                    {
-                        var paramObj = System.Text.Json.JsonDocument.Parse(p.GetString()!).RootElement;
-                        var paramApp = paramObj.TryGetProperty("appName", out var an) ? an.GetString() : null;
-                        return string.Equals(paramApp, appName, StringComparison.OrdinalIgnoreCase);
-                    }
-                    catch { return false; }
-                })
                 .Take(5)
                 .Select(b =>
                 {
