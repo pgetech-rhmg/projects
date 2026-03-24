@@ -1,5 +1,7 @@
+using Epic.Api.Data;
 using Epic.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Epic.Api.Controllers;
 
@@ -9,8 +11,27 @@ namespace Epic.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/diag")]
-public sealed class DiagController(IAdoService adoService, IGitHubService gitHubService) : ControllerBase
+public sealed class DiagController(IAdoService adoService, IGitHubService gitHubService, EpicDbContext db) : ControllerBase
 {
+    /// <summary>
+    /// Purge all data from the database (pipeline_runs, user_apps, apps).
+    /// </summary>
+    [HttpDelete("purge")]
+    public async Task<IActionResult> Purge(CancellationToken ct)
+    {
+        // Order matters: children first to respect FK constraints
+        var runs = await db.PipelineRuns.CountAsync(ct);
+        var userApps = await db.UserApps.CountAsync(ct);
+        var apps = await db.Apps.CountAsync(ct);
+
+        db.PipelineRuns.RemoveRange(db.PipelineRuns);
+        db.UserApps.RemoveRange(db.UserApps);
+        db.Apps.RemoveRange(db.Apps);
+        await db.SaveChangesAsync(ct);
+
+        return Ok(new { purged = new { pipelineRuns = runs, userApps, apps } });
+    }
+
     /// <summary>
     /// Test ADO integration — fetch pipeline runs for an app by tag.
     /// </summary>
