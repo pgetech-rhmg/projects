@@ -1,4 +1,4 @@
-export type RunStatus = 'Success' | 'Failed' | 'Running' | 'Cancelled' | 'Skipped' | 'External';
+export type RunStatus = 'Success' | 'Failed' | 'Running' | 'Cancelled' | 'Skipped' | 'External' | 'Pending';
 
 export interface AppLookup {
   name: string;

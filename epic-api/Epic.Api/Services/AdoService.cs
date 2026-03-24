@@ -283,8 +283,8 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         return state switch
         {
             "inProgress" => RunStatus.Running,
-            "pending" => RunStatus.Skipped,
-            _ => RunStatus.Skipped
+            "pending" => RunStatus.Pending,
+            _ => RunStatus.Pending
         };
     }
 

@@ -593,6 +593,7 @@ tbody {
   &--running   { background: #63b3ed; }
   &--cancelled { background: #cbd5e0; }
   &--skipped   { background: #e2e8f0; }
+  &--pending   { background: #fff; border: 1.5px solid #cbd5e0; }
   &--external  { background: #9f7aea; }
 }
 

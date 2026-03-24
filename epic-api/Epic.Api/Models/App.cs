@@ -7,7 +7,8 @@ public enum RunStatus
     Running,
     Cancelled,
     Skipped,
-    External
+    External,
+    Pending
 }
 
 public sealed class ManagedApp
