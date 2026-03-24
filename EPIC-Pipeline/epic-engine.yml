@@ -124,18 +124,18 @@ stages:
               API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/tags"
 
               # Tag with appName (primary — used for filtering)
-              curl -s -X PUT \
+              curl -s -X PUT -d "" \
                 -H "Authorization: Bearer $(System.AccessToken)" \
                 -H "Content-Type: application/json" \
                 "$API_URL/${{ parameters.appName }}?api-version=7.1"
 
               # Tag with appType and environment for additional filtering
-              curl -s -X PUT \
+              curl -s -X PUT -d "" \
                 -H "Authorization: Bearer $(System.AccessToken)" \
                 -H "Content-Type: application/json" \
                 "$API_URL/${{ parameters.appType }}?api-version=7.1"
 
-              curl -s -X PUT \
+              curl -s -X PUT -d "" \
                 -H "Authorization: Bearer $(System.AccessToken)" \
                 -H "Content-Type: application/json" \
                 "$API_URL/${{ parameters.environment }}?api-version=7.1"
