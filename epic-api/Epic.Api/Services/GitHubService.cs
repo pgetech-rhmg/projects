@@ -64,6 +64,21 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         };
     }
 
+    public async Task<string?> GetFileContentAsync(string repo, string path, string branch, CancellationToken ct = default)
+    {
+        var url = $"https://api.github.com/repos/{OrgName}/{repo}/contents/{path}?ref={Uri.EscapeDataString(branch)}";
+        var json = await CallApiAsync(url, ct);
+        if (json is null) return null;
+
+        var encoding = json.Value.TryGetProperty("encoding", out var enc) ? enc.GetString() : null;
+        var content = json.Value.TryGetProperty("content", out var c) ? c.GetString() : null;
+
+        if (encoding == "base64" && content is not null)
+            return System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(content));
+
+        return content;
+    }
+
     private async Task<JsonElement?> CallApiAsync(string url, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);

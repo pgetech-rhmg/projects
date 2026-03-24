@@ -262,22 +262,46 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         if (!repoInfo.Exists)
             throw new KeyNotFoundException($"GitHub repo '{repo}' not found");
 
+        var resolvedBranch = branch.Length > 0 ? branch : repoInfo.DefaultBranch ?? "main";
+
+        // Read epic.json from the repo to get the real appName and appType
+        var epicJson = await gitHub.GetFileContentAsync(repo, ".pipeline/epic.json", resolvedBranch, ct);
+        string? epicAppName = null;
+        string? epicAppType = null;
+        string? epicCloud = null;
+        if (epicJson is not null)
+        {
+            try
+            {
+                var config = System.Text.Json.JsonDocument.Parse(epicJson).RootElement;
+                var appSection = config.TryGetProperty("app", out var app) ? app : config;
+                epicAppName = appSection.TryGetProperty("appName", out var an) ? an.GetString() : null;
+                epicAppType = appSection.TryGetProperty("appType", out var at) ? at.GetString() : null;
+                epicCloud = config.TryGetProperty("cloud", out var cl)
+                    && cl.TryGetProperty("awsAccountId", out _) ? "aws"
+                    : config.TryGetProperty("cloud", out var cl2)
+                        && cl2.TryGetProperty("azureSubscription", out _) ? "azure" : null;
+            }
+            catch { /* epic.json not parseable — fall back to GitHub metadata */ }
+        }
+
         var technology = MapLanguageToTechnology(repoInfo.Language);
-        var appType = MapTechnologyToAppType(technology);
+        var appType = epicAppType ?? MapTechnologyToAppType(technology);
+        var appName = epicAppName ?? repo.ToLowerInvariant();
 
         var entity = new AppEntity
         {
-            Name = repo.ToLowerInvariant(),
-            DisplayName = FormatDisplayName(repo),
+            Name = appName,
+            DisplayName = FormatDisplayName(appName),
             Description = repoInfo.Description,
             AppType = appType,
             Technology = technology,
-            Cloud = "aws",
+            Cloud = epicCloud ?? "aws",
             Environment = "dev",
             Team = "unassigned",
             Domain = "",
             GithubRepo = repo,
-            GithubBranch = branch.Length > 0 ? branch : repoInfo.DefaultBranch ?? "main",
+            GithubBranch = resolvedBranch,
             CreatedBy = CurrentUserId,
             LastUpdatedBy = CurrentUserId
         };
