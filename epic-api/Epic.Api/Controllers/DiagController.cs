@@ -86,7 +86,8 @@ public sealed class DiagController(IAdoService adoService, IGitHubService gitHub
             if (string.IsNullOrEmpty(pat))
                 return Ok(new { error = "ADO_PAT not configured" });
 
-            var url = $"https://dev.azure.com/pgetech/EPIC-Pipeline/_apis/build/builds?definitions=133&tagFilters={Uri.EscapeDataString(appName)}&$top=5&queryOrder=finishTimeDescending&api-version=7.1";
+            // No tagFilters — orchestrator isn't tagged. We'll filter by parameters client-side.
+            var url = $"https://dev.azure.com/pgetech/EPIC-Pipeline/_apis/build/builds?definitions=133&$top=20&queryOrder=finishTimeDescending&api-version=7.1";
 
             using var client = new HttpClient();
             var creds = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{pat}"));
@@ -96,26 +97,40 @@ public sealed class DiagController(IAdoService adoService, IGitHubService gitHub
             var body = await response.Content.ReadAsStringAsync(ct);
 
             var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
-            var builds = json.GetProperty("value").EnumerateArray().Take(5).Select(b =>
-            {
-                return new
+
+            // Filter client-side: match orchestrator runs whose parameters contain this appName
+            var builds = json.GetProperty("value").EnumerateArray()
+                .Where(b =>
                 {
-                    id = b.GetProperty("id").GetInt32(),
-                    buildNumber = b.TryGetProperty("buildNumber", out var bn) ? bn.GetString() : null,
-                    status = b.TryGetProperty("status", out var st) ? st.GetString() : null,
-                    result = b.TryGetProperty("result", out var res) ? res.GetString() : null,
-                    requestedFor = b.TryGetProperty("requestedFor", out var rf)
-                        ? rf.GetProperty("displayName").GetString() : null,
-                    requestedBy = b.TryGetProperty("requestedBy", out var rb)
-                        ? rb.GetProperty("displayName").GetString() : null,
-                    reason = b.TryGetProperty("reason", out var r) ? r.GetString() : null,
-                    tags = b.TryGetProperty("tags", out var tags)
-                        ? tags.EnumerateArray().Select(t => t.GetString()).ToList() : new List<string?>(),
-                    parameters = b.TryGetProperty("parameters", out var p) ? p.GetString() : null,
-                    startTime = b.TryGetProperty("startTime", out var st2) ? st2.GetString() : null,
-                    finishTime = b.TryGetProperty("finishTime", out var ft) ? ft.GetString() : null
-                };
-            });
+                    if (!b.TryGetProperty("parameters", out var p) || p.ValueKind != System.Text.Json.JsonValueKind.String)
+                        return false;
+                    try
+                    {
+                        var paramObj = System.Text.Json.JsonDocument.Parse(p.GetString()!).RootElement;
+                        var paramApp = paramObj.TryGetProperty("appName", out var an) ? an.GetString() : null;
+                        return string.Equals(paramApp, appName, StringComparison.OrdinalIgnoreCase);
+                    }
+                    catch { return false; }
+                })
+                .Take(5)
+                .Select(b =>
+                {
+                    return new
+                    {
+                        id = b.GetProperty("id").GetInt32(),
+                        buildNumber = b.TryGetProperty("buildNumber", out var bn) ? bn.GetString() : null,
+                        status = b.TryGetProperty("status", out var st) ? st.GetString() : null,
+                        result = b.TryGetProperty("result", out var res) ? res.GetString() : null,
+                        requestedFor = b.TryGetProperty("requestedFor", out var rf)
+                            ? rf.GetProperty("displayName").GetString() : null,
+                        requestedBy = b.TryGetProperty("requestedBy", out var rb)
+                            ? rb.GetProperty("displayName").GetString() : null,
+                        reason = b.TryGetProperty("reason", out var r) ? r.GetString() : null,
+                        parameters = b.TryGetProperty("parameters", out var p) ? p.GetString() : null,
+                        startTime = b.TryGetProperty("startTime", out var st2) ? st2.GetString() : null,
+                        finishTime = b.TryGetProperty("finishTime", out var ft) ? ft.GetString() : null
+                    };
+                });
 
             return Ok(new { requestUrl = url, statusCode = (int)response.StatusCode, builds });
         }
