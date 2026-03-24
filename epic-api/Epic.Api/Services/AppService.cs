@@ -370,11 +370,23 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         await db.SaveChangesAsync(ct);
     }
 
-    public Task<PipelineRun> TriggerRunAsync(string appName, string branch, string environment, CancellationToken ct = default)
+    public async Task<TriggerRunResponse> TriggerRunAsync(
+        string appName, string branch, string environment,
+        bool build, bool tests, bool scan, bool deploy, bool integrations,
+        string deployInfra, CancellationToken ct = default)
     {
-        // TODO: Call ADO REST API to trigger the EPIC orchestrator pipeline
-        // POST https://dev.azure.com/pgetech/EPIC-Pipeline/_apis/pipelines/194/runs
-        throw new NotImplementedException("ADO REST API integration not yet implemented");
+        var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == appName, ct)
+            ?? throw new KeyNotFoundException($"App '{appName}' not found");
+
+        var result = await ado.TriggerOrchestratorAsync(
+            entity.GithubRepo, branch, environment,
+            build, tests, scan, deploy, integrations, deployInfra, ct);
+
+        return new TriggerRunResponse
+        {
+            RunId = result.RunId,
+            Url = result.Url
+        };
     }
 
     // ----- Mapping helpers -----

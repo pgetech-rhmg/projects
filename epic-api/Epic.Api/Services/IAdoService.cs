@@ -23,8 +23,15 @@ public sealed class AdoLatestRun
     public string? Duration { get; set; }
 }
 
+public sealed class AdoTriggerResult
+{
+    public int RunId { get; set; }
+    public required string Url { get; set; }
+}
+
 public interface IAdoService
 {
     Task<List<AdoPipelineRun>> GetRunsForAppAsync(string appName, int? afterBuildId = null, int top = 20, CancellationToken ct = default);
     Task<AdoLatestRun?> GetLatestRunForAppAsync(string appName, CancellationToken ct = default);
+    Task<AdoTriggerResult> TriggerOrchestratorAsync(string repo, string branch, string environment, bool build, bool tests, bool scan, bool deploy, bool integrations, string deployInfra, CancellationToken ct = default);
 }

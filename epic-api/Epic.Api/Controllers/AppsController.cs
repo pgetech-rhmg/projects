@@ -59,11 +59,21 @@ public sealed class AppsController : ControllerBase
     /// Trigger a new pipeline run for an app.
     /// </summary>
     [HttpPost("{name}/runs")]
-    [ProducesResponseType(typeof(PipelineRun), 202)]
+    [ProducesResponseType(typeof(TriggerRunResponse), 202)]
     [ProducesResponseType(404)]
     public async Task<IActionResult> TriggerRun(string name, [FromBody] TriggerRunRequest request, CancellationToken ct)
     {
-        var run = await _appService.TriggerRunAsync(name, request.Branch, request.Environment, ct);
-        return Accepted(run);
+        try
+        {
+            var result = await _appService.TriggerRunAsync(
+                name, request.Branch, request.Environment,
+                request.Build, request.Tests, request.Scan,
+                request.Deploy, request.Integrations, request.DeployInfra, ct);
+            return Accepted(result);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
     }
 }

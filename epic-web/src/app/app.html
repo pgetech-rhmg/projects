@@ -310,9 +310,9 @@
             } @else if (repoCheckStatus() === 'available') {
               <span class="field-hint field-hint--available">Repository is available to onboard.</span>
             } @else if (repoCheckStatus() === 'in-epic-not-mine') {
-              <span class="field-hint field-hint--info">"{{ foundMasterApp()?.displayName }}" is already in EPIC but isn't on your list. You can add it below.</span>
+              <span class="field-hint field-hint--info">"{{ foundMasterApp()?.name }}" is already in EPIC but isn't on your list. You can add it below.</span>
             } @else if (repoCheckStatus() === 'already-mine') {
-              <span class="field-hint field-hint--taken">"{{ foundMasterApp()?.displayName }}" is already in your list.</span>
+              <span class="field-hint field-hint--taken">"{{ foundMasterApp()?.name }}" is already in your list.</span>
             } @else if (repoCheckStatus() === 'not-found') {
               <span class="field-hint field-hint--taken">Repo not found. Verify the name or check your access.</span>
             }
@@ -349,7 +349,7 @@
       <div class="modal-header">
         <div>
           <h3>New Pipeline Run</h3>
-          <p class="modal-subtitle">Trigger a new run for {{ newRunApp()!.displayName }}.</p>
+          <p class="modal-subtitle">Trigger a new run for {{ newRunApp()!.name }}.</p>
         </div>
         <button class="modal-close" (click)="closeNewRunModal()" title="Close">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -409,6 +409,50 @@
             @if (newRunEnvLocked()) {
               <span class="field-hint field-hint--info">Release branches always deploy to prod.</span>
             }
+          </div>
+
+          <div class="form-field">
+            <label>Stages</label>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="newRunBuild" [ngModelOptions]="{ standalone: true }" />
+                Build App
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="newRunTests" [ngModelOptions]="{ standalone: true }" />
+                Run Unit Tests
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="newRunScan" [ngModelOptions]="{ standalone: true }" />
+                Scan App
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="newRunDeploy" [ngModelOptions]="{ standalone: true }" />
+                Deploy App
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="newRunIntegrations" [ngModelOptions]="{ standalone: true }" />
+                Run Integration Tests
+              </label>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label>Infrastructure Deployment</label>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="deployInfra" value="none" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" />
+                None
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="deployInfra" value="apply" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" />
+                Apply
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="deployInfra" value="destroy" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" />
+                Destroy
+              </label>
+            </div>
           </div>
         </div>
       </div>

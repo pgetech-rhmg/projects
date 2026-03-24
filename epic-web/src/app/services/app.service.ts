@@ -55,10 +55,16 @@ export class AppService {
   }
 
   /** Trigger a new pipeline run. */
-  triggerRun(appName: string, branch: string, env: string): Observable<PipelineRun> {
-    return this.http.post<PipelineRun>(`${this.api}/api/apps/${appName}/runs`, {
-      branch,
-      environment: env
-    });
+  triggerRun(appName: string, params: {
+    branch: string;
+    environment: string;
+    build: boolean;
+    tests: boolean;
+    scan: boolean;
+    deploy: boolean;
+    integrations: boolean;
+    deployInfra: string;
+  }): Observable<{ runId: number; url: string }> {
+    return this.http.post<{ runId: number; url: string }>(`${this.api}/api/apps/${appName}/runs`, params);
   }
 }

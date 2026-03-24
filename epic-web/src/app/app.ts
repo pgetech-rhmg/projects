@@ -201,6 +201,12 @@ export class App implements OnInit, OnDestroy {
   protected newRunEnvironment = '';
   protected newRunBranchError = signal<string | null>(null);
   protected newRunEnvLocked = signal(false);
+  protected newRunBuild = true;
+  protected newRunTests = false;
+  protected newRunScan = false;
+  protected newRunDeploy = false;
+  protected newRunIntegrations = false;
+  protected newRunDeployInfra = 'none';
 
   protected newAppRepo = '';
   protected newAppBranch = '';
@@ -269,9 +275,9 @@ export class App implements OnInit, OnDestroy {
       next: app => {
         this.apps.update(list => [app, ...list]);
         this.closeAddModal();
-        this.showToast(`"${masterApp.displayName}" has been added to your list.`);
+        this.showToast(`"${masterApp.name}" has been added to your list.`);
       },
-      error: () => this.showToast(`Failed to add "${masterApp.displayName}" — please try again.`)
+      error: () => this.showToast(`Failed to add "${masterApp.name}" — please try again.`)
     });
   }
 
@@ -296,6 +302,12 @@ export class App implements OnInit, OnDestroy {
     this.newRunEnvironment = 'dev';
     this.newRunBranchError.set(null);
     this.newRunEnvLocked.set(false);
+    this.newRunBuild = true;
+    this.newRunTests = false;
+    this.newRunScan = false;
+    this.newRunDeploy = false;
+    this.newRunIntegrations = false;
+    this.newRunDeployInfra = 'none';
     this.closeManageModal();
     this.showNewRunModal.set(true);
   }
@@ -332,18 +344,25 @@ export class App implements OnInit, OnDestroy {
   protected onConfirmNewRun(): void {
     if (!this.canRunNewPipeline) return;
     const appName = this.newRunApp()?.name;
-    const displayName = this.newRunApp()?.displayName;
     const branch = this.newRunBranch.trim();
     const env = this.newRunEnvironment;
     if (!appName) return;
-    this.appService.triggerRun(appName, branch, env).subscribe({
-      next: () => {
+    this.appService.triggerRun(appName, {
+      branch,
+      environment: env,
+      build: this.newRunBuild,
+      tests: this.newRunTests,
+      scan: this.newRunScan,
+      deploy: this.newRunDeploy,
+      integrations: this.newRunIntegrations,
+      deployInfra: this.newRunDeployInfra
+    }).subscribe({
+      next: (result) => {
         this.closeNewRunModal();
-        this.showToast(`A new pipeline run for "${displayName}" on branch "${branch}" for the "${env}" environment has been queued.`);
+        this.showToast(`Pipeline run #${result.runId} has been queued for "${appName}" on branch "${branch}" (${env}).`);
       },
       error: () => {
-        this.closeNewRunModal();
-        this.showToast(`Failed to trigger pipeline run for "${displayName}" — the feature is not yet available.`);
+        this.showToast(`Failed to trigger pipeline run for "${appName}".`);
       }
     });
   }

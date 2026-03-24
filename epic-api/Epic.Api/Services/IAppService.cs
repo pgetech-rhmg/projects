@@ -9,6 +9,6 @@ public interface IAppService
     Task<RepoCheckResult> CheckRepoAsync(string repo, CancellationToken ct = default);
     Task<ManagedApp> AddToMyAppsAsync(string name, CancellationToken ct = default);
     Task<AppDetail> OnboardAppAsync(string repo, string branch, CancellationToken ct = default);
-    Task<PipelineRun> TriggerRunAsync(string appName, string branch, string environment, CancellationToken ct = default);
+    Task<TriggerRunResponse> TriggerRunAsync(string appName, string branch, string environment, bool build, bool tests, bool scan, bool deploy, bool integrations, string deployInfra, CancellationToken ct = default);
     Task RemoveFromMyAppsAsync(string name, CancellationToken ct = default);
 }

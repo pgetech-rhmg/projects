@@ -294,6 +294,52 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         return $"{ts.Minutes}m {ts.Seconds:D2}s";
     }
 
+    public async Task<AdoTriggerResult> TriggerOrchestratorAsync(
+        string repo, string branch, string environment,
+        bool build, bool tests, bool scan, bool deploy, bool integrations,
+        string deployInfra, CancellationToken ct = default)
+    {
+        var url = $"https://dev.azure.com/{Org}/{Project}/_apis/pipelines/{OrchestratorPipelineId}/runs?api-version=7.1";
+
+        var payload = new
+        {
+            templateParameters = new Dictionary<string, string>
+            {
+                ["repo"] = repo,
+                ["branch"] = branch,
+                ["environment"] = environment,
+                ["build"] = build.ToString(),
+                ["tests"] = tests.ToString(),
+                ["scan"] = scan.ToString(),
+                ["deploy"] = deploy.ToString(),
+                ["integrations"] = integrations.ToString(),
+                ["deployInfra"] = deployInfra
+            }
+        };
+
+        var json = JsonSerializer.Serialize(payload);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{Pat}"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+        request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await httpClient.SendAsync(request, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"ADO API returned {(int)response.StatusCode}: {body}");
+
+        var result = JsonDocument.Parse(body).RootElement;
+        var runId = result.GetProperty("id").GetInt32();
+
+        return new AdoTriggerResult
+        {
+            RunId = runId,
+            Url = $"https://dev.azure.com/{Org}/{Project}/_build/results?buildId={runId}&view=results"
+        };
+    }
+
     private async Task<JsonElement?> CallApiAsync(string url, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
