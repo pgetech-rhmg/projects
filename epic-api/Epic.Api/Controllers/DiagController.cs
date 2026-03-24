@@ -75,6 +75,57 @@ public sealed class DiagController(IAdoService adoService, IGitHubService gitHub
     }
 
     /// <summary>
+    /// Raw ADO orchestrator query — see requestedFor from the orchestrator pipeline (133).
+    /// </summary>
+    [HttpGet("ado-orchestrator/{appName}")]
+    public async Task<IActionResult> TestAdoOrchestrator(string appName, CancellationToken ct)
+    {
+        try
+        {
+            var pat = HttpContext.RequestServices.GetRequiredService<IConfiguration>()["ADO_PAT"];
+            if (string.IsNullOrEmpty(pat))
+                return Ok(new { error = "ADO_PAT not configured" });
+
+            var url = $"https://dev.azure.com/pgetech/EPIC-Pipeline/_apis/build/builds?definitions=133&tagFilters={Uri.EscapeDataString(appName)}&$top=5&queryOrder=finishTimeDescending&api-version=7.1";
+
+            using var client = new HttpClient();
+            var creds = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{pat}"));
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", creds);
+
+            var response = await client.GetAsync(url, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+
+            var json = System.Text.Json.JsonDocument.Parse(body).RootElement;
+            var builds = json.GetProperty("value").EnumerateArray().Take(5).Select(b =>
+            {
+                return new
+                {
+                    id = b.GetProperty("id").GetInt32(),
+                    buildNumber = b.TryGetProperty("buildNumber", out var bn) ? bn.GetString() : null,
+                    status = b.TryGetProperty("status", out var st) ? st.GetString() : null,
+                    result = b.TryGetProperty("result", out var res) ? res.GetString() : null,
+                    requestedFor = b.TryGetProperty("requestedFor", out var rf)
+                        ? rf.GetProperty("displayName").GetString() : null,
+                    requestedBy = b.TryGetProperty("requestedBy", out var rb)
+                        ? rb.GetProperty("displayName").GetString() : null,
+                    reason = b.TryGetProperty("reason", out var r) ? r.GetString() : null,
+                    tags = b.TryGetProperty("tags", out var tags)
+                        ? tags.EnumerateArray().Select(t => t.GetString()).ToList() : new List<string?>(),
+                    parameters = b.TryGetProperty("parameters", out var p) ? p.GetString() : null,
+                    startTime = b.TryGetProperty("startTime", out var st2) ? st2.GetString() : null,
+                    finishTime = b.TryGetProperty("finishTime", out var ft) ? ft.GetString() : null
+                };
+            });
+
+            return Ok(new { requestUrl = url, statusCode = (int)response.StatusCode, builds });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { error = ex.Message, type = ex.GetType().Name });
+        }
+    }
+
+    /// <summary>
     /// Test GitHub integration — fetch repo metadata.
     /// </summary>
     [HttpGet("github/{repo}")]
