@@ -196,7 +196,7 @@ export class App implements OnInit, OnDestroy {
   protected appDetail = signal<AppDetail | null>(null);
 
   // Runs pagination
-  protected readonly runsPageSize = 5;
+  protected readonly runsPageSize = 25;
   protected runsCurrentPage = signal(1);
 
   protected readonly runsTotalPages = computed(() => {
