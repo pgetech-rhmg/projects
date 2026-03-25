@@ -49,14 +49,3 @@ resource "azurerm_storage_container" "tfstate" {
   storage_account_name  = azurerm_storage_account.this.name
   container_access_type = "private"
 }
-
-############################################
-# Lock — Prevent accidental deletion
-############################################
-
-resource "azurerm_management_lock" "this" {
-  name       = "epic-terraform-state-lock"
-  scope      = azurerm_storage_account.this.id
-  lock_level = "CanNotDelete"
-  notes      = "Protects EPIC shared Terraform state — do not remove"
-}
