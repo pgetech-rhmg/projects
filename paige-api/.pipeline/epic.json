@@ -3,7 +3,7 @@
     "appName": "paige-api",
     "appType": "dotnet",
     "codePath": "/Paige.Api",
-    "dotnetVersion": "10.x",
+    "runtimeVersion": "10.x",
     "scanTool": "sonarqube",
     "unitTestTool": "xunit"
   },

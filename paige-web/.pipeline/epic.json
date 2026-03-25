@@ -3,7 +3,7 @@
     "appName": "paige-web",
     "appType": "angular",
     "codePath": "/",
-    "nodeVersion": "20",
+    "runtimeVersion": "20",
     "scanTool": "sonarqube",
     "unitTestTool": "jest"
   },

@@ -4,7 +4,7 @@
     "appType": "python",
     "codePath": ".",
     "buildType": "wheel",
-    "pythonVersion": "3.11",
+    "runtimeVersion": "3.11",
     "scanTool": "sonarqube",
     "unitTestTool": "pytest"
   },

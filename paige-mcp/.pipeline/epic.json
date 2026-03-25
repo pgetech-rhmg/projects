@@ -3,7 +3,7 @@
     "appName": "paige-mcp",
     "appType": "python",
     "codePath": "/",
-    "pythonVersion": "3.12"
+    "runtimeVersion": "3.12"
   },
   "cloud": {
     "awsAccountId": "514712703977",

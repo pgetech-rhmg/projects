@@ -3,7 +3,7 @@
     "appName": "epic-api",
     "appType": "dotnet",
     "codePath": "/Epic.Api",
-    "dotnetVersion": "10.x",
+    "runtimeVersion": "10.x",
     "scanTool": "sonarqube",
     "unitTestTool": "xunit"
   },
