@@ -1,4 +1,4 @@
-tenant_id       = "7368c58b-56d6-4f71-a56a-87ff447b4352"
+tenant_id       = "44ae661a-ece6-41aa-bc96-7c2c85a08941"
 subscription_id = "2d118b3d-8251-4f33-a681-c79ff46c5036"
 
 azure_region         = "westus2"
