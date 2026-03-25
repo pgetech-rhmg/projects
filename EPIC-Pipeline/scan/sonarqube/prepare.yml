@@ -89,7 +89,7 @@ steps:
 
           sonar.exclusions=**/node_modules/**,**/dist/**,**/bin/**,**/obj/**,**/wwwroot/lib/**,**/jquery*/**,**/*.scss,packages/**/*,Web/**/*.js,**/*.sh,**/*.bash,**/*.ps1,**/*.cmd,**/*.config.js,$(exclusions)
 
-          sonar.python.version=${{ parameters.pythonVersion }}
+          sonar.python.version=${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}
 
   #############################################################################
   # SonarQube Prepare (dotnet)

@@ -7,10 +7,10 @@ steps:
   # Use .NET SDK
   #############################################################################
   - task: UseDotNet@2
-    displayName: "Use .NET SDK ${{ parameters.dotnetVersion }}"
+    displayName: "Use .NET SDK ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
     inputs:
       packageType: "sdk"
-      version: "${{ parameters.dotnetVersion }}"
+      version: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
 
 
   #############################################################################

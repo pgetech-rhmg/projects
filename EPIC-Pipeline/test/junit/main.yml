@@ -7,9 +7,9 @@ steps:
   # Set Java Version
   #############################################################################
   - task: JavaToolInstaller@0
-    displayName: "Use Java ${{ parameters.javaVersion }}"
+    displayName: "Use Java ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
     inputs:
-      versionSpec: "${{ parameters.javaVersion }}"
+      versionSpec: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
       jdkArchitectureOption: "x64"
       jdkSourceOption: "PreInstalled"
 

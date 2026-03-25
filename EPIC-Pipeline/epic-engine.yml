@@ -29,20 +29,9 @@ parameters:
   - name: codePath
     type: string
     default: ""
-
-  # Build versions
-  - name: nodeVersion
+  - name: runtimeVersion
     type: string
-    default: "18"
-  - name: pythonVersion
-    type: string
-    default: "3.11"
-  - name: dotnetVersion
-    type: string
-    default: "9.x"
-  - name: javaVersion
-    type: string
-    default: "17"
+    default: ""
 
   # Tools
   - name: scanTool
@@ -88,9 +77,21 @@ parameters:
 ###############################################################################
 variables:
   - group: GV-account-access
-  
+
   - name: ORG
     value: "pgetech"
+
+  - name: defaultRuntimeVersion
+    ${{ if or(eq(parameters.appType, 'angular'), eq(parameters.appType, 'html')) }}:
+      value: "18"
+    ${{ elseif or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')) }}:
+      value: "9.x"
+    ${{ elseif eq(parameters.appType, 'python') }}:
+      value: "3.11"
+    ${{ elseif eq(parameters.appType, 'java') }}:
+      value: "17"
+    ${{ else }}:
+      value: ""
 
 
 ###############################################################################
