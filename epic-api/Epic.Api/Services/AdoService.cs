@@ -4,7 +4,7 @@ using Epic.Api.Models;
 
 namespace Epic.Api.Services;
 
-public sealed class AdoService(HttpClient httpClient, IConfiguration configuration) : IAdoService
+public sealed class AdoService(HttpClient httpClient, IConfiguration configuration, ILogger<AdoService> logger) : IAdoService
 {
     private const string Org = "pgetech";
     private const string Project = "EPIC-Pipeline";
@@ -56,7 +56,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
                     branch = paramObj.TryGetProperty("branch", out var br) ? br.GetString() ?? "" : "";
                     environment = paramObj.TryGetProperty("environment", out var env) ? env.GetString() ?? "dev" : "dev";
                 }
-                catch { /* parameters not parseable — use defaults */ }
+                catch (Exception ex) { logger.LogDebug(ex, "ADO build parameters not parseable — using defaults"); }
             }
 
             // Fall back to source branch if parameters didn't have it
@@ -376,7 +376,11 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
 
         var response = await httpClient.SendAsync(request, ct);
 
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("ADO API returned {StatusCode} for {Url}", (int)response.StatusCode, url);
+            return null;
+        }
 
         var body = await response.Content.ReadAsStringAsync(ct);
         return JsonDocument.Parse(body).RootElement;

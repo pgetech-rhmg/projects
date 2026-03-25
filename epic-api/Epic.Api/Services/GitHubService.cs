@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Epic.Api.Services;
 
-public sealed class GitHubService(HttpClient httpClient, IConfiguration configuration) : IGitHubService
+public sealed class GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger) : IGitHubService
 {
     private string OrgName => new Uri(
         configuration["GITHUB_BASE_URL"]
@@ -98,7 +98,11 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         if (response.StatusCode == HttpStatusCode.NotFound)
             return null;
 
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("GitHub API returned {StatusCode} for {Url}", (int)response.StatusCode, url);
+            return null;
+        }
 
         var body = await response.Content.ReadAsStringAsync(ct);
         return JsonDocument.Parse(body).RootElement;

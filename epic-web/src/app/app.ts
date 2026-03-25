@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { LowerCasePipe } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
@@ -36,33 +36,46 @@ export class App implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopAutoRefresh();
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+  }
+
+  @HostListener('keydown.escape')
+  protected onEscapeKey(): void {
+    if (this.showHowToModal()) this.closeHowTo();
+    else if (this.showNewRunModal()) this.closeNewRunModal();
+    else if (this.showAddModal()) this.closeAddModal();
+    else if (this.showManageModal()) this.closeManageModal();
   }
 
   private startAutoRefresh(): void {
     this.refreshTimer = setInterval(() => {
       // Refresh main table — preserve pending state until ADO catches up
-      this.appService.getApps().subscribe(data => {
-        if (this.pendingApps.size === 0) {
-          this.apps.set(data);
-        } else {
-          this.apps.set(data.map(app => {
-            const pending = this.pendingApps.get(app.name);
-            if (!pending) return app;
-            // ADO has caught up if the API's last run is newer than when we triggered
-            if (app.lastPipelineRun && new Date(app.lastPipelineRun) > new Date(pending.lastPipelineRun!)) {
-              this.pendingApps.delete(app.name);
-              return app;
-            }
-            // Still stale — keep our pending overlay
-            return { ...app, runStatus: 'Pending' as const, branch: pending.branch, environment: pending.environment, triggeredBy: pending.triggeredBy, lastPipelineRun: pending.lastPipelineRun };
-          }));
-        }
+      this.appService.getApps().subscribe({
+        next: data => {
+          if (this.pendingApps.size === 0) {
+            this.apps.set(data);
+          } else {
+            this.apps.set(data.map(app => {
+              const pending = this.pendingApps.get(app.name);
+              if (!pending) return app;
+              // ADO has caught up if the API's last run is newer than when we triggered
+              if (app.lastPipelineRun && new Date(app.lastPipelineRun) > new Date(pending.lastPipelineRun!)) {
+                this.pendingApps.delete(app.name);
+                return app;
+              }
+              // Still stale — keep our pending overlay
+              return { ...app, runStatus: 'Pending' as const, branch: pending.branch, environment: pending.environment, triggeredBy: pending.triggeredBy, lastPipelineRun: pending.lastPipelineRun };
+            }));
+          }
+        },
+        error: () => { /* API unavailable — keep showing last known data */ }
       });
 
       // Refresh modal detail if open
       if (this.showManageModal() && this.selectedApp()) {
         this.appService.getApp(this.selectedApp()!.name).subscribe({
-          next: detail => this.appDetail.set(detail)
+          next: detail => this.appDetail.set(detail),
+          error: () => { /* API unavailable — keep showing last known data */ }
         });
       }
     }, this.refreshInterval);

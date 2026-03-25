@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Epic.Api.Services;
 
-public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoService ado, ICurrentUser currentUser) : IAppService
+public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoService ado, ICurrentUser currentUser, ILogger<AppService> logger) : IAppService
 {
     private string CurrentUserId => currentUser.UserId;
 
@@ -97,9 +97,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             if (hasChanges)
                 await db.SaveChangesAsync(ct);
         }
-        catch
+        catch (Exception ex)
         {
-            // ADO unavailable — serve stale data
+            logger.LogWarning(ex, "ADO unavailable during latest run refresh — serving stale data");
         }
     }
 
@@ -132,9 +132,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                 await db.SaveChangesAsync(ct);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // GitHub is unavailable — serve stale data rather than failing
+            logger.LogWarning(ex, "GitHub unavailable during refresh for {Repo} — serving stale data", entity.GithubRepo);
         }
     }
 
@@ -204,9 +204,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                 entity.Runs = entity.Runs.OrderByDescending(r => r.StartedAt).ToList();
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // ADO is unavailable — serve stale data rather than failing
+            logger.LogWarning(ex, "ADO unavailable during run refresh for {AppName} — serving stale data", entity.Name);
         }
     }
 
@@ -290,7 +290,10 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                 : config.TryGetProperty("cloud", out var cl2)
                     && cl2.TryGetProperty("azureSubscription", out _) ? "azure" : null;
         }
-        catch { /* epic.json not parseable — use defaults */ }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to parse epic.json for {Repo} — using defaults", repo);
+        }
 
         // Check if .infra/ folder exists
         var hasInfra = await gitHub.PathExistsAsync(repo, ".infra", resolvedBranch, ct);
