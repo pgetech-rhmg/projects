@@ -1,8 +1,20 @@
-# Terraform
+# Local terraform directories
 .terraform/
+**/.terraform/
+**/.terraform/*
+
+# Terraform state files (never commit!)
+terraform.tfstate
+terraform.tfstate.*
 *.tfstate
-*.tfstate.*
+*.tfstate.backup
 *.lock.hcl
+
+# Terraform plan files (output of 'terraform plan')
+tfplan
+*.plan
+*.tfplan
+*.tfplan.*
 
 # Environment
 .env
