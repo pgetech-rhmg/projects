@@ -1,4 +1,13 @@
 ###############################################################################
+# RESOURCE GROUP
+###############################################################################
+
+resource "azurerm_resource_group" "this" {
+  name     = var.resource_group_name
+  location = var.azure_region
+}
+
+###############################################################################
 # MODULE 1 — TAGS
 ###############################################################################
 
@@ -23,8 +32,8 @@ module "tags" {
 module "app_service" {
   source = "git::https://github.com/pgetech/epic-pipeline-module-azure-app-service.git?ref=main"
 
-  resource_group_name = var.resource_group_name
-  azure_region        = var.azure_region
+  resource_group_name = azurerm_resource_group.this.name
+  azure_region        = azurerm_resource_group.this.location
 
   service_plan_name = var.service_plan_name
   app_name          = "${var.app_name}-${var.environment}"
@@ -35,6 +44,7 @@ module "app_service" {
 
   app_settings = {
     WEBSITES_ENABLE_APP_SERVICE_STORAGE = "true"
+    APACHE_DOCUMENT_ROOT                = "/home/site/wwwroot/public"
   }
 
   tags = module.tags.tags

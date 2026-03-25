@@ -8,12 +8,7 @@ terraform {
     }
   }
 
-  backend "azurerm" {
-    resource_group_name  = "rg-epic-terraform-state"
-    storage_account_name = "pgeepicterraformstate"
-    container_name       = "tfstate"
-    key                  = "2d118b3d-8251-4f33-a681-c79ff46c5036/pge-php-example-php/dev/terraform.tfstate"
-  }
+  backend "azurerm" {}
 }
 
 provider "azurerm" {
