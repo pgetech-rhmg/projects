@@ -8,3 +8,21 @@ Desktop.ini
 .vscode/
 .claude/
 **/CLAUDE.md
+
+# =========================
+# Terraform
+# =========================
+.terraform/
+**/.terraform/
+**/.terraform/*
+
+terraform.tfstate
+terraform.tfstate.*
+*.tfstate
+*.tfstate.backup
+*.lock.hcl
+
+tfplan
+*.plan
+*.tfplan
+*.tfplan.*
