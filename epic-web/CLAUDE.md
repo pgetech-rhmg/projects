@@ -83,7 +83,7 @@ The frontend calls `epic-api` for all data. Environment config controls the API 
 | `addToMyApps(masterApp)` | `POST /api/users/me/apps` | Add existing EPIC app to user's list |
 | `removeFromMyApps(name)` | `DELETE /api/users/me/apps/{name}` | Remove an app from user's tracked list |
 | `onboardApp(repo, branch)` | `POST /api/apps` | Onboard new app (reads epic.json for appName/appType) |
-| `triggerRun(appName, branch, env)` | `POST /api/apps/{name}/runs` | Trigger pipeline run (stub — needs ADO REST) |
+| `triggerRun(appName, params)` | `POST /api/apps/{name}/runs` | Trigger pipeline run (calls ADO Pipelines API with branch, env, stage toggles, deployInfra) |
 
 ### HTTP Interceptor
 
@@ -121,6 +121,7 @@ interface RepoCheckResult  // returned by checkRepo()
   - `pageSize = 25`, paginated with prev/next + numbered page buttons
   - "Triggered By" column shows a user chip with initials (handles `Last, First`, `First Last`, `First Middle Last` formats); if it's the current user it shows "You"
   - Dates formatted as `MM/dd/yyyy hh:mm:ss` in local time
+- **? Help icon** (header) → opens How To modal
 - **+ New App button** → opens onboard modal
 - **Auto-refresh**: every 5 seconds, refreshes data without affecting scroll position. Preserves client-side "Pending" state for recently triggered runs until ADO catches up (compares `lastPipelineRun` timestamps)
 - **Loading overlay**: full-page semi-transparent overlay with spinner during Onboard and New Run API calls
@@ -165,6 +166,12 @@ interface RepoCheckResult  // returned by checkRepo()
   - **Onboard** (enabled only when `available` + both fields filled) → calls API, shows loading overlay. API validates `.pipeline/epic.json` exists on the selected branch — if missing, returns error toast: "not configured for EPIC"
   - **Add to My List** (shown when `in-epic-not-mine`) → adds app to table immediately + toast
 
+### How To modal
+- Opened via the question mark icon in the header
+- Four sections: Overview, The epic.json File (with fields reference table), Sample Configuration, Infrastructure (Optional)
+- **Sample Configuration** — dropdown selects appType (Angular, .NET, Python, Java, HTML/Static, AMI), shows a realistic `epic.json` example. Copy button copies to clipboard with toast confirmation
+- Samples are stored as a `Record<string, string>` in the component (`epicJsonSamples`)
+
 ### Toast system
 - Fixed bottom-center, dark background, slide-in animation
 - Auto-dismisses after 5 seconds
@@ -189,14 +196,18 @@ Key values:
 
 ```json
 {
-  "appName": "epic-web",
-  "appType": "angular",
-  "codePath": "/",
-  "nodeVersion": "20",
-  "scanTool": "sonarqube",
-  "unitTestTool": "jest",
-  "awsAccountId": "514712703977",
-  "awsRegion": "us-west-2"
+  "app": {
+    "appName": "epic-web",
+    "appType": "angular",
+    "codePath": "/",
+    "nodeVersion": "20",
+    "scanTool": "sonarqube",
+    "unitTestTool": "jest"
+  },
+  "cloud": {
+    "awsAccountId": "514712703977",
+    "awsRegion": "us-west-2"
+  }
 }
 ```
 
@@ -207,7 +218,6 @@ Key values:
 ## Known Gaps / Next Steps
 
 - Auth is hardcoded (`currentUser = 'Morgan, Robb'`, interceptor sends `X-Epic-User: Morgan, Robb`). Will need to wire up MSAL/JWT.
-- `triggerRun()` fires a toast only — needs real ADO REST call via `POST /api/apps/{name}/runs`.
 - No unit tests written yet (`app.spec.ts` is the default scaffold).
 
 ### Component state for the New Run modal
@@ -215,9 +225,33 @@ Key values:
 | Signal / Property | Type | Purpose |
 |---|---|---|
 | `showNewRunModal` | `signal(false)` | Toggles modal visibility |
-| `newRunApp` | `signal<AppDetail \| null>(null)` | Holds the app detail for context |
+| `newRunApp` | `signal<AppDetail \| null>(null)` | Holds the app detail for context (includes `hasInfra`) |
 | `newRunBranch` | `string` | Two-way bound branch input |
 | `newRunEnvironment` | `string` | Two-way bound environment select |
 | `newRunBranchError` | `signal<string \| null>(null)` | Validation error for blocked branches |
 | `newRunEnvLocked` | `signal(false)` | True when a release branch forces prod |
+| `newRunBuild` | `boolean` | Build App checkbox (default true) |
+| `newRunTests` | `boolean` | Run Unit Tests checkbox |
+| `newRunScan` | `boolean` | Scan App checkbox |
+| `newRunDeploy` | `boolean` | Deploy App checkbox |
+| `newRunIntegrations` | `boolean` | Run Integration Tests checkbox |
+| `newRunDeployInfra` | `string` | Infrastructure Deployment radio: `none`, `apply`, `destroy` |
 | `canRunNewPipeline` | getter | Composite validation (branch valid + env selected) |
+
+### Component state for the How To modal
+
+| Signal / Property | Type | Purpose |
+|---|---|---|
+| `showHowToModal` | `signal(false)` | Toggles modal visibility |
+| `howToAppType` | `string` | Selected appType for sample display |
+| `epicJsonSamples` | `Record<string, string>` | Sample epic.json per appType |
+| `currentSample` | getter | Returns sample for selected appType |
+
+### Auto-refresh and pending state
+
+| Signal / Property | Type | Purpose |
+|---|---|---|
+| `loading` | `signal(false)` | Full-page loading overlay (Onboard, New Run) |
+| `pendingApps` | `Map<string, ManagedApp>` | Tracks apps with locally-set Pending status until ADO catches up |
+| `runsCurrentPage` | `signal(1)` | Current page of pipeline runs in manage modal |
+| `runsPageSize` | `26` | Max runs per page in manage modal |

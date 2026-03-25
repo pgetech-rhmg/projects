@@ -180,6 +180,15 @@ The EPIC API queries both pipelines using `tagFilters` to find runs for a specif
 
 When an app is onboarded, the API reads `.pipeline/epic.json` from the repo via the GitHub Contents API. The `appName` field becomes the app's identity in the database (not the repo name). Technology is derived from `appType` (e.g., `angular` → `Angular`, `dotnet` → `.NET`). Cloud is normalized to `AWS` or `Azure`.
 
+## Custom Commands
+
+When the user types `/ucmd`, review all changes made in this conversation and update the following CLAUDE.md files to reflect the current state of the code. Only update sections that are outdated — do not rewrite sections that are already accurate.
+
+- `CLAUDE.md` (root) — architecture, integrations, conventions
+- `EPIC-Pipeline/CLAUDE.md` — pipeline engine, orchestrator, tagging, AMI
+- `epic-api/CLAUDE.md` — endpoints, services, integrations, data flow, schema
+- `epic-web/CLAUDE.md` — UI features, modals, component state, data layer
+
 ## Existing Sub-Project CLAUDE.md Files
 
 - `EPIC-Pipeline/CLAUDE.md` — detailed AMI appType architecture, build/deploy flows, config format
