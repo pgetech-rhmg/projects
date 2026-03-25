@@ -1,3 +1,8 @@
+output "resource_group_name" {
+  description = "Resource group name"
+  value       = var.resource_group_name
+}
+
 output "app_service_name" {
   description = "App Service name"
   value       = module.app_service.app_service_name

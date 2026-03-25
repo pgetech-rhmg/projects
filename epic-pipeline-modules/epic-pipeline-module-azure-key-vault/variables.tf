@@ -1,13 +1,3 @@
-variable "tenant_id" {
-  type        = string
-  description = "Tenant id"
-}
-
-variable "subscription_id" {
-  type        = string
-  description = "Subscription id"
-}
-
 variable "resource_group_name" {
   type        = string
   description = "Name of the resource group"

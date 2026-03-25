@@ -23,8 +23,6 @@ module "tags" {
 module "app_service" {
   source = "git::https://github.com/pgetech/epic-pipeline-module-azure-app-service.git?ref=main"
 
-  tenant_id           = var.tenant_id
-  subscription_id     = var.subscription_id
   resource_group_name = var.resource_group_name
   azure_region        = var.azure_region
 

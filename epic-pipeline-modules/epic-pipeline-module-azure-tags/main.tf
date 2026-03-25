@@ -10,6 +10,6 @@ locals {
     Notify             = join("_", var.notify)
     Owner              = join("_", var.owner)
     Compliance         = join("_", var.compliance)
-    Order              = var.order
+    Order              = tostring(var.order)
   }
 }
