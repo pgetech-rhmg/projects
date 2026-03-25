@@ -1,0 +1,12 @@
+{
+  "app": {
+    "appName": "pge-php-example",
+    "appType": "php",
+    "codePath": "/",
+    "runtimeVersion": "8.3"
+  },
+  "cloud": {
+    "azureSubscriptionId": "2d118b3d-8251-4f33-a681-c79ff46c5036",
+    "azureRegion": "westus2"
+  }
+}

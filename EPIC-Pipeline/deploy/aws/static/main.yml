@@ -20,11 +20,13 @@ steps:
     displayName: 'Parse output file'
 
 
+
   #############################################################################
   # Deploy
   #############################################################################
   - task: AWSShellScript@1
     displayName: "Deploy ${{ parameters.appType }}"
+
     inputs:
       awsCredentials: 'AWS'
       arguments: $(CLOUD_AWS_ACCOUNT_ID)

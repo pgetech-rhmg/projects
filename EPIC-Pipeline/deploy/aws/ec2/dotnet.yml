@@ -19,6 +19,7 @@ steps:
     displayName: "Create Deployment ZIP"
 
 
+
   #############################################################################
   # Parse Output File (if available)
   #############################################################################
@@ -36,11 +37,13 @@ steps:
     displayName: 'Parse output file'
 
 
+
   #############################################################################
   # Wait for EC2 Instance Ready
   #############################################################################
   - task: AWSShellScript@1
     displayName: 'Wait for EC2 Instance Ready'
+
     inputs:
       awsCredentials: 'AWS'
       arguments: $(CLOUD_AWS_ACCOUNT_ID)
@@ -85,6 +88,7 @@ steps:
   #############################################################################
   - task: AWSShellScript@1
     displayName: "Upload ZIP to S3"
+
     inputs:
       awsCredentials: 'AWS'
       arguments: $(CLOUD_AWS_ACCOUNT_ID)
@@ -118,6 +122,7 @@ steps:
   #############################################################################
   - task: AWSShellScript@1
     displayName: "Deploy to EC2 via SSM (.NET)"
+
     inputs:
       awsCredentials: 'AWS'
       arguments: $(CLOUD_AWS_ACCOUNT_ID)

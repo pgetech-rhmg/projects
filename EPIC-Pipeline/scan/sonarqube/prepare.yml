@@ -50,6 +50,14 @@ steps:
           testExecutionProperty="sonar.cs.vstest.reportsPaths=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/tests.trx"
           ;;
 
+        phpunit)
+          testFiles='**/tests/**/*.php,**/*Test.php'
+          exclusions='**/vendor/**'
+
+          coverageProperty="sonar.php.coverage.reportPaths=.reports/coverage.xml"
+          testExecutionProperty="sonar.php.tests.reportPath=.reports/junit.xml"
+          ;;
+
       esac
 
       echo "##vso[task.setvariable variable=scannerMode]$scannerMode"

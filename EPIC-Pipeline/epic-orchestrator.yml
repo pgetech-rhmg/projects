@@ -182,11 +182,21 @@ stages:
                   false
                 end' "$CONFIG_FILE")
 
+              # Detect cloud provider from epic.json cloud section
+              CLOUD_PROVIDER=$(jq -r \
+                'if .cloud.azureSubscriptionId then "azure"
+                elif .cloud.awsAccountId then "aws"
+                else "aws"
+                end' "$CONFIG_FILE")
+
+              echo ">> Cloud provider: $CLOUD_PROVIDER"
+
               PAYLOAD=$(jq -n \
                 --arg repo "$REPO" \
                 --arg branch "$BRANCH" \
                 --arg environment "$ENVIRONMENT" \
                 --arg terraformAction "$TERRAFORM" \
+                --arg cloudProvider "$CLOUD_PROVIDER" \
                 --argjson build "$BUILD" \
                 --argjson tests "$TESTS" \
                 --argjson scan "$SCAN" \
@@ -204,6 +214,7 @@ stages:
                         repo: $repo,
                         branch: $branch,
                         environment: $environment,
+                        cloudProvider: $cloudProvider,
                         terraformAction: $terraformAction,
                         build: $build,
                         tests: $tests,

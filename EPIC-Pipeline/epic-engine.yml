@@ -32,6 +32,9 @@ parameters:
   - name: runtimeVersion
     type: string
     default: ""
+  - name: cloudProvider
+    type: string
+    default: "aws"
 
   # Tools
   - name: scanTool
@@ -90,6 +93,8 @@ variables:
       value: "3.11"
     ${{ elseif eq(parameters.appType, 'java') }}:
       value: "17"
+    ${{ elseif eq(parameters.appType, 'php') }}:
+      value: "8.3"
     ${{ else }}:
       value: ""
 

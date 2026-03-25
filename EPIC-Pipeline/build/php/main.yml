@@ -1,0 +1,79 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Install PHP
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      PHP_VERSION="${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+
+      echo ">> Installing PHP $PHP_VERSION"
+
+      sudo add-apt-repository -y ppa:ondrej/php
+      sudo apt-get update -qq
+      sudo apt-get install -y -qq php${PHP_VERSION} php${PHP_VERSION}-cli php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-curl php${PHP_VERSION}-zip unzip
+
+      sudo update-alternatives --set php /usr/bin/php${PHP_VERSION}
+    displayName: "Install PHP ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+
+
+  #############################################################################
+  # Verify PHP
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      php --version
+    displayName: "Verify PHP"
+
+
+  #############################################################################
+  # Install Composer
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      if [ -f "composer.json" ]; then
+        echo ">> Installing Composer"
+        curl -sS https://getcomposer.org/installer | php
+        sudo mv composer.phar /usr/local/bin/composer
+        composer --version
+
+        echo ">> Installing dependencies"
+        composer install --no-dev --optimize-autoloader --no-interaction
+      else
+        echo ">> No composer.json found — skipping dependency install"
+      fi
+    displayName: "Install dependencies"
+
+
+  #############################################################################
+  # Build
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      rm -rf .build
+      mkdir -p .build
+
+      rsync -a \
+        --exclude='.build' \
+        --exclude='.infra' \
+        --exclude='.pipeline' \
+        --exclude='.git' \
+        --exclude='.gitignore' \
+        --exclude='tests' \
+        --exclude='phpunit.xml' \
+        --exclude='phpunit.xml.dist' \
+        ./ .build/
+
+      echo ">> Build output written to .build"
+    displayName: "Build app"

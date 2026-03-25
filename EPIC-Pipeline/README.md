@@ -23,7 +23,7 @@ Applications define their intent in a single config file. EPIC handles execution
 5. Unit tests are executed
 6. Security and quality scans are performed
 7. Infrastructure is provisioned if `/.infra` is present (Terraform)
-8. Application is deployed to the target environment
+8. Application is deployed to the target environment (AWS or Azure)
 9. Integration tests are run (optional)
 
 Stages that need cloud/deployment configuration (infra, deploy, AMI build) read the `cloud` section of `.pipeline/epic.json` directly from the downloaded source at runtime.
@@ -48,11 +48,13 @@ EPIC-Pipeline/
 │   ├── dotnet_framework/
 │   ├── html/
 │   ├── java/
+│   ├── php/
 │   └── python/
 ├── test/
 │   ├── main.yml                 # Test dispatcher
 │   ├── jest/
 │   ├── junit/
+│   ├── phpunit/
 │   ├── playwright/
 │   ├── pytest/
 │   └── xunit/
@@ -62,12 +64,13 @@ EPIC-Pipeline/
 │   ├── sonarqube/
 │   └── wiz/
 ├── deploy/
-│   ├── main.yml                 # Deployment dispatcher
-│   ├── ami/                     # SSM-based AMI publish + config/test
-│   ├── basic/                   # HTML/Angular → S3 + CloudFront
-│   ├── dotnet/
-│   ├── java/
-│   └── python/
+│   ├── main.yml                 # Deployment dispatcher (cloud-aware)
+│   ├── aws/
+│   │   ├── static/              # HTML/Angular → S3 + CloudFront
+│   │   ├── ec2/                 # dotnet, python, java → S3 + EC2 via SSM
+│   │   └── ami/                 # SSM-based AMI publish + config/test
+│   └── azure/
+│       └── app-service/         # App Service zip deploy (any runtime)
 └── .gitignore
 ```
 
@@ -77,7 +80,7 @@ EPIC-Pipeline/
 
 - **Modular** — Every stage is a composable template
 - **Declarative** — Applications define intent; EPIC determines execution
-- **Cloud-agnostic** — No hard dependency on AWS or Azure
+- **Cloud-aware** — Supports both AWS and Azure deployments from the same pipeline
 - **Engine-driven** — Designed for programmatic orchestration, not manual runs
 - **Secure by default** — Scanning and testing are first-class citizens
 - **Infrastructure-aware** — Can provision and manage cloud resources directly
@@ -114,6 +117,8 @@ The entry point for external systems. Typical invocations include IDP-driven dep
 The control plane. Accepts parameters from the orchestrator, determines which stages execute, and wires modular templates with proper dependency ordering. Contains no business logic — it is purely structural.
 
 The engine only receives `app`-level parameters (identity, build config, tooling) and runtime parameters (repo, branch, environment, stage toggles). Cloud/deployment parameters are not passed through the engine — stages read them directly from `epic.json` at runtime.
+
+The engine also defines `defaultRuntimeVersion` as a compile-time variable based on `appType`, used by build and test templates when `runtimeVersion` is not provided in `epic.json`.
 
 ---
 
@@ -164,7 +169,8 @@ The following secrets and variable groups must be configured in Azure DevOps:
 | Secret / Variable | Variable Group | Purpose |
 |-------------------|----------------|---------|
 | `GITHUB_PAT` | `GV-account-access` | Clone private application repositories |
-| AWS credentials | Pipeline service connection | Base credentials for STS role assumption |
+| AWS credentials | `AWS` service connection | Base credentials for STS role assumption |
+| Azure credentials | `Azure` service connection | Azure App Service deployments |
 | `SYSTEM_ACCESSTOKEN` | Built-in | REST API call from orchestrator to engine |
 
 ---
@@ -177,7 +183,7 @@ EPIC supports automated infrastructure provisioning via Terraform. This stage ru
 
 When a `/.infra` folder is present in the application repository, EPIC automatically runs `terraform init`, `terraform plan`, and `terraform apply`. If `/.infra` is absent, the infra stage is skipped and EPIC uses the resource values provided in the `cloud` section of `epic.json`.
 
-Cloud credentials (`awsAccountId`, `awsRegion`) are read from the `cloud` section of `.pipeline/epic.json` at runtime.
+Cloud credentials are read from the `cloud` section of `.pipeline/epic.json` at runtime.
 
 ### `/.infra` Folder Structure
 
@@ -185,30 +191,44 @@ EPIC expects a standard Terraform layout:
 
 ```
 .infra/
-├── versions.tf                 # Version declarations
+├── terraform.tf                # Backend + provider config
 ├── main.tf                     # Resource definitions
 ├── data.tf                     # Data source declarations
 ├── variables.tf                # Input variable declarations
-├── terraform.auto.tfvars.tf    # Input variable values
+├── terraform.auto.tfvars       # Input variable values
 └── outputs.tf                  # Output values (used by EPIC for deployment)
 ```
 
-EPIC handles backend configuration, state management, and credential injection automatically. Applications must not define backend configuration in their Terraform code.
+### Backend Configuration
 
-### Backend Configuration (Automatic)
+**AWS applications:**
 
 | Setting | Value |
 |---------|-------|
-| Bucket | `pge-epic-terraform-state` |
-| Encryption | Enabled |
-| Locking | Enabled |
+| Backend | S3 (`pge-epic-terraform-state`) |
+| Encryption | KMS |
+| Locking | DynamoDB |
 | State key | `{awsAccountId}/{appName}-{appType}/{environment}/terraform.tfstate` |
+
+**Azure applications:**
+
+| Setting | Value |
+|---------|-------|
+| Backend | Azure Storage (`pgeepicterraformstate`) |
+| Container | `tfstate` |
+| Encryption | Storage account encryption |
+| State key | `{azureSubscriptionId}/{appName}-{appType}/{environment}/terraform.tfstate` |
 
 ### Credential Flow
 
+**AWS:**
 1. EPIC base AWS credentials are loaded from the ADO service connection
 2. EPIC assumes `arn:aws:iam::{awsAccountId}:role/pge-epic-deployment-role` via STS
 3. Temporary credentials are injected into the Terraform environment
+
+**Azure:**
+1. EPIC Azure credentials are loaded from the ADO `Azure` service connection
+2. Service Principal authenticates directly to the target subscription
 
 ### Behavior
 
@@ -219,7 +239,7 @@ EPIC handles backend configuration, state management, and credential injection a
 
 ### Outputs
 
-Terraform outputs defined in `outputs.tf` are captured as `output.json` and published as the `terraform-outputs` artifact. The deploy stage reads this file and resolves S3 bucket names, CloudFront distribution IDs, and EC2 instance IDs automatically — overriding any equivalent values in the `cloud` section.
+Terraform outputs defined in `outputs.tf` are captured as `output.json` and published as the `terraform-outputs` artifact. The deploy stage reads this file and resolves deployment targets automatically — overriding any equivalent values in the `cloud` section.
 
 ---
 
@@ -229,6 +249,8 @@ Terraform outputs defined in `outputs.tf` are captured as `output.json` and publ
 
 Dispatcher that selects the correct build implementation based on `appType`. Each implementation installs tooling, runs the build, and normalizes output into a `.build/` folder.
 
+Runtime versions are resolved via `coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion)` — the app can override in `epic.json`, otherwise the engine's default per appType is used.
+
 | Type | Build Tool | Output |
 |------|-----------|--------|
 | `angular` | npm | `dist/` → `.build/` |
@@ -237,7 +259,20 @@ Dispatcher that selects the correct build implementation based on `appType`. Eac
 | `dotnet_framework` | MSBuild | `.build/` |
 | `html` | (copy) | `.build/` |
 | `java` | Maven or Gradle | JAR → `.build/` |
+| `php` | Composer | `.build/` (excludes tests, .infra, .pipeline) |
 | `python` | pip / setuptools | Syntax check, wheel, egg, or sdist |
+
+### Runtime Version Defaults
+
+If `runtimeVersion` is not specified in `epic.json`, the engine uses these defaults (defined in `epic-engine.yml` as `defaultRuntimeVersion`):
+
+| appType | Default |
+|---------|---------|
+| `angular`, `html` | `18` (Node.js) |
+| `dotnet`, `dotnet_framework` | `9.x` (.NET SDK) |
+| `python` | `3.11` |
+| `java` | `17` |
+| `php` | `8.3` |
 
 ### AMI Build
 
@@ -256,7 +291,8 @@ Executes unit or integration tests, generates reports, and fails the pipeline on
 | Framework | Language | Report Format |
 |-----------|----------|--------------|
 | `jest` | JavaScript / TypeScript | JUnit XML + LCOV coverage |
-| `junit` | Java | JUnit XML |
+| `junit` | Java | JUnit XML + JaCoCo coverage |
+| `phpunit` | PHP | JUnit XML + Clover coverage |
 | `pytest` | Python | JUnit XML + coverage XML |
 | `xunit` | .NET | xUnit XML + OpenCover |
 | `playwright` | Any | JUnit XML |
@@ -273,7 +309,7 @@ Security and quality scan dispatcher. Scanner selection is data-driven. Enforces
 
 ### SonarQube Integration
 
-- **CLI mode** (ubuntu-latest): Used for Angular, Python, Java
+- **CLI mode** (ubuntu-latest): Used for Angular, Python, Java, PHP
 - **dotnet mode** (EPIC Self-hosted): Used for .NET; requires pre/post build instrumentation
 - Test coverage and report paths are mapped automatically per framework
 - Branch awareness is enabled via `sonar.branch.name`
@@ -284,17 +320,44 @@ Security and quality scan dispatcher. Scanner selection is data-driven. Enforces
 
 ### `deploy/main.yml`
 
-Handles application deployment to the target runtime environment. No infrastructure creation occurs here — the infra stage handles that. Assumes infrastructure already exists, whether provisioned by EPIC or supplied externally.
+Cloud-aware deployment dispatcher. Detects the cloud provider from `epic.json` and routes to the appropriate deploy implementation.
 
-Cloud deployment parameters are read from the `cloud` section of `.pipeline/epic.json` at runtime and set as pipeline variables for the deploy sub-templates.
+**Cloud detection:** The dispatcher reads `epic.json` and checks for `cloud.azureSubscriptionId` (Azure) or `cloud.awsAccountId` (AWS). Based on the result, it reads cloud-specific config and routes accordingly.
 
-| Type | Target | Mechanism |
-|------|--------|-----------|
-| `html` / `angular` | S3 + CloudFront | `aws s3 sync`, CloudFront invalidation |
-| `python` | EC2 via SSM | ZIP upload to S3, remote install + systemd restart |
+**Resolution order for deploy targets:**
+1. Terraform outputs (from DeployInfra stage)
+2. Cloud config from `epic.json` (fallback for pre-existing infrastructure)
+
+### Deploy Structure
+
+```
+deploy/
+├── main.yml              ← Detects cloud, reads config, routes
+├── aws/
+│   ├── static/           ← S3 + CloudFront (html, angular)
+│   ├── ec2/              ← S3 + EC2 via SSM (dotnet, python, java)
+│   └── ami/              ← Image Builder + SSM config/test
+└── azure/
+    └── app-service/      ← az webapp deploy (any runtime)
+```
+
+### AWS Deploy Targets
+
+| appType | Target | Mechanism |
+|---------|--------|-----------|
+| `html`, `angular` | S3 + CloudFront | `aws s3 sync`, CloudFront invalidation |
+| `dotnet` | EC2 via SSM | ZIP upload to S3, remote install + systemd restart |
+| `python` | EC2 via SSM | ZIP upload to S3, remote install + venv + systemd restart |
 | `java` | EC2 via SSM | JAR upload to S3, remote install + systemd restart |
-| `dotnet` | EC2 via SSM | Executable upload to S3, remote install + systemd restart |
 | `ami` | SSM Parameter Store + SSM Documents | Label SSM params, run config/test documents |
+
+### Azure Deploy Targets
+
+| appType | Target | Mechanism |
+|---------|--------|-----------|
+| Any (`php`, `dotnet`, `python`, `java`, `node`) | App Service | `az webapp deploy --type zip` |
+
+Azure App Service handles runtime selection at the infrastructure level — the deploy template is runtime-agnostic.
 
 ### AMI Deploy
 
@@ -319,7 +382,7 @@ This file has two sections:
 
 ## Example `epic.json`
 
-### Standard application (Angular)
+### AWS — Angular (S3 + CloudFront)
 
 ```json
 {
@@ -327,7 +390,7 @@ This file has two sections:
     "appName": "my-app",
     "appType": "angular",
     "codePath": "/",
-    "nodeVersion": "20",
+    "runtimeVersion": "20",
     "scanTool": "sonarqube",
     "unitTestTool": "jest"
   },
@@ -340,7 +403,7 @@ This file has two sections:
 }
 ```
 
-### EC2-deployed application (Python)
+### AWS — Python (EC2 via SSM)
 
 ```json
 {
@@ -349,7 +412,7 @@ This file has two sections:
     "appType": "python",
     "codePath": ".",
     "buildType": "wheel",
-    "pythonVersion": "3.11",
+    "runtimeVersion": "3.11",
     "scanTool": "sonarqube",
     "unitTestTool": "pytest"
   },
@@ -360,7 +423,7 @@ This file has two sections:
 }
 ```
 
-### AMI application
+### AWS — AMI (Image Builder)
 
 ```json
 {
@@ -393,7 +456,26 @@ This file has two sections:
 }
 ```
 
-If `/.infra` is present and Terraform outputs include `bucket_name`, `distribution_id`, or `instance_id`, those values override the equivalent `cloud` fields automatically.
+### Azure — PHP (App Service)
+
+```json
+{
+  "app": {
+    "appName": "my-php-app",
+    "appType": "php",
+    "codePath": "/",
+    "runtimeVersion": "8.3"
+  },
+  "cloud": {
+    "azureSubscriptionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "azureRegion": "westus2",
+    "resourceGroupName": "rg-my-app-dev",
+    "appServiceName": "my-app-dev"
+  }
+}
+```
+
+If `/.infra` is present and Terraform outputs include deployment targets (e.g., `bucket_name`, `distribution_id`, `instance_id`, `app_service_name`, `resource_group_name`), those values override the equivalent `cloud` fields automatically.
 
 ---
 
@@ -407,35 +489,28 @@ If `/.infra` is present and Terraform outputs include `bucket_name`, `distributi
 | `appType` | Yes | Determines build and deploy implementation. See allowed values below. |
 | `codePath` | Yes | Relative path from repo root to application source (e.g., `/`, `.`, `/src`). |
 | `buildType` | No | Defines packaging behavior. Omit for standard build. |
+| `runtimeVersion` | No | Runtime version override (e.g., `"20"` for Node, `"10.x"` for .NET). If omitted, engine default is used. |
 | `approvalEnvironments` | No | Array of environment names that require manual approval before deploy (e.g., `["prod"]`). |
 
 **`appType` allowed values:**
 
-| Value | Description |
-|-------|-------------|
-| `ami` | AMI factory (EC2 Image Builder + SSM) |
-| `angular` | Angular frontend application |
-| `dotnet` | .NET Core / .NET 6+ application |
-| `dotnet_framework` | .NET Framework application |
-| `html` | Static HTML application |
-| `java` | Java application |
-| `python` | Python application |
-
-### `app` Section — Build Runtime Versions
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `dotnetVersion` | `9.x` | .NET SDK version |
-| `javaVersion` | `17` | Java version |
-| `nodeVersion` | `18` | Node.js version |
-| `pythonVersion` | `3.11` | Python version |
+| Value | Cloud | Description |
+|-------|-------|-------------|
+| `ami` | AWS | AMI factory (EC2 Image Builder + SSM) |
+| `angular` | AWS | Angular frontend application |
+| `dotnet` | AWS | .NET Core / .NET 6+ application |
+| `dotnet_framework` | AWS | .NET Framework application |
+| `html` | AWS | Static HTML application |
+| `java` | AWS | Java application |
+| `php` | Azure | PHP application |
+| `python` | AWS | Python application |
 
 ### `app` Section — Tool Configuration
 
 | Parameter | Description | Allowed Values |
 |-----------|-------------|----------------|
 | `scanTool` | Scan tool to execute | `sonarqube`, `jfrog`, `wiz`, omit to skip |
-| `unitTestTool` | Unit test framework | `jest`, `junit`, `pytest`, `xunit`, omit to skip |
+| `unitTestTool` | Unit test framework | `jest`, `junit`, `phpunit`, `pytest`, `xunit`, omit to skip |
 | `integrationTestTool` | Integration test framework | `playwright`, omit to skip |
 
 ---
@@ -469,10 +544,14 @@ Required when `appType` is `ami`.
 
 ### `cloud` Section — Azure Deployment Parameters
 
+Required when deploying to Azure and `/.infra` is absent. If `/.infra` is present, EPIC resolves resource identifiers from Terraform outputs automatically.
+
 | Parameter | Description |
 |-----------|-------------|
-| `azureSubscription` | Azure subscription name or service connection reference |
-| `azureResourceGroup` | Azure resource group for deployment |
+| `azureSubscriptionId` | Target Azure subscription ID |
+| `azureRegion` | Azure region (defaults to `westus2`) |
+| `resourceGroupName` | Target resource group name |
+| `appServiceName` | Target App Service name |
 
 ---
 
@@ -482,14 +561,14 @@ Required when `appType` is `ami`.
 |----------|---------|----------|------------|
 | Application Identity | `app` | Yes | `appName`, `appType`, `codePath` |
 | Packaging | `app` | Optional | `buildType` |
+| Runtime Version | `app` | Optional | `runtimeVersion` |
 | Approval Gates | `app` | Optional | `approvalEnvironments` |
-| Runtime Versions | `app` | Optional | `nodeVersion`, `pythonVersion`, `dotnetVersion`, `javaVersion` |
 | Scanning | `app` | Optional | `scanTool` |
 | Unit Testing | `app` | Optional | `unitTestTool` |
 | Integration Testing | `app` | Optional | `integrationTestTool` |
 | AWS Deployment | `cloud` | Conditional | `awsAccountId`, `awsRegion`, `s3`, `cloudfront`, `ec2InstanceId`, `appExecutable` |
 | AMI Configuration | `cloud` | Conditional | `components`, `imageBuilderPipelinePrefix`, `ssmParameterPrefix`, `configDocPrefix`, `testDocPrefix`, `componentDocSuffixes`, `instanceTags` |
-| Azure Deployment | `cloud` | Conditional | `azureSubscription`, `azureResourceGroup` |
+| Azure Deployment | `cloud` | Conditional | `azureSubscriptionId`, `azureRegion`, `resourceGroupName`, `appServiceName` |
 
 ---
 
@@ -499,9 +578,10 @@ EPIC enforces validation at runtime:
 
 - Missing required fields fail early with a clear error
 - Unsupported `appType`, `scanTool`, or `unitTestTool` values fail during stage dispatch
-- Runtime version fields default to known-good values if omitted
+- `runtimeVersion` defaults to the engine's `defaultRuntimeVersion` per appType if omitted
 - Deployment parameters are validated only when the deploy stage executes
 - If `/.infra` is present, Terraform outputs are validated before the deploy stage runs
+- Cloud provider is auto-detected from `epic.json` (`awsAccountId` = AWS, `azureSubscriptionId` = Azure)
 
 ---
 
@@ -513,13 +593,22 @@ To add support for a new build type, test framework, or scanner:
 2. Implement the YAML template following the existing conventions
 3. Register it in the stage dispatcher (`main.yml`) using the `${{ if eq(...) }}` pattern
 
-No changes to `epic-orchestrator.yml` or `epic-engine.yml` are required.
+To add a new deploy target:
+
+1. Create a template under `deploy/aws/` or `deploy/azure/`
+2. Add a routing conditional in `deploy/main.yml`
+
+To add a new runtime version default:
+
+1. Add a `${{ elseif }}` clause to the `defaultRuntimeVersion` variable in `epic-engine.yml`
+
+No changes to `epic-orchestrator.yml` are required for any of the above.
 
 ---
 
 ## Summary
 
-EPIC provides a standardized CI/CD backbone for enterprise application delivery.
+EPIC provides a standardized CI/CD backbone for enterprise application delivery across AWS and Azure.
 
 It separates:
 
