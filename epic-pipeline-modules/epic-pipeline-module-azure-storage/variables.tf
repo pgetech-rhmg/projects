@@ -63,12 +63,6 @@ variable "allow_blob_public_access" {
   default     = false
 }
 
-variable "enable_https_traffic_only" {
-  type        = bool
-  description = "Require HTTPS traffic only"
-  default     = true
-}
-
 variable "enable_versioning" {
   type        = bool
   description = "Enable blob versioning"

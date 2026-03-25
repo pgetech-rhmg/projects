@@ -9,7 +9,6 @@ resource "azurerm_storage_account" "this" {
 
   min_tls_version           = var.min_tls_version
   allow_nested_items_to_be_public = var.allow_blob_public_access
-  enable_https_traffic_only = var.enable_https_traffic_only
 
   blob_properties {
     versioning_enabled = var.enable_versioning
