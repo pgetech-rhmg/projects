@@ -39,7 +39,7 @@ export class App implements OnInit, OnDestroy {
     if (this.toastTimer) clearTimeout(this.toastTimer);
   }
 
-  @HostListener('keydown.escape')
+  @HostListener('document:keydown.escape')
   protected onEscapeKey(): void {
     if (this.showHowToModal()) this.closeHowTo();
     else if (this.showNewRunModal()) this.closeNewRunModal();
