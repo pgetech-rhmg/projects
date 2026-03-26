@@ -1,0 +1,10 @@
+##################################################################
+#
+#  Filename    : aws/modules/lm-pipeline/module.info
+#  Date        : 17 Oct 2025
+#  Author      : Sean Fairchild (s3ff@pge.com)
+#  Description : Codepipeline terraform module creates a Codepipeline to build container images
+#
+##################################################################
+[info]
+version = 2.0.2

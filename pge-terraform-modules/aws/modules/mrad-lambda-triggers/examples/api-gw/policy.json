@@ -1,0 +1,18 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": [
+                "execute-api:OPTIONS",
+                "execute-api:POST",
+                "execute-api:Invoke",
+                "execute-api:GET"
+            ],
+            "Resource": [
+                "execute-api:/*"
+            ]
+        }
+    ]
+}

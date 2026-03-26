@@ -1,0 +1,9 @@
+{
+    "resource": "Resource path",
+    "path": "/path",
+    "httpMethod": "POST",
+    "headers": {
+        "x-coolheader": "here"
+    },
+    "body": "{\"custom\":\"json\"}"
+}

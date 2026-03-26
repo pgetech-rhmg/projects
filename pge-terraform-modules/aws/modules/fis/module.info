@@ -1,0 +1,8 @@
+#  Filename    : aws/module/fis/module.info
+#  Date        : 6 Aug 2025
+#  Author      : 
+
+#  Description : Terraform module for FIS
+#
+[info]
+version = 0.1.7

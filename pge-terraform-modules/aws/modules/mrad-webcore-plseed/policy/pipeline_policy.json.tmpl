@@ -1,0 +1,51 @@
+{
+  "Id": "EngageS3StandardPolicy",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RootAccess",
+      "Action": "s3:*",
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3:::${bucket_name}",
+        "arn:aws:s3:::${bucket_name}/*"
+      ],
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::${log_bucket_policy_principal_id}:root"
+        ]
+      }
+    },
+    {
+      "Sid": "SecureTransport",
+      "Action": "s3:*",
+      "Effect": "Deny",
+      "Resource": [
+        "arn:aws:s3:::${bucket_name}",
+        "arn:aws:s3:::${bucket_name}/*"
+      ],
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      },
+      "Principal": {
+        "AWS": [
+          "*"
+        ]
+      }
+    },
+    {
+      "Action": [
+        "s3:PutObject"
+      ],
+      "Effect": "Allow",
+      "Resource": "arn:aws:s3:::${bucket_name}/*",
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::${log_bucket_policy_principal_id}:root"
+        ]
+      }
+    }
+  ]
+}

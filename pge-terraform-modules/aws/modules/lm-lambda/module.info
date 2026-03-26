@@ -1,0 +1,10 @@
+##################################################################
+#
+#  Filename    : aws/modules/lm-lambda/module.info
+#  Date        : 15 May 2025
+#  Author      : Sean Fairchild (s3ff@pge.com)
+#  Description : Terraform module creates a Lambda Function for Locaste & Mark
+#
+##################################################################
+[info]
+version = 0.1.6

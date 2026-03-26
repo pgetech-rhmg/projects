@@ -1,0 +1,59 @@
+{
+  "Version": "2008-10-17",
+  "Statement": [
+    {
+      "Sid": "CodeNotification_publish",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "codestar-notifications.amazonaws.com"
+      },
+      "Action": "SNS:Publish",
+      "Resource": "arn:aws:sns:${aws_region}:${account_num}:${snstopic_name}"
+    },
+    {
+      "Sid": "__default_statement_ID",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "*"
+      },
+      "Action": [
+        "SNS:GetTopicAttributes",
+        "SNS:SetTopicAttributes",
+        "SNS:AddPermission",
+        "SNS:RemovePermission",
+        "SNS:DeleteTopic",
+        "SNS:Subscribe",
+        "SNS:ListSubscriptionsByTopic",
+        "SNS:Publish"
+      ],
+      "Resource": "arn:aws:sns:${aws_region}:${account_num}:${snstopic_name}",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceOwner": "${account_num}"
+        }
+      }
+    },
+    {
+      "Sid": "CCOE-TFC DenyNonSecureAccess",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "sns:GetTopicAttributes",
+        "sns:SetTopicAttributes",
+        "sns:AddPermission",
+        "sns:RemovePermission",
+        "sns:DeleteTopic",
+        "sns:Subscribe",
+        "sns:ListSubscriptionsByTopic",
+        "sns:Publish",
+        "sns:Receive"
+      ],
+      "Resource": "arn:aws:sns:${aws_region}:${account_num}:${snstopic_name}",
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      }
+    }
+  ]
+}

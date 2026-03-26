@@ -1,0 +1,56 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  exported-variables:
+    - GIT_HASH
+
+phases:
+  install:
+    commands:
+      - echo "Installing WIZ CLI"
+      - echo "$ENVIRONMENT"
+      - echo "$APP_OWNERS"
+
+      - mkdir -p /tmp/wizcli
+      - curl -o /tmp/wizcli/wizcli https://downloads.wiz.io/wizcli/latest/wizcli-linux-amd64
+      - chmod +x /tmp/wizcli/wizcli
+      - /tmp/wizcli/wizcli version
+      - /tmp/wizcli/wizcli auth --id "$WIZ_CLIENT_ID" --secret "$WIZ_CLIENT_SECRET"
+
+      - echo "Install JFROG CLI"
+      - curl -k -fL https://install-cli.jfrog.io | sh && jf --version
+
+  pre_build:
+    commands:
+      - GIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -b -8)
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - cd lambdas/${lambda_name}
+      - echo present working directory `pwd`
+      - echo Compiling the Node.js code
+      - "ls -lart"
+      - echo "Entered the install phase..."
+      - echo Build started on `date`
+      - echo $(date +%Y-%m-%d)
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      - echo "Building image ..."
+      - docker build -t ${lambda_name}:$GIT_HASH .
+      - docker tag ${lambda_name}:$GIT_HASH $ECR_REGISTRY:$GIT_HASH
+
+      - echo Scanning image with WIZ
+      - /tmp/wizcli//wizcli docker scan --image ${lambda_name}:$GIT_HASH
+
+      - echo Pushing image '$ECR_REGISTRY:$GIT_HASH'
+      - docker push $ECR_REGISTRY:$GIT_HASH
+
+      - echo **********  Successfully Executed ***************
+
+# Include only the files required for your application to run.
+# Do not use recursively include artifacts from node_modules directory as it will include unnecessary packages
+# ExpressJS apps will need other artifact directories included (bin/*, public/*, routes/*, views/* etc).
+artifacts:
+  files:
+    - "**/*"

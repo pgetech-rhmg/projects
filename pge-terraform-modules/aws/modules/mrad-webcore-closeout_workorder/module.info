@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 2025-11-20
+#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
+#  Description : AWM Webcore Engage-Closeout-Workorder Scheduling Lambda Module
+#
+[info]
+version = 0.0.13

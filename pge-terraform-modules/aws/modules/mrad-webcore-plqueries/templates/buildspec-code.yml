@@ -1,0 +1,28 @@
+version: 0.2
+env:
+  variables:
+    REPO: ${repo_name}
+  secrets-manager:
+    GITHUB_TOKEN: "MRAD_GITHUB_TOKEN:github"
+    WIZ_CLIENT_ID: "shared-wiz-access:WIZ_CLIENT_ID"
+    WIZ_CLIENT_SECRET: "shared-wiz-access:WIZ_CLIENT_SECRET"
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing WIZ CLI"
+      - mkdir -p /tmp/wizcli
+      - curl -o /tmp/wizcli/wizcli https://downloads.wiz.io/wizcli/latest/wizcli-linux-amd64
+      - chmod +x /tmp/wizcli/wizcli
+      - /tmp/wizcli/wizcli version
+      - /tmp/wizcli/wizcli auth --id "$WIZ_CLIENT_ID" --secret "$WIZ_CLIENT_SECRET"
+  build:
+    commands:
+      - env | sort
+      - pwd
+      - ls -al
+      # buildspec-tfc-deploy.sh is located in the 
+      # engage-queries(https://github.com/PGEDigitalCatalyst/Engage-Queries-ECS/blob/dev/buildspecs/buildspec-tfc-deploy.sh) repo, 
+      # not the pge-terraform-modules repo
+      - /bin/bash ./buildspecs/buildspec-tfc-deploy.sh

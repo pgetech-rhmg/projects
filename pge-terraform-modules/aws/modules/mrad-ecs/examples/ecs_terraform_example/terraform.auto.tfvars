@@ -1,0 +1,10 @@
+TFC_CONFIGURATION_VERSION_GIT_BRANCH = "tfc-mrad-ecs"
+
+aws_account     = "Dev"
+aws_region      = "us-west-2"
+account_num     = "990878119577"
+account_num_r53 = "686137062481"
+project_name    = "mrad-ecs-example"
+aws_role        = "MRAD_Ops"
+aws_r53_role    = "DCDNSCrossAccountRole"
+github_secret   = "ECS-Terraform-Example-tfc-dev-gh:github"

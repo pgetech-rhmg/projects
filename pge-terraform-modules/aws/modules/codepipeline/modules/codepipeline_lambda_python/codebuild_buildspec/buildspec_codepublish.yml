@@ -1,0 +1,158 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - PROJECT_ROOT_DIRECTORY
+    - ARTIFACTORY_HOST
+    - ARTIFACTORY_REPO_KEY
+    - DEPENDENCY_FILES_LOCATION
+  variables:
+    ARTIFACTORY_AUTH_PREFIX: 'Authorization:'
+    ARTIFACTORY_TOKEN : "${ARTIFACTORY_TOKEN}"
+    GIT_REPO_BRANCH   : "${GIT_REPO_BRANCH}"
+    GIT_REPO_URL      : "${GIT_REPO_URL}"
+    LAMBDA_FUNCTION_NAME : "${LAMBDA_FUNCTION_NAME}"
+    LAMBDA_ALIAS_NAME : "${LAMBDA_ALIAS_NAME}"
+    INCLUDE_LIB_FILES : "${INCLUDE_LIB_FILES}"
+phases:
+  install:
+    runtime-versions:
+      python: $PYTHON_RUNTIME
+    commands:
+      - echo "Entered the install phase..."
+
+      - echo "Install JFROG CLI"
+      - curl -k -fL https://install-cli.jfrog.io | sh && jf --version
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo "Making sure Python is installed"
+      - echo `python --version`
+      - echo "CCOE-3824 - Making sure GIT cli is installed"
+      - echo `git --version`
+      - echo "Making sure JFROG cli is installed"
+      - echo `jf --version`
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the build phase execution..."
+      - echo Build started on `date`
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+      
+      # getting project version and name
+      - ARTIFACT_VERSION="1.0"
+      - ARTIFACT_ID=$LAMBDA_FUNCTION_NAME
+      - ARTIFACT_FULL_NAME=$ARTIFACT_ID-$ARTIFACT_VERSION.zip
+      
+      #refactoring $ARTIFACTORY_HOST without https
+      - REFACTORED_ARTIFACTORY_HOST=$(echo $ARTIFACTORY_HOST | cut -d'/' -f3 | cut -d':' -f1)
+      - echo "artifactory host without https is $REFACTORED_ARTIFACTORY_HOST"
+      
+      #installing virtualenv and activating it
+      - echo "installing and activating virtualenv"
+      - python -m pip install virtualenv
+      - python -m virtualenv webapp
+      - . webapp/bin/activate
+      
+      # pip.conf update to virtualenv
+      - |
+        if [[ ! -f webapp/pip.conf ]]; then
+           echo "updating pip.conf to artifactory"
+           echo [global] >> webapp/pip.conf
+           echo index-url = https://$ARTIFACTORY_USER:$ARTIFACTORY_TOKEN@$REFACTORED_ARTIFACTORY_HOST/artifactory/api/pypi/$ARTIFACTORY_REPO_KEY/simple >> webapp/pip.conf
+        fi
+      
+      # making zip file
+      - pip install -r requirements.txt -t lib
+      - echo "Zipping deployment package..."
+      - echo "Checking the boolean flag value INCLUDE_LIB_FILES - $INCLUDE_LIB_FILES"
+      - |
+        if $INCLUDE_LIB_FILES 
+        then
+          echo "lib files will be added to the zip"
+          cd lib
+          zip -r9 ../$ARTIFACT_FULL_NAME .
+          cd ..
+        else
+          echo "lib files wont be added to the zip"
+        fi
+      - zip -g $ARTIFACT_FULL_NAME * **/* -x appspec.* sonar-project.properties lib/**\* webapp/**\* coverage.xml
+      - ls lib/
+      - zip -sf $ARTIFACT_FULL_NAME
+      
+      # updating the Lambda function
+      - echo "Updating lambda Function $LAMBDA_FUNCTION_NAME"
+      - aws lambda update-function-code --function-name $LAMBDA_FUNCTION_NAME --zip-file fileb://$ARTIFACT_FULL_NAME
+      - sleep 10
+      - VERSION=$(aws lambda publish-version --function-name $LAMBDA_FUNCTION_NAME | jq -r .Version)
+      - aws lambda update-alias --function-name $LAMBDA_FUNCTION_NAME --name $LAMBDA_ALIAS_NAME --function-version $VERSION
+      - echo "LAMBDA UPDATE AND PUBLISH NEW VERSION DONE!!"
+      
+      # updating the artifact with the latest version
+      - ARTIFACT_VERSION=$VERSION
+      - ARTIFACT_FULL_NAME=$ARTIFACT_ID-$VERSION.zip
+      - mv $ARTIFACT_ID*.zip $ARTIFACT_FULL_NAME
+      - ls -lrt
+
+      - echo "verifying artifact `ls -l $ARTIFACT_FULL_NAME`"
+      #generating path to deploy artifact into artifactory
+      - ARTIFACTORY_REPO_KEY_PATH=$ARTIFACTORY_REPO_KEY/$ARTIFACT_ID/$ARTIFACT_VERSION/
+
+      - echo " *** Printing Variables *** "
+      - export SERVER_ID="$ARTIFACTORY_HOST"
+      - export CODEBUILD_NAME=`echo "$CODEBUILD_BUILD_ID" | awk '{split($0,a,":"); print a[1]}'`
+
+      - echo "CODEBUILD_BUILD_ID - $CODEBUILD_BUILD_ID"
+      - echo "CODEBUILD_NAME - $CODEBUILD_NAME"
+      - echo "CODEBUILD_BUILD_NUMBER - $CODEBUILD_BUILD_NUMBER"
+      - echo "CODEBUILD_SRC_DIR - $CODEBUILD_SRC_DIR"
+      - echo "GIT_REPO_URL - $GIT_REPO_URL"
+      - echo "GIT_REPO_BRANCH - $GIT_REPO_BRANCH"
+      - echo "CODEBUILD_RESOLVED_SOURCE_VERSION - $CODEBUILD_RESOLVED_SOURCE_VERSION"
+
+      - echo "SERVER_ID - $SERVER_ID"
+      - echo "ARTIFACTORY_REPO_KEY_PATH - $ARTIFACTORY_REPO_KEY_PATH"
+      - echo "ARTIFACTORY_REPO_KEY - $ARTIFACTORY_REPO_KEY"
+      - echo "ARTIFACT_FULL_NAME - $ARTIFACT_FULL_NAME"
+      - echo "ARTIFACTORY_AUTH_PREFIX - $ARTIFACTORY_AUTH_PREFIX"
+      - echo "ARTIFACTORY_USER - $ARTIFACTORY_USER"
+
+      - echo "Deploy Artifact $ARTIFACT_FULL_NAME to Artifactory Host $ARTIFACTORY_HOST with REPO-KEY-PATH $ARTIFACTORY_REPO_KEY_PATH"
+      # verifying jfrog connection
+      - jf c add "$SERVER_ID" --access-token="$ARTIFACTORY_TOKEN" --url="$ARTIFACTORY_HOST" --interactive=false
+      - jf c s
+      - jf rt ping
+      - pwd
+      - ls -lrt
+      
+      # Uploading Artifact
+      - jf rt u "$ARTIFACT_FULL_NAME" $ARTIFACTORY_REPO_KEY_PATH --access-token="$ARTIFACTORY_TOKEN" --url="$ARTIFACTORY_HOST/artifactory" --build-name="$CODEBUILD_NAME" --build-number="$CODEBUILD_BUILD_NUMBER"
+      # Collecting environment variables
+      - jf rt bce "$CODEBUILD_NAME" "$CODEBUILD_BUILD_NUMBER"
+
+      # Publishing dependencies
+      - |
+        if [ "$DEPENDENCY_FILES_LOCATION" != "" ] ; then
+            jf rt bad "$CODEBUILD_NAME" "$CODEBUILD_BUILD_NUMBER" "$DEPENDENCY_FILES_LOCATION"
+        fi
+      # Publishing build-info
+      - jf rt bp "$CODEBUILD_NAME" "$CODEBUILD_BUILD_NUMBER" --build-url="$CODEBUILD_BUILD_ARN"
+      - jf rt bpr "$CODEBUILD_NAME" "$CODEBUILD_BUILD_NUMBER" $ARTIFACTORY_REPO_KEY --status="released"
+
+      - jf c rm $SERVER_ID --quiet
+      - jf c s
+artifacts:
+    files:
+      - '**/*'
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+  - '/root/.cache/pip/**/*'

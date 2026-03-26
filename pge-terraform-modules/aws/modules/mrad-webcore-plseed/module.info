@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 2025-07-17
+#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
+#  Description : AWM Webcore Pipeline for Graph Neptune Seed Process
+#
+[info]
+version = 0.1.7

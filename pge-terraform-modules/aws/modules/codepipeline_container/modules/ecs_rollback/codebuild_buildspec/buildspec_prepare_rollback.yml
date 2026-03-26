@@ -1,0 +1,60 @@
+version: 0.2
+env:
+ 
+
+  git-credential-helper: yes
+
+phases:
+  install:
+    runtime-versions:
+      java: $JAVA_RUNTIME
+    commands:
+      - echo "Entered the install phase..."
+      - docker login -u $ARTIFACTORY_USER -p $ARTIFACTORY_TOKEN $ARTIFACTORY_DOCKER_REGISTRY
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+       
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the Rollback configuration prepared phase..."
+      - DEPLOY_IMAGE=$ROLLBACK_IMAGE_TAG
+      - docker pull $ROLLBACK_IMAGE_TAG
+           
+  post_build:
+    commands:
+       - echo "Rollback app... in Blueegree or Rollingupdate ECS service"
+       - echo $ROLLBACK_IMAGE_TAG
+       - |
+          
+          # Generate resource configs to support ECS rolling-update and Blue Green Deployment strategies
+          if [[ "$CODEDEPLOY_PROVIDER" == "ECS" ]]; then
+            # Create Image definition file for application rolling update in ECS
+            printf '[{"name":"%s","imageUri":"%s"}]' $APPLICATION_NAME $DEPLOY_IMAGE > imagedefinitions.json
+          fi
+          if [[ "$CODEDEPLOY_PROVIDER" == "CodeDeployToECS" ]]; then
+            echo Writing image details file for Bluegreen deployment...
+            printf '{"ImageURI":"%s"}' $DEPLOY_IMAGE > imageDetail.json
+            cat imageDetail.json
+          fi
+          
+artifacts:
+  files:
+    - imageDetail.json
+    - appspec.yaml
+    - taskdef.json
+  secondary-artifacts:
+    DefinitionArtifact:
+      files:
+        - appspec.yaml
+        - taskdef.json
+    ImageArtifact:
+      files:
+        - image*.json
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+  - '/root/.m2/**/*'

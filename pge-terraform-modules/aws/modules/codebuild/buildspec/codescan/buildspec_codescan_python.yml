@@ -1,0 +1,152 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - ARTIFACTORY_HOST
+    - ARTIFACTORY_REPO_KEY
+    - PROJECT_NAME
+    - SONAR_HOST
+    - PROJECT_ROOT_DIRECTORY
+  variables:
+    ARTIFACTORY_AUTH_PREFIX    : 'Authorization:'
+    SONAR_TOKEN                : "${SONAR_TOKEN}"
+    ARTIFACTORY_TOKEN          : "${ARTIFACTORY_TOKEN}"
+    GIT_REPO_BRANCH            : "${GIT_REPO_BRANCH}"
+    UNIT_TEST_COMMANDS         : "${UNIT_TEST_COMMANDS}"
+    SONAR_SCANNER_CLI_VERSION  : "${SONAR_SCANNER_CLI_VERSION}"
+phases:
+  install:
+    runtime-versions:
+      python: $PYTHON_RUNTIME
+    commands:
+      - echo "Entered the install phase..."
+      - echo "codebuild app language - $CODEBUILDAPP_LANGUAGE"
+      - echo "python runtime - $PYTHON_RUNTIME"
+
+      - echo "Installing Sonar Scanner CLI"
+      - wget "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_CLI_VERSION}-linux.zip"
+      - filename="sonar-scanner-cli-${SONAR_SCANNER_CLI_VERSION}-linux.zip"
+      - folder_name=$(unzip -l $filename | head -n 4 | tail -n 1 | awk '{print $4}')
+      - echo $filename && echo $folder_name
+      - unzip -o $filename -d /var/tmp/ && rm -rf $filename
+      - export PATH=/var/tmp/$folder_name/bin:$PATH
+      - echo $PATH
+      - echo "verifying sonar-scanner cli installation" && sonar-scanner -h
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo "Making sure python is installed"
+      - echo "python version is `python --version`" && echo "pip version is `pip --version`"
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the Build phase..."
+      - echo Build started on `date`
+      - echo `pwd`
+      - ls -lart
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+      - echo `pwd`
+      - ls -lart
+      # verifying environment_variables
+      - echo "PROJECT_NAME - $PROJECT_NAME"
+      #refactoring $ARTIFACTORY_HOST without https
+      - REFACTORED_ARTIFACTORY_HOST=$(echo $ARTIFACTORY_HOST | cut -d'/' -f3 | cut -d':' -f1)
+      - echo "artifactory host without https is $REFACTORED_ARTIFACTORY_HOST"
+
+      #installing virtualenv and activating it
+      - echo "installing and activating virtualenv"
+      - python -m pip install virtualenv
+      - python -m virtualenv webapp
+      - . webapp/bin/activate
+      # pip.conf update to virtualenv
+      - |
+        if [[ ! -f webapp/pip.conf ]]; then
+           echo "updating pip.conf to artifactory"
+           echo [global] >> webapp/pip.conf
+           echo index-url = https://$ARTIFACTORY_USER:$ARTIFACTORY_TOKEN@$REFACTORED_ARTIFACTORY_HOST/artifactory/api/pypi/$ARTIFACTORY_REPO_KEY/simple >> webapp/pip.conf
+        fi
+      # installing required pip dependencies
+      - pip install -r requirements.txt
+
+      #running Unit tests
+      - echo "running unit tests with following command $UNIT_TEST_COMMANDS"
+      - eval $UNIT_TEST_COMMANDS
+      #running sonar analysis
+      - echo "Running Sonar Analysis"
+      - export PATH=$CODEBUILD_SRC_DIR/sonar-scanner-5.0.1.3006-linux/bin:$PATH
+      - sonar-scanner -D sonar.projectKey="$PROJECT_KEY" -D sonar.projectName="$PROJECT_NAME" -D sonar.branch.name="$GIT_REPO_BRANCH" -D sonar.token="$SONAR_TOKEN" -D sonar.host.url="$SONAR_HOST"
+
+      - |
+        # Parse and format SonarQube tags from JSON
+        APPID=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.AppID')
+        ORDER=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.Order')
+        TFC_WSID=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.tfc_wsid')
+        NOTIFY=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.Notify')
+        OWNER=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.Owner')
+
+        # Replace _ with - for SonarQube compliance
+        NOTIFY="${NOTIFY//_/-}"
+        OWNER="${OWNER//_/-}"
+
+        # Build the tags string
+        FORMATTED_TAGS="${APPID},${NOTIFY},${ORDER},${OWNER},${TFC_WSID}"
+
+        # Lowercase and remove non-compliant characters
+        FORMATTED_TAGS=$(echo "$FORMATTED_TAGS" | tr '[:upper:]' '[:lower:]')
+        FORMATTED_TAGS=$(echo "$FORMATTED_TAGS" | sed 's/[^a-z0-9+-.#,]//g')
+
+        echo "Setting SonarQube project tags: $FORMATTED_TAGS"
+        curl -X POST "$SONAR_HOST/api/project_tags/set" \
+          -u "$SONAR_TOKEN:" \
+          -d "project=$PROJECT_KEY" \
+          -d "tags=$FORMATTED_TAGS"
+
+      # checking quality gate status
+      - sleep 30
+      - echo "checking SonarQube Quality Gate Status"
+      - curl -s -u "$SONAR_TOKEN:" -G --data-urlencode "branch=$GIT_REPO_BRANCH" --data-urlencode "projectKey=$PROJECT_KEY"  "$SONAR_HOST"/api/qualitygates/project_status > result.json
+      - cat result.json
+      # Quality scan validation. Build will fail for all enviroments other than Dev if ERROR/WARN found. Build will fail if QG is not attached.
+      - |
+        if [[ $(jq -r '.projectStatus.status' result.json) != OK ]] ; then
+          echo "ERROR/WARN found or there's no QG attached in the Sonar server. Please verify"
+          if [[ "${APP_ENVIRONMENT,,}" != "dev" ]] ; then
+              export CODEBUILD_BUILD_SUCCEEDING=0 ;
+          else
+             echo "DEV environment, hence allowed with ERROR/WARN. Check and fix reported issues before moving to prod here - $SONAR_HOST/dashboard?id=$PROJECT_NAME" ;
+          fi
+        elif [[ $(jq -r '.projectStatus.status' result.json) == None ]] ; then 
+          echo "Quality Gate status is None, verify if Quality Gate is attached to sonar project"
+          export CODEBUILD_BUILD_SUCCEEDING=0 ;
+        fi
+
+
+
+  post_build:
+    commands:  
+      - |
+        if [[ $CODEBUILD_BUILD_SUCCEEDING == 0 ]]; then 
+            echo "Quality gate status is not success - exiting with error"
+            echo " **** check your application vulnerabilities and coverage here - $SONAR_HOST/dashboard?id=$PROJECT_NAME"
+            exit 1; 
+        else
+          echo 'Build Success'
+        fi
+
+artifacts:
+    files:
+      - '**/*'
+
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+  - '/root/.cache/pip/**/*'

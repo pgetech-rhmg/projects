@@ -1,0 +1,19 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:PutSecretValue",
+                "secretsmanager:UpdateSecretVersionStage",
+                "secretsmanager:GetRandomPassword"
+            ],
+            "Resource": "arn:aws:secretsmanager:${aws_region}:${account_num}:secret:${secretsmanager_name}",
+            "Principal":{
+                "AWS": "${lambda_iam_role}"
+           }
+        }
+    ]
+}

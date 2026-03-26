@@ -1,0 +1,13 @@
+version: 0.2
+
+# TERRAFORM VERSION ONLY
+# Do not use with CloudFormation-based infrastructure!
+
+# Variables defined using "${varname}" will be processed by Terraform.
+# Variables defined using "$VARNAME" will be processed by AWS CodeBuild.
+
+phases:
+  build:
+    commands:
+      - 'if curl -k -v "https://admin-sgw-$ENVIRONMENT.dc.pge.com/asset360/_changes?filter=sync_gateway/bychannel&channels=$CHANNEL&include_docs=true&active_only=true" -H ''Accept-Encoding:gzip,deflate'' > $CHANNEL.json.gz; then echo "good"; else exit 1; fi;'
+      - aws s3 cp ./$CHANNEL.json.gz s3://$PIPELINE_BUCKET/seeds/$CHANNEL.json.gz --no-progress

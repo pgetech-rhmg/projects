@@ -1,0 +1,67 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - PROJECT_ROOT_DIRECTORY
+    - ARTIFACTORY_HOST
+    - ARTIFACTORY_REPO_KEY
+    - NODEJS_VERSION
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: $NODEJS_VERSION
+    commands:
+
+      - echo listing files and directories
+      - ls -lart
+
+  pre_build:
+    commands:
+      - 'ls -lart'
+      - echo "Install JFROG CLI"
+      - curl -k -fL https://install-cli.jfrog.io | sh && jf --version
+
+
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+      - echo Compiling the Node.js code
+      - 'ls -lart'
+      - echo "Entered the install phase..."
+      - echo Build started on `date`
+
+      # Jfrog server conifguration
+      - jf c add "${ARTIFACTORY_HOST}" --access-token="${ARTIFACTORY_TOKEN}" --url="${ARTIFACTORY_HOST}" --interactive=false
+      - jf rt ping
+      - jf c s
+
+      # # Jfrog repo configuraiton
+      - jf rt npmc --repo-deploy $ARTIFACTORY_REPO_KEY --repo-resolve $ARTIFACTORY_REPO_KEY
+      - 'ls -lart'
+
+      # building project
+      - echo Installing source NPM dependencies...
+      - jf npm install
+      - ls  node_modules/
+      - ls -lart
+      - echo present working directory `pwd`
+
+
+# Include only the files required for your application to run.
+# Do not use recursively include artifacts from node_modules directory as it will include unnecessary packages
+# used only for building and testing.
+# ExpressJS apps will need other artifact directories included (bin/*, public/*, routes/*, views/* etc).
+artifacts:
+  #base-directory: $PROJECT_ROOT_DIRECTORY
+  #name: $PROJECT_ROOT_DIRECTORY-$CODEBUILD_BUILD_NUMBER.zip
+    files:
+      - '**/*'

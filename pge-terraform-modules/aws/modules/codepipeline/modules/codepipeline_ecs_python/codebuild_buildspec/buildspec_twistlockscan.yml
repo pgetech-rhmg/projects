@@ -1,0 +1,120 @@
+version: 0.2
+env:
+ 
+
+  git-credential-helper: yes
+
+phases:
+  install:
+    runtime-versions:
+       python: $PYTHON_RUNTIME
+    commands:
+      - echo "Entered the install phase..."
+
+      - echo "Installing Twistcli curl -u $TWISTLOCK_USER_ID:$TWISTLOCK_USER_TOKEN -o twistcli $TWISTLOCK_CONSOLE/api/v1/util/twistcli"
+      - curl -u $TWISTLOCK_USER_ID:$TWISTLOCK_USER_TOKEN -o twistcli $TWISTLOCK_CONSOLE/api/v1/util/twistcli
+      - chmod +x ./twistcli
+      - export PATH=$PWD/:$PATH
+      - ./twistcli --version
+      - docker login -u $ARTIFACTORY_USER -p $ARTIFACTORY_TOKEN $ARTIFACTORY_DOCKER_REGISTRY
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo `jf --version`
+
+       
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the Twistlock scanning phase execution..."
+     
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+      - ls -al
+      - VERSION_LINE=$(grep -o "version='.*'" $VERSION_FILE)
+      - echo $VERSION_FILE
+      - VERSION=$(echo $VERSION_LINE | sed "s/version='\(.*\)'/\1/")
+      - IMAGE_TAG=pge-${VERSION}
+      - echo $IMAGE_TAG
+      - docker build . -t $CONTAINER_NAME:$IMAGE_TAG --build-arg BASE_IMAGE_URL=$ARTIFACTORY_DOCKER_REGISTRY --build-arg ENVIRONMENT=$APP_ENVIRONMENT --build-arg OWNER=$APP_OWNERS --build-arg IMAGE_TYPE=$IMAGE_TYPE
+      - |
+         if [[ "$PUBLISH_DOCKER_REGISTRY" == "ECR" || "$PUBLISH_DOCKER_REGISTRY" == "BOTH" ]]; then
+            docker tag $CONTAINER_NAME:$IMAGE_TAG $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_REGION.amazonaws.com/$CONTAINER_NAME:$IMAGE_TAG
+            docker tag $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_REGION.amazonaws.com/$CONTAINER_NAME:$IMAGE_TAG $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_REGION.amazonaws.com/$CONTAINER_NAME:pge-latest
+         fi
+
+         if [[ "$PUBLISH_DOCKER_REGISTRY" == "JFROG" || "$PUBLISH_DOCKER_REGISTRY" == "BOTH" ]]; then
+            docker tag $CONTAINER_NAME:$IMAGE_TAG $ARTIFACTORY_DOCKER_REGISTRY/$CONTAINER_NAME:$IMAGE_TAG
+            docker tag $ARTIFACTORY_DOCKER_REGISTRY/$CONTAINER_NAME:$IMAGE_TAG $ARTIFACTORY_DOCKER_REGISTRY/$CONTAINER_NAME:pge-latest
+         fi
+      - |
+          if [[ "$PUBLISH_DOCKER_REGISTRY" == "JFROG" || "$PUBLISH_DOCKER_REGISTRY" == "BOTH" ]]; then
+            DEPLOY_IMAGE=$ARTIFACTORY_DOCKER_REGISTRY/$CONTAINER_NAME:pge-latest
+          else
+            DEPLOY_IMAGE=$AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_REGION.amazonaws.com/$CONTAINER_NAME:pge-latest
+          fi
+      
+      # Scan using Twistlock
+      - echo Twistlock scanning ....
+      - ./twistcli images scan -u $TWISTLOCK_USER_ID -p $TWISTLOCK_USER_TOKEN --details --address $TWISTLOCK_CONSOLE --output-file twistlock_scan_results.json $DEPLOY_IMAGE
+         
+      
+  post_build:
+    commands:
+       - echo "Twistlock scanning..."
+       - echo $PUBLISH_DOCKER_REGISTRY
+       - echo $CODEDEPLOY_PROVIDER
+       - |
+          echo 'Build is successfully completed'
+          if [[ "$PUBLISH_DOCKER_REGISTRY" == "ECR" || "$PUBLISH_DOCKER_REGISTRY" == "BOTH" ]]; then
+            echo 'Push docker images to Elastic Container Registry'
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_REGION.amazonaws.com
+            aws ecr create-repository --repository-name $CONTAINER_NAME || true
+            docker push $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_REGION.amazonaws.com/$CONTAINER_NAME:$IMAGE_TAG
+            docker push $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_REGION.amazonaws.com/$CONTAINER_NAME:pge-latest
+          fi
+
+          if [[ "$PUBLISH_DOCKER_REGISTRY" == "JFROG" || "$PUBLISH_DOCKER_REGISTRY" == "BOTH" ]]; then
+            echo 'Push docker images to Jfrog Docker registry'
+            docker login -u $ARTIFACTORY_USER -p $ARTIFACTORY_TOKEN $ARTIFACTORY_DOCKER_REGISTRY
+            docker push $ARTIFACTORY_DOCKER_REGISTRY/$CONTAINER_NAME:$IMAGE_TAG
+            docker push $ARTIFACTORY_DOCKER_REGISTRY/$CONTAINER_NAME:pge-latest
+          fi
+          
+          # Generate resource configs to support ECS rolling-update and Blue Green Deployment strategies
+          if [[ "$CODEDEPLOY_PROVIDER" == "ECS" ]]; then
+            # Create Image definition file for application rolling update in ECS
+            printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_NAME $DEPLOY_IMAGE > imagedefinitions.json
+          fi
+
+          if [[ "$CODEDEPLOY_PROVIDER" == "CodeDeployToECS" ]]; then
+            echo Writing image details file for Bluegreen deployment...
+            printf '{"ImageURI":"%s"}' $DEPLOY_IMAGE > imageDetail.json
+            cat imageDetail.json
+          fi
+          
+
+artifacts:
+  files:
+    - imageDetail.json
+    - appspec.yaml
+    - taskdef.json
+  secondary-artifacts:
+    DefinitionArtifact:
+      files:
+        - appspec.yaml
+        - taskdef.json
+    ImageArtifact:
+      files:
+        - image*.json
+ 
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+  - '/root/.cache/pip/**/*'

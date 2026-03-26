@@ -1,0 +1,23 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:GetResourcePolicy",
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:ListSecretVersionIds",
+                "secretsmanager:ListSecrets"
+            ],
+            "Resource": [
+                "*"
+            ],
+            "Principal":{
+                "AWS": [
+                    "arn:aws:iam::056672152820:role/TF_Developers"
+                ]
+           }
+        }
+    ]
+}

@@ -1,0 +1,103 @@
+variable "aws_region" {
+  type        = string
+  description = "AWS region"
+}
+
+variable "account_num" {
+  type        = string
+  description = "Target AWS account number, mandatory"
+}
+
+variable "aws_role" {
+  type        = string
+  description = "AWS role to assume"
+}
+
+variable "name" {
+  description = "The name of the AppConfig deployment strategy."
+  type        = string
+  default     = null
+}
+
+variable "description" {
+  description = "The description of the AppConfig deployment strategy."
+  type        = string
+  default     = null
+}
+
+variable "deployment_duration" {
+  description = "The duration of the AppConfig deployment. 0 <= x <= 1440"
+  type        = number
+  default     = 0
+}
+
+variable "bake_time" {
+  description = "Amount of time AppConfig monitors for alarms before consdiering the deployment complete and no longer eligble for automatic roll back. 0 <= x <= 1440"
+  type        = number
+  default     = 0
+}
+
+variable "replicate_to" {
+  description = "Where to save the deployment strategy. Either NONE or SSM_DOCUMENT"
+  type        = string
+  default     = "NONE"
+}
+
+variable "growth_type" {
+  description = "Algorithm used to define how percentage grows over time. Either LINEAR or EXPONENTIAL. Default LINEAR"
+  type        = string
+  default     = null
+}
+
+variable "growth_factor" {
+  description = "Percentage of targets to receive a deployed configuration during each interval. 1 <= x <= 100"
+  type        = number
+  default     = 100
+}
+
+variable "optional_tags" {
+  description = "optional_tags"
+  type        = map(string)
+  default     = {}
+}
+
+# Required PGE tags
+variable "AppID" {
+  description = "Identify the application this asset belongs to by its AMPS APP ID.Format = APP-####"
+  type        = number
+}
+
+variable "Environment" {
+  type        = string
+  description = "The environment in which the resource is provisioned and used, such as Dev, Test, QA, Prod."
+}
+
+variable "DataClassification" {
+  type        = string
+  description = "Classification of data - can be made conditionally required based on Compliance.One of the following: Public, Internal, Confidential, Restricted, Privileged (only one)"
+}
+
+variable "CRIS" {
+  type        = string
+  description = "Cyber Risk Impact Score High, Medium, Low (only one)"
+}
+
+variable "Notify" {
+  type        = list(string)
+  description = "Who to notify for system failure or maintenance. Should be a group or list of email addresses."
+}
+
+variable "Owner" {
+  type        = list(string)
+  description = "List three owners of the system, as defined by AMPS Director, Client Owner and IT Leadeg LANID1_LANID2_LANID3"
+}
+
+variable "Compliance" {
+  type        = list(string)
+  description = "Compliance	Identify assets with compliance requirements (SOX, HIPAA, etc.) Note: not adding NERC workloads to cloud"
+}
+
+variable "Order" {
+  description = "Order as a tag to be associated with an AWS resource"
+  type        = number
+}

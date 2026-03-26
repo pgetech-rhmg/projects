@@ -1,0 +1,72 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+ 
+
+  git-credential-helper: yes
+
+phases:
+  install:
+    runtime-versions:
+      java: $JAVA_RUNTIME
+    commands:
+
+      - ls -al
+      - echo "install kubectl"
+      - curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/linux/amd64/kubectl
+      - chmod +x ./kubectl
+      - mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+      - echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+      - kubectl version --short --client
+
+      - echo "install Helm CLI for building Helm charts"
+      - curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+      - chmod 700 get_helm.sh
+      - ./get_helm.sh
+      - helm version
+      - aws eks --region $AWS_REGION update-kubeconfig --name $EKS_CLUSTER_NAME
+      - kubectl get pods --all-namespaces
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo "Making sure Java is installed"
+
+  build:
+    on-failure: ABORT
+    commands:
+      - VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+      - CHART_VERSION=$VERSION
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+
+      - ls -al
+      - echo "Deploy Helmcharts"
+      - echo "Container_name $CONTAINER_NAME"
+      - echo "Chart version $CHART_VERSION"
+      - echo "HELMCHART_VIRTUAL $HELMCHART_VIRTUAL"
+      - echo "ARTIFACTORY_HOST $ARTIFACTORY_HOST"
+
+      - helm repo add $HELMCHART_VIRTUAL $ARTIFACTORY_HOST/artifactory/api/helm/$HELMCHART_VIRTUAL --username $ARTIFACTORY_USER --password $ARTIFACTORY_TOKEN
+      - helm repo update $HELMCHART_VIRTUAL
+      - helm repo update
+
+      - helm repo list
+      - helm search repo -l
+      
+      - helm search repo $CONTAINER_NAME
+      - helm upgrade --install $CONTAINER_NAME $HELMCHART_VIRTUAL/$CONTAINER_NAME --version $CHART_VERSION --set image.repository=$AWS_ACCOUNT_NUMBER.dkr.ecr.us-west-2.amazonaws.com/$CONTAINER_NAME --namespace $NAMESPACE --create-namespace --wait
+      - helm list --namespace $NAMESPACE
+
+      
+  post_build:
+    commands:
+       - echo ".."
+       
+       
+
+    

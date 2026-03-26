@@ -1,0 +1,34 @@
+#  Local .terraform directories
+**/.terraform/*
+terraform/code/terraform.d/
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# DS_Store
+*.DS_Store*
+
+#  Local javascript artifacts
+package-lock.json
+*.zip
+
+backendConfig.tfvars
+
+terraform/code/terraform.d/plugins/
+terraform/code/layers
+
+dead-or-alive-lambda/bin/dead-or-alive-lambda
+
+# Local IDE config
+.idea/
+.vscode/
+**/.vscode/
+
+# conf/certs
+dead-or-alive-lambda/conf/certs/
+
+# conf/identity
+dead-or-alive-lambda/conf/identity/
+
+*node_modules/

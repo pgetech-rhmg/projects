@@ -1,0 +1,49 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "denyfrominternet",
+      "Action": "secretsmanager:*",
+      "Effect": "Deny",
+      "Condition": {
+        "NotIpAddress": {
+          "aws:SourceIp": [
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "131.89.0.0/16",
+            "131.90.0.0/16"
+          ]
+        },
+        "StringNotEquals": {
+            "aws:PrincipalOrgID": "o-7vgpdbu22o"
+        }
+      },
+      "Principal": "*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "allowfromorglevel",
+      "Action": "secretsmanager:*",
+      "Effect": "Allow",
+      "Condition": {
+        "IpAddress": {
+          "aws:SourceIp": [
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "131.89.0.0/16",
+            "131.90.0.0/16"
+          ]
+        },
+        "StringEquals": {
+            "aws:PrincipalOrgID": "o-7vgpdbu22o"
+        }
+      },
+      "Principal": {
+          "AWS": "*"
+      },
+      "Resource": "*"
+    }
+  ]
+}

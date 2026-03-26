@@ -1,0 +1,14 @@
+environment             = "Dev"
+app_id                  = "2586"
+data_classification     = "Internal"
+cris                    = "Low"
+notify                  = ["aucm@pge.com"]
+owner                   = ["A1P2", "C1MP", "C3T1"]
+compliance              = ["None"]
+aws_region              = "us-west-2"
+create_atrisk_pipeline  = false
+create_gisseed_pipeline = false
+create_gissync_pipeline = false
+create_pttup_pipeline   = false
+create_dbsched_pipeline = false
+create_nlbman_pipeline  = false

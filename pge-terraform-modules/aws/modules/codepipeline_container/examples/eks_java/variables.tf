@@ -1,0 +1,467 @@
+variable "aws_region" {
+  type        = string
+  description = "AWS region"
+}
+
+variable "aws_role" {
+  type        = string
+  description = "AWS role to assume"
+}
+
+
+variable "account_num" {
+  type        = string
+  description = "Target AWS account number, mandatory"
+}
+
+#Variables for Tags
+variable "optional_tags" {
+  description = "optional_tags"
+  type        = map(string)
+  default     = {}
+}
+
+variable "AppID" {
+  description = "Identify the application this asset belongs to by its AMPS APP ID.Format = APP-####"
+  type        = number
+}
+
+variable "Environment" {
+  type        = string
+  description = "The environment in which the resource is provisioned and used, such as Dev, Test, QA, Prod."
+}
+
+variable "DataClassification" {
+  type        = string
+  description = "Classification of data - can be made conditionally required based on Compliance.One of the following: Public, Internal, Confidential, Restricted, Privileged (only one)"
+}
+
+variable "CRIS" {
+  type        = string
+  description = "Cyber Risk Impact Score High, Medium, Low (only one)"
+}
+
+variable "Notify" {
+  type        = list(string)
+  description = "Who to notify for system failure or maintenance. Should be a group or list of email addresses."
+}
+
+variable "Owner" {
+  type        = list(string)
+  description = "List three owners of the system, as defined by AMPS Director, Client Owner and IT Leader LANID1_LANID2_LANID3"
+}
+
+variable "Compliance" {
+  type        = list(string)
+  description = "Compliance	Identify assets with compliance requirements (SOX, HIPAA, etc.) Note: not adding NERC workloads to cloud"
+}
+
+variable "Order" {
+  description = "Order as a tag to be associated with an AWS resource"
+  type        = number
+}
+
+variable "codepipeline_name" {
+  description = "The name of the pipeline."
+  type        = string
+}
+
+variable "github_org" {
+  description = "Github organization name of the repository, pgetech, DigitalCatalyst, etc"
+  type        = string
+}
+
+variable "repo_name" {
+  description = "Github repository name of the application to be built"
+  type        = string
+}
+
+variable "branch" {
+  description = "Branch of the GitHub repository, e.g 'master"
+  type        = string
+}
+
+#####
+variable "ssm_parameter_vpc_id" {
+  description = "enter the value of vpc id stored in ssm parameter"
+  type        = string
+}
+
+variable "ssm_parameter_subnet_id1" {
+  description = "enter the value of subnet id_1 stored in ssm parameter"
+  type        = string
+}
+
+variable "ssm_parameter_subnet_id2" {
+  description = "enter the value of subnet id_2 stored in ssm parameter"
+  type        = string
+}
+
+variable "secretsmanager_github_token_secret_name" {
+  description = "secret manager path of the github OAUTH or PAT"
+  type        = string
+}
+
+variable "secretsmanager_artifactory_token" {
+  description = "Enter the token value of jfrog artifactory stored in secrets manager"
+  type        = string
+}
+
+variable "ssm_parameter_artifactory_host" {
+  description = "Enter the host value of jfrog stored in ssm parameter"
+  type        = string
+}
+
+variable "ssm_parameter_artifactory_docker_registry" {
+  description = "Enter the name value of jfrog artifactory stored in ssm parameter"
+  type        = string
+}
+
+variable "ssm_parameter_artifactory_helm_virtual_repo" {
+  description = "Enter the name value of jfrog artifactory Argocd virtual group name storedin ssm parameter"
+  type        = string
+}
+
+variable "ssm_parameter_artifactory_helm_local_repo" {
+  description = "Enter the name value of jfrog artifactory Argocd local group name stored in ssm parameter"
+  type        = string
+}
+
+variable "secretsmanager_artifactory_user" {
+  description = "Enter the name of jfrog artifactory user stored in secrets manager"
+  type        = string
+}
+
+variable "secretsmanager_sonar_token" {
+  description = "Enter the token of SonarQube stored in secrets manager"
+  type        = string
+}
+
+variable "ssm_parameter_sonar_host" {
+  description = "Enter the host value of SonarQube stored in ssm parameter"
+  type        = string
+}
+
+variable "project_key" {
+  description = "A unique identifier of your project inside SonarQube"
+  type        = string
+}
+
+variable "project_name" {
+  description = "The display name visible in SonarQube dashboard. Example: My Project"
+  type        = string
+}
+
+variable "project_root_directory" {
+  description = "Enter the project root directory - variable in buildspec yml"
+  type        = string
+}
+
+variable "java_runtime" {
+  description = "Enter the project root directory - variable in buildspec yml"
+  type        = string
+}
+#######################
+
+#variables for aws_iam_role
+variable "codepipeline_role_service" {
+  description = "Aws service of the iam role"
+  type        = list(string)
+  default     = ["codepipeline.amazonaws.com"]
+}
+
+#variables for security_group_project
+variable "cidr_egress_rules" {
+  type = list(object({
+    from             = number
+    to               = number
+    protocol         = string
+    cidr_blocks      = list(string)
+    ipv6_cidr_blocks = list(string)
+    prefix_list_ids  = list(string)
+    description      = string
+  }))
+  description = "Argocd deploy Security group egress rules"
+}
+
+
+
+#vairables for codebuild security group
+variable "cidr_egress_rules_codebuild" {
+  type = list(object({
+    from             = number
+    to               = number
+    protocol         = string
+    cidr_blocks      = list(string)
+    ipv6_cidr_blocks = list(string)
+    prefix_list_ids  = list(string)
+    description      = string
+  }))
+  description = "Codebuild security group egress rules"
+}
+
+
+
+#Codebuild projects variables
+variable "environment_image_codebuild" {
+  description = "Docker image to use for codebuild project. Valid values include Docker images provided by codebuild (e.g aws/codebuild/standard:2.0), Docker Hub images (e.g., hashicorp/terraform:latest), and full Docker repository URIs such as those for ECR (e.g., 137112412989.dkr.ecr.us-west-2.amazonaws.com/amazonlinux:latest)."
+  type        = string
+}
+
+variable "environment_type_codebuild" {
+  description = "Type of build environment to use for codebuild project related builds. Valid values: LINUX_CONTAINER, LINUX_GPU_CONTAINER, WINDOWS_CONTAINER (deprecated), WINDOWS_SERVER_2019_CONTAINER, ARM_CONTAINER. "
+  type        = string
+}
+
+variable "source_location_codebuild" {
+  description = " Location of the source code from git or s3 to build codescan project."
+  type        = string
+}
+
+variable "concurrent_build_limit_codebuild" {
+  description = "Maximum number of concurrent builds for the project in codebuild project"
+  type        = number
+}
+
+variable "compute_type_codebuild" {
+  description = "Information about the compute resources the build project will use in codebuild project"
+  type        = string
+}
+
+variable "environment_image_codepublish" {
+  description = "Docker image to use for this codepublish project. Valid values include Docker images provided by CodeBuild (e.g aws/codebuild/standard:2.0), Docker Hub images (e.g., hashicorp/terraform:latest), and full Docker repository URIs such as those for ECR (e.g., 137112412989.dkr.ecr.us-west-2.amazonaws.com/amazonlinux:latest)."
+  type        = string
+}
+
+variable "environment_type_codepublish" {
+  description = "Type of build environment to use for codepublish project related builds. Valid values: LINUX_CONTAINER, LINUX_GPU_CONTAINER, WINDOWS_CONTAINER (deprecated), WINDOWS_SERVER_2019_CONTAINER, ARM_CONTAINER. "
+  type        = string
+}
+
+variable "source_location_codepublish" {
+  description = " Location of the source code from git or s3 for codepublish."
+  type        = string
+}
+
+variable "concurrent_build_limit_codepublish" {
+  description = "Maximum number of concurrent builds for the codepublish project"
+  type        = number
+}
+
+variable "compute_type_codepublish" {
+  description = "Information about the compute resources the build project will use in codepublish project"
+  type        = string
+}
+
+variable "environment_image_codescan" {
+  description = "Docker image to use for this codescan project. Valid values include Docker images provided by CodeBuild (e.g aws/codebuild/standard:2.0), Docker Hub images (e.g., hashicorp/terraform:latest), and full Docker repository URIs such as those for ECR (e.g., 137112412989.dkr.ecr.us-west-2.amazonaws.com/amazonlinux:latest)."
+  type        = string
+}
+
+variable "environment_type_codescan" {
+  description = "Type of build environment to use for codescan related builds. Valid values: LINUX_CONTAINER, LINUX_GPU_CONTAINER, WINDOWS_CONTAINER (deprecated), WINDOWS_SERVER_2019_CONTAINER, ARM_CONTAINER. "
+  type        = string
+}
+
+variable "source_location_codescan" {
+  description = " Location of the source code from git or s3 to build codescan project."
+  type        = string
+}
+
+variable "concurrent_build_limit_codescan" {
+  description = "Maximum number of concurrent builds for the codescan project"
+  type        = number
+}
+
+variable "compute_type_codescan" {
+  description = "Information about the compute resources the build project will use in codescan project"
+  type        = string
+}
+
+variable "artifact_bucket_owner_access" {
+  description = "Enter the artifact bucket owner access"
+  type        = string
+  default     = "FULL"
+}
+
+variable "artifact_path" {
+  description = "Enter the path to store artifact - S3"
+  type        = string
+  default     = "codepipeline-new/"
+}
+
+variable "environment_image_argocd_deploy" {
+  description = "Docker image to use for codetest project. Valid values include Docker images provided by codebuild (e.g aws/codebuild/standard:2.0), Docker Hub images (e.g., hashicorp/terraform:latest), and full Docker repository URIs such as those for ECR (e.g., 137112412989.dkr.ecr.us-west-2.amazonaws.com/amazonlinux:latest)."
+  type        = string
+}
+
+variable "environment_type_argocd_deploy" {
+  description = "Type of build environment to use for codebuild project related builds. Valid values: LINUX_CONTAINER, LINUX_GPU_CONTAINER, WINDOWS_CONTAINER (deprecated), WINDOWS_SERVER_2019_CONTAINER, ARM_CONTAINER. "
+  type        = string
+}
+
+variable "source_location_argocd_deploy" {
+  description = " Location of the source code from git or s3 to build codescan project."
+  type        = string
+}
+
+variable "concurrent_build_limit_argocd_deploy" {
+  description = "Maximum number of concurrent builds for the project in codebuild project"
+  type        = number
+}
+
+variable "compute_type_argocd_deploy" {
+  description = "Information about the compute resources the build project will use in codebuild project"
+  type        = string
+}
+
+variable "codebuild_role_service" {
+  description = "Aws service of the iam role"
+  type        = list(string)
+  default     = ["codebuild.amazonaws.com", "eks.amazonaws.com"]
+}
+
+# wiz
+
+variable "secretsmanager_wiz_client_id" {
+  description = "Enter the name of wiz client id stored in secrets manager"
+  type        = string
+}
+
+variable "secretsmanager_wiz_client_secret" {
+  description = "Enter the token of wiz client secret stored in secrets manager"
+  type        = string
+
+}
+
+variable "privileged_mode" {
+  description = "Whether to enable running the Docker daemon inside a Docker container"
+  type        = bool
+  default     = false
+}
+
+variable "container_name" {
+  type        = string
+  description = "Please enter application name to create images, Argocds and deploy to ECS or EKS"
+}
+
+variable "publish_docker_registry" {
+  type = string
+  validation {
+    condition     = contains(["ECR", "JFROG", "BOTH"], var.publish_docker_registry)
+    error_message = "Valid values for docker registry are ECR, JFROG."
+  }
+  description = "Please enter ECR, JFROG or BOTH to publish docker images"
+
+}
+
+variable "eks_cluster_name" {
+  description = "Enter EKS cluster name"
+  type        = string
+}
+
+variable "namespace" {
+  description = "Enter kubernetes namespace"
+  type        = string
+}
+
+###################### SNS Variables #############################
+
+variable "endpoint_email" {
+  description = "Endpoint to send data to. The contents vary with the protocol"
+  type        = list(string)
+}
+
+
+
+
+# Secrets Scan Variables
+
+variable "environment_image_codesecret" {
+  description = "Docker image to use for codebuild project. Valid values include Docker images provided by codebuild (e.g aws/codebuild/standard:2.0), Docker Hub images (e.g., hashicorp/terraform:latest), and full Docker repository URIs such as those for ECR (e.g., 137112412989.dkr.ecr.us-west-2.amazonaws.com/amazonlinux:latest)."
+  type        = string
+}
+
+variable "environment_type_codesecret" {
+  description = "Type of build environment to use for codebuild project related builds. Valid values: LINUX_CONTAINER, LINUX_GPU_CONTAINER, WINDOWS_CONTAINER (deprecated), WINDOWS_SERVER_2019_CONTAINER, ARM_CONTAINER. "
+  type        = string
+}
+variable "source_location_codesecret" {
+  description = " Location of the source code from git or s3 to build codescan project."
+  type        = string
+}
+
+variable "concurrent_build_limit_codesecret" {
+  description = "Maximum number of concurrent builds for the project in codebuild project"
+  type        = number
+}
+
+variable "compute_type_codesecret" {
+  description = "Information about the compute resources the build project will use in codebuild project"
+  type        = string
+}
+variable "branch_codesecret" {
+  description = "Branch of the GitHub repository, e.g 'master"
+  type        = string
+  default     = "main"
+}
+
+variable "pollchanges_codesecret" {
+  description = "Periodically check the location of your source content and run the pipeline if changes are detected"
+  type        = string
+  default     = false
+}
+
+variable "cidr_egress_rules_SNS_codestar" {
+  description = "egress rule for codestar"
+  type = list(object({
+    from             = number
+    to               = number
+    protocol         = string
+    cidr_blocks      = list(string)
+    ipv6_cidr_blocks = list(string)
+    prefix_list_ids  = list(string)
+    description      = string
+  }))
+}
+
+################### SNS Variables END ##########################\
+
+variable "account_num_r53" {
+  type        = string
+  description = "Target AWS account number, mandatory"
+  default     = "514712703977"
+}
+
+variable "aws_r53_role" {
+  type        = string
+  description = "AWS role to assume"
+  default     = "CloudAdmin"
+}
+
+variable "custom_domain_name" {
+  description = "A domain name for which the certificate should be issued"
+  type        = string
+}
+
+# GitOps Variables
+variable "argocd_repo_name" {
+  description = "GitHub repository name that ArgoCD monitors for GitOps deployments (can be different from the application repo)"
+  type        = string
+}
+
+variable "argocd_repo_path" {
+  description = "Path within the GitOps repository where ArgoCD application manifests should be stored"
+  type        = string
+  default     = "argocd/applications"
+}
+
+variable "secretsmanager_codebuild_github_token_secret_name" {
+  description = "Secrets Manager path for GitHub PAT with read/write access to the GitOps repository"
+  type        = string
+}
+
+variable "secretsmanager_artifactory_secret_name" {
+  description = "Secrets Manager path for Artifactory credentials"
+  type        = string
+}

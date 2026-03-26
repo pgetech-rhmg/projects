@@ -1,0 +1,39 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - PROJECT_ROOT_DIRECTORY
+    - JAVA_RUNTIME
+
+phases:
+  install:
+    runtime-versions:
+      java: $JAVA_RUNTIME
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo "Making sure Java is installed"
+      - echo `java -version`
+      - echo "Making sure Maven is installed"
+      - echo `mvn --version`
+
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the build phase execution..."
+      - echo Build started on `date`
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+
+      # building project
+      - mvn clean install -Dinternal_user=$ARTIFACTORY_USER -Dinternal_pw=$ARTIFACTORY_TOKEN -s settings.xml
+      - ls -lrt target/
+
+artifacts:
+    files:
+      - '**/*'

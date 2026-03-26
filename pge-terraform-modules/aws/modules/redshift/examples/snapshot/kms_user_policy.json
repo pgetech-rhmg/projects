@@ -1,0 +1,30 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Allow IAM user permission",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": [
+                    "*"
+                ]
+            },
+            "Action": [
+                "kms:CreateKey",
+                "kms:Decrypt",
+                "kms:EnableKey",
+                "kms:Encrypt",
+                "kms:GetKeyPolicy",
+                "kms:GetKeyRotationStatus",
+                "kms:ListAliases",
+                "kms:ListGrants",
+                "kms:ListKeyPolicies",
+                "kms:ListKeys",
+                "kms:ListResourceTags",
+                "kms:TagResource",
+                "kms:UntagResource",
+                "kms:GenerateDataKey"],
+            "Resource": "*"
+        }        
+            ]
+        }

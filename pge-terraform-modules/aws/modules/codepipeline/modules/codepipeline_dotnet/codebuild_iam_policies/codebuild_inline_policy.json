@@ -1,0 +1,16 @@
+{
+  "Version":"2012-10-17",
+  "Statement":[{
+    "Effect":"Allow",
+    "Principal":{
+      "AWS":"arn:${partition}:iam::${account_num}:root"
+    },
+    "Action":[
+      "codebuild:BatchGetProjects",
+      "codebuild:BatchGetBuilds",
+      "codebuild:ListBuildsForProject"],
+    "Resource":"arn:aws:codebuild:${aws_region}:${account_num}:project/${codebuild_project_name}"
+    
+  }
+  ]
+}

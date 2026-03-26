@@ -1,0 +1,15 @@
+version: 0.2
+env:
+  shell: bash
+  secrets-manager:
+    GITHUB_TOKEN: "MRAD_GITHUB_TOKEN:github"
+phases:
+  build:
+    commands:
+      - env | sort
+      - pwd
+      - git config --global url."https://$GITHUB_TOKEN:x-oauth-basic@github.com".insteadOf "https://github.com"
+      - git clone https://github.com/PGEDigitalCatalyst/"$REPO_NAME" -b "$SOURCE_BRANCH"
+      - ls -al
+      # buildspec-deploy.sh is located in the target repo, not the webcore-pipelines repo
+      - /bin/bash ./"$REPO_NAME"/buildspecs/buildspec-deploy.sh

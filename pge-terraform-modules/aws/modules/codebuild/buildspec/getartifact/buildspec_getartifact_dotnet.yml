@@ -1,0 +1,92 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buildspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - ARTIFACTORY_HOST
+    - ARTIFACTORY_REPO_KEY
+    - DEPENDENCY_FILES_LOCATION
+  variables:
+    ARTIFACTORY_AUTH_PREFIX: 'Authorization:'
+    ARTIFACTORY_TOKEN: "${ARTIFACTORY_TOKEN}"
+
+phases:
+  install:
+    runtime-versions:
+      dotnet: $DOTNET_RUNTIME
+    commands:
+      - echo "Entered the install phase..."
+      - echo "Install JFROG CLI"
+      - curl -k -fL https://install-cli.jfrog.io | sh && jf --version
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo "Making sure .NET is installed"
+      - dotnet --version
+      - echo "Making sure JFROG cli is installed"
+      - jf --version
+
+  build:
+    on-failure: ABORT
+    commands:
+      - |
+        if [ "$DOWNLOAD_ARTIFACT" = "false" ] ; then
+          echo "if download artifact is false then, this stage shouldn't be created. exiting the build, reverify your pipeline variables"
+          exit 1;
+        else
+          echo "Entered the build phase execution..."
+          echo Build started on `date`
+        fi
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+
+      - echo "ARTIFACTORY_REPO_KEY $ARTIFACTORY_REPO_KEY"
+      - echo "ARTIFACTORY_AUTH_PREFIX $ARTIFACTORY_AUTH_PREFIX"
+      - echo "ARTIFACTORY_USER $ARTIFACTORY_USER"
+      - echo "ARTIFACTORY_TOKEN $ARTIFACTORY_TOKEN"
+
+      - jf c add "$SERVER_ID" --access-token="$ARTIFACTORY_TOKEN" --url="$ARTIFACTORY_HOST" --interactive=false
+      - jf c s
+      - jf rt ping
+      
+      - |
+        if [ ! -f "version.toml" ] ; then
+          echo "***version.toml does not exist, create version.toml and rerun the pipeline***"
+          exit 1;
+        else
+          echo "**** version.toml exists, getting values of group_id and artifact_id from version.toml ****"
+          ARTIFACT_ID=$(cat version.toml | grep artifact_id | cut -d'=' -f2 | tr -d ' ' | tr -d '"')
+          ARTIFACT_VERSION=$(cat version.toml | grep artifact_version | cut -d'=' -f2 | tr -d ' ' | tr -d '"')
+          ARTIFACTORY_REPO_KEY=$(cat version.toml | grep artifact_group_id | cut -d'=' -f2 | tr -d ' ' | tr -d '"')
+          ARTIFACT_FULL_NAME=$(cat version.toml | grep artifact_name | cut -d'=' -f2 | tr -d ' ' | tr -d '"')
+          ARTIFACT_PATH=$ARTIFACT_ID/$ARTIFACT_VERSION
+        fi 
+
+      - ARTIFACT_PATH=$ARTIFACT_ID/$ARTIFACT_VERSION
+      - echo "ARTIFACT_PATH - $ARTIFACT_PATH"
+      - echo "artifact to be downloaded is $ARTIFACT_FULL_NAME from path $ARTIFACTORY_REPO_KEY/$ARTIFACT_PATH"
+      - echo SONAR_BRANCH_SCANNED=$SONAR_BRANCH_SCANNED
+      - |
+        set -e
+        jf rt dl --props branch=$SONAR_BRANCH_SCANNED $ARTIFACTORY_REPO_KEY/$ARTIFACT_PATH/$ARTIFACT_FULL_NAME --access-token="$ARTIFACTORY_TOKEN" --url="$ARTIFACTORY_HOST/artifactory" 
+      - cp -r $ARTIFACT_PATH/* .
+
+  post_build:
+    commands:
+      - echo "only required if appspec.yml exists other than root directory"
+      - find . -type f -name "appspec.yml" -exec cp {} $CODEBUILD_SRC_DIR/ \; || true
+      - echo "verifying appspec.yml" && ls $CODEBUILD_SRC_DIR/appspec.yml || true
+
+artifacts:
+    files:
+      - '**/*'
+
+# adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+    - '/root/.nuget/**/*'

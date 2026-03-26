@@ -1,0 +1,18 @@
+version: 0.2
+env:
+  variables:
+    REPO: ${repo_name}
+  secrets-manager:
+    GITHUB_TOKEN: "MRAD_GITHUB_TOKEN:github"
+phases:
+  install:
+    runtime-versions:
+      # vars with curly braces are replaced by terraform, not codepipeline
+      nodejs: ${node_version}
+    commands:
+      - pwd
+      # buildspec-builddeploy.sh is located in the target repo, not the webcore-pipelines repo
+      - /bin/bash ./buildspecs/buildspec-builddeploy.sh
+artifacts:
+  files:
+    - "**/*"

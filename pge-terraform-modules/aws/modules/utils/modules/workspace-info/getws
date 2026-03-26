@@ -1,0 +1,18 @@
+#!/bin/sh
+
+#
+# Filename    : modules/utils/modules/workspace-info/getws
+# Date        : 19 Apr 2023
+# Author      : Balaji Venkataraman (b1v6@pge.com)
+# Description : shell script for $nix environments, used by data external
+#
+
+WS_DIR="${TF_VAR_workspace_name:-$PWD}"
+WS_USR="${TF_VAR_workspace_id:-$USER}"
+
+cat <<EOF
+{
+  "name": "${WS_DIR}",
+  "id": "${WS_USR}"
+}
+EOF

@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 2025-08-19
+#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
+#  Description : AWM Webcore Queries Pipeline
+#
+[info]
+version = 0.0.7

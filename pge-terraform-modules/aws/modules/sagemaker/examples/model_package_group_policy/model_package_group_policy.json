@@ -1,0 +1,17 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Sid": "AddPermModelPackageGroup",
+            "Action": [
+                "sagemaker:DescribeModelPackage",
+                "sagemaker:ListModelPackages"
+            ],
+            "Resource": "arn:aws:sagemaker:${aws_region}:${account_num}:model-package-group/${name}",
+            "Principal": {
+                "AWS": ["${account_num}"]
+            }
+        }
+    ]
+}

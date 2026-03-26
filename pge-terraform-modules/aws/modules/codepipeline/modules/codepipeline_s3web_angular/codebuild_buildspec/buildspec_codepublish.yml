@@ -1,0 +1,57 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - NODEJS_VERSION
+    - S3_STATIC_WEB_BUCKET
+    - S3_STATIC_WEB_BUCKET_REGION
+    - PROJECT_NAME
+    - S3_WEB_CLOUDFRONT_DISTRIBUTION_ID
+phases:
+  install:
+    runtime-versions:
+      nodejs: $NODEJS_VERSION
+    commands:
+      - echo "Entered the install phase..."
+      # Installing jfrog cli
+      - yum install -y git
+      - echo "Install JFROG CLI"
+      - curl -k -fL https://install-cli.jfrog.io | sh && jf --version
+
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo `git --version`
+      - echo "Making sure JFROG cli is installed"
+      - echo `jf --version`
+
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the build phase execution..."
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+
+  post_build:
+    commands:
+      - echo Transferring files to S3
+      - aws s3 rm s3://$S3_STATIC_WEB_BUCKET/ --region $S3_STATIC_WEB_BUCKET_REGION --recursive --include "*"
+      - aws s3 cp dist/$PROJECT_NAME/ s3://$S3_STATIC_WEB_BUCKET/ --recursive --region $S3_STATIC_WEB_BUCKET_REGION
+      - aws cloudfront create-invalidation --distribution-id $S3_WEB_CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
+      - echo Code publish completed on `date`
+
+artifacts:
+    files:
+      - '**/*'
+      - appspec.yml
+ 
+ 
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+  - '/root/.npm/**/*'

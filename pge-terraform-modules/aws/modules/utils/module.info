@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 09 Mar 2023
+#  Author      : Balaji Venkataraman (b1v6@pge.com)
+#  Description : module meta data (version) for registry
+#
+[info]
+version = 0.1.0

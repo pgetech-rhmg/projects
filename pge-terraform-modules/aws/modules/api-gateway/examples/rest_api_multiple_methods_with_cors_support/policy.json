@@ -1,0 +1,33 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": [
+                "execute-api:GET",
+                "execute-api:OPTIONS",
+                "execute-api:POST",
+                "execute-api:PUT",
+                "execute-api:Invoke"
+            ],
+            "Resource": [
+                "arn:aws:execute-api:${aws_region}:${account_num}::${pApiId}/*/GET/*",
+                "arn:aws:execute-api:${aws_region}:${account_num}::${pApiId}/*/OPTIONS/*",
+                "arn:aws:execute-api:${aws_region}:${account_num}::${pApiId}/*/POST/*",
+                "arn:aws:execute-api:${aws_region}:${account_num}::${pApiId}/*/PUT/*"
+            ]
+        },
+        {
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "execute-api:*",
+            "Resource": "arn:aws:execute-api:${aws_region}:${account_num}::${pApiId}/*",
+            "Condition": {
+                "StringNotEquals": {
+                    "aws:sourceVpce": "${pVpcEndpoint}"
+                }
+            }
+        }
+    ]
+}

@@ -1,0 +1,213 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - ARTIFACTORY_HOST
+    - ARTIFACTORY_REPO_KEY
+    - PROJECT_NAME
+    - SONAR_HOST
+    - PROJECT_ROOT_DIRECTORY
+  variables:
+    SONAR_TOKEN         : "${SONAR_TOKEN}"
+    ARTIFACTORY_TOKEN   : "${ARTIFACTORY_TOKEN}"
+    GIT_REPO_BRANCH     : "${GIT_REPO_BRANCH}"
+    UNIT_TEST_COMMANDS  : "${UNIT_TEST_COMMANDS}"
+    INSTALL_TELERIK     : "${INSTALL_TELERIK}"
+    S3_BUCKET_NAME      : "${S3_BUCKET_NAME}"
+phases:
+  install:
+    runtime-versions:
+      dotnet: $DOTNET_RUNTIME
+    commands:
+      - Write-Host "Entered the install phase... (Windows)"
+      - Write-Host "codebuild app language - $env:CODEBUILDAPP_LANGUAGE"
+      - Write-Host "dotnet runtime - $env:DOTNET_RUNTIME"
+      - |
+        $dotnetVersion = $DOTNET_RUNTIME
+        Write-Host "Detected .NET version: $dotnetVersion"
+        $majorVersion = $dotnetVersion.Split('.')[0] -as [int]
+        Write-Host "Detected .NET Major version: $dotnetVersion"
+        Write-Host "Detected INSTALL_DOTNET9 is: $env:INSTALL_DOTNET9"
+        
+        # Install dotnet version 9
+        if (($majorVersion -eq 9) -and ($env:INSTALL_DOTNET9 -eq "true")) {
+            # Install .NET 9 SDK
+            
+            echo "Installing .NET 9 SDK..."
+            $dotnetInstallerUrl = "https://dot.net/v1/dotnet-install.ps1"
+            Invoke-WebRequest -Uri $dotnetInstallerUrl -OutFile dotnet-install.ps1
+            .\dotnet-install.ps1 -Channel 9.0 -InstallDir "C:\Program Files\dotnet" -NoPath
+            echo ".NET 9 SDK installation complete"
+          
+            # Verify .NET 9 is now active
+            $env:PATH = "C:\Program Files\dotnet;$env:PATH"
+            dotnet --version
+            dotnet --list-sdks
+            echo "Active .NET SDK verified"
+            
+            dotnet new globaljson --sdk-version 9.0.308 --roll-forward latestFeature --force
+        }
+      - dotnet tool install --global dotnet-sonarscanner
+
+  pre_build:
+    commands:
+      - Write-Host "Entered the pre_build phase... (Windows)"
+      - Write-Host "Making sure dotnet is installed"
+      - dotnet --version
+      - dotnet --list-sdks
+      - dotnet --list-runtimes
+
+      # Install Telerik UI for Blazor
+      - |
+          if ($env:INSTALL_TELERIK -eq "true") {
+              Write-Host "Installing Telerik UI for Blazor..."
+              Write-Host "S3_BUCKET_NAME - $env:S3_BUCKET_NAME"
+              Write-Host "S3_TELERIK_FILE_NAME - $env:S3_TELERIK_FILE_NAME"
+              Write-Host "S3_TELERIK_EXTRACT_PATH - $env:S3_TELERIK_EXTRACT_PATH"
+              $s3File = "$env:TEMP\${S3_TELERIK_FILE_NAME}"
+              aws s3 cp s3://${S3_BUCKET_NAME}/amisoftwares/${S3_TELERIK_FILE_NAME} $s3File
+              $extractPath = "$env:TEMP\telerik"
+              Expand-Archive -Path $s3File -DestinationPath $extractPath -Force
+              Write-Host "Detected .NET Major version: $majorVersion"
+              if ($majorVersion -eq 9) {
+                  Get-ChildItem $extractPath -Filter "*.nupkg" -Recurse | Select-Object -First 10 Name
+          
+                  Write-Host "Adding local Telerik NuGet source..."
+                  $env:PATH = "C:\Program Files\dotnet;$env:PATH"
+                  dotnet nuget add source $extractPath --name TelerikLocal
+          
+                  Write-Host "Listing all NuGet sources..."
+                  dotnet nuget list source
+              }
+              else {
+                  $msiFile = "$extractPath\${S3_TELERIK_EXTRACT_PATH}"
+                  Start-Process -FilePath "msiexec.exe" -ArgumentList "/i $msiFile /quiet /norestart" -Wait
+              }
+              Write-Host "Telerik installed"
+          } else {
+              Write-Host "Skipping Telerik installation"
+          }
+      
+  build:
+    on-failure: ABORT
+    commands:
+      - Write-Host "Checking .NET version..."
+      - |
+          $dotnetVersion = $DOTNET_RUNTIME
+          Write-Host "Detected .NET version: $dotnetVersion"
+          $majorVersion = $dotnetVersion.Split('.')[0] -as [int]
+          if ($majorVersion -ge 8) {
+            Write-Host "Running script for .NET version 8 and above..."
+            if ($env:DOWNLOAD_ARTIFACT -ne "true") {
+              if ($env:PROJECT_ROOT_DIRECTORY -ne "") {
+                Write-Host "Change directory to $env:PROJECT_ROOT_DIRECTORY"
+                Set-Location $env:PROJECT_ROOT_DIRECTORY
+                Get-ChildItem
+              }
+              Get-ChildItem
+              Write-Host $env:PROJECT_NAME
+              Write-Host $env:PROJECT_ROOT_DIRECTORY
+              Write-Host $env:SONAR_HOST
+              Write-Host "Running unit tests with the following command: $env:UNIT_TEST_COMMANDS"
+              Invoke-Expression $env:UNIT_TEST_COMMANDS
+              Get-ChildItem
+              Write-Host "Running Sonar Analysis"
+              dotnet sonarscanner begin /k:$env:PROJECT_KEY /d:sonar.host.url="$env:SONAR_HOST" /d:sonar.token="$env:SONAR_TOKEN" /d:sonar.branch.name="$env:GIT_REPO_BRANCH" /d:sonar.exclusions="$env:SONAR_EXCLUSION_LIST" /d:sonar.coverage.exclusions="$env:SONAR_EXCLUSION_LIST"
+              
+              dotnet build
+              dotnet sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
+            }
+            exit 0
+          } else {
+            Write-Host "Running script for .NET version below 8..."
+            Write-Host ("Build started on " + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
+            $vsInstaller = "$env:TEMP\vs_buildtools.exe"
+            Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_buildtools.exe" -OutFile $vsInstaller
+            Start-Process -FilePath $vsInstaller -ArgumentList "--quiet --wait --norestart --nocache --installPath C:\BuildTools --add Microsoft.VisualStudio.Workload.WebBuildTools" -Wait
+            Write-Host "Visual Studio Build Tools installation complete."
+            $targetsPath = "C:\BuildTools\MSBuild\Microsoft\VisualStudio\v17.0\WebApplications\Microsoft.WebApplication.targets"
+            if (-not (Test-Path $targetsPath)) {
+              Write-Error "Microsoft.WebApplication.targets not found after Visual Studio Build Tools install. Build cannot continue."
+              exit 1
+            }
+            $env:VSToolsPath = 'C:\BuildTools\MSBuild\Microsoft\VisualStudio\v17.0'
+            if ($env:DOWNLOAD_ARTIFACT -ne "true") {
+              if ($env:PROJECT_ROOT_DIRECTORY -ne "") {
+                Write-Host "Change directory to $env:PROJECT_ROOT_DIRECTORY"
+                Set-Location $env:PROJECT_ROOT_DIRECTORY
+                Get-ChildItem
+              }
+              Get-ChildItem
+              Write-Host $env:PROJECT_NAME
+              Write-Host $env:PROJECT_ROOT_DIRECTORY
+              Write-Host $env:SONAR_HOST
+              Write-Host "Running unit tests with the following command: $env:UNIT_TEST_COMMANDS"
+              Invoke-Expression $env:UNIT_TEST_COMMANDS
+              Get-ChildItem
+              Write-Host "Running Sonar Analysis"
+              dotnet sonarscanner begin /k:$env:PROJECT_KEY /d:sonar.host.url="$env:SONAR_HOST" /d:sonar.token="$env:SONAR_TOKEN" /d:sonar.branch.name="$env:GIT_REPO_BRANCH" /d:sonar.exclusions="$env:SONAR_EXCLUSION_LIST" /d:sonar.coverage.exclusions="$env:SONAR_EXCLUSION_LIST"
+              & 'C:\BuildTools\MSBuild\Current\Bin\MSBuild.exe' $env:PROJECT_FILE /p:VSToolsPath="C:\BuildTools\MSBuild\Microsoft\VisualStudio\v17.0"
+              dotnet sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
+            }
+          }
+
+      - $SONAR_BRANCH_SCANNED = $env:GIT_REPO_BRANCH
+      - Start-Sleep -Seconds 30
+      - Write-Host "checking SonarQube Quality Gate Status for branch $SONAR_BRANCH_SCANNED"
+      
+      - $branch = $SONAR_BRANCH_SCANNED
+      - $projectKey = $env:PROJECT_KEY
+      - $sonarHost = $env:SONAR_HOST
+      - $token = $env:SONAR_TOKEN
+      - $uri = "$sonarHost/api/qualitygates/project_status?branch=$branch&projectKey=$projectKey"
+      - Write-Host "uri - $uri"
+      - |
+         $headers = @{
+          Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($token):"))   
+         }
+      - $result = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
+      - Write-Host "Result - $result"
+      - $result | ConvertTo-Json -Depth 10 | Out-File -Encoding utf8 result.json
+      - Get-Content result.json
+      - $status = $result.projectStatus.status
+      - Write-Host "Status - $status"
+      - Set-Content -Path "CODEBUILD_BUILD_SUCCEEDING.txt" -Value "1"
+      - |
+        if ($status -ne "OK") {
+          Write-Host "ERROR/WARN found or there's no QG attached in the Sonar server. Please verify"
+          if ($env:APP_ENVIRONMENT.ToLower() -ne "dev") {
+              Write-Host "Its Not Dev"
+              Set-Content -Path "CODEBUILD_BUILD_SUCCEEDING.txt" -Value "0"
+          } else {
+              Write-Host "DEV environment, hence allowed with ERROR/WARN. Check and fix reported issues before moving to prod here - $env:SONAR_HOST/dashboard?id=$env:PROJECT_NAME"
+              Set-Content -Path "CODEBUILD_BUILD_SUCCEEDING.txt" -Value "1"
+          }
+         }elseif ($status -eq "None") {
+            Write-Host "Quality Gate status is None, verify if Quality Gate is attached to sonar project"
+            Set-Content -Path "CODEBUILD_BUILD_SUCCEEDING.txt" -Value "0"
+         }
+      - $codeBuildSucceedingValue = Get-Content "CODEBUILD_BUILD_SUCCEEDING.txt"
+
+  post_build:
+    commands:
+      - Write-Host "CODEBUILD_BUILD_SUCCEEDING - $codeBuildSucceedingValue"
+      - |
+         if ($codeBuildSucceedingValue -eq "0") {
+           Write-Host "Quality gate status is not success - exiting with error"
+           Write-Host " **** check your application vulnerabilities and coverage here - $env:SONAR_HOST/dashboard?id=$env:PROJECT_NAME"
+           exit 1
+         } else {
+           Write-Host "Build Success"
+         }
+            
+artifacts:
+    files:
+      - '**/*'
+
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+    - '/root/.nuget/**/*'

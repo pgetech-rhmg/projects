@@ -1,0 +1,8 @@
+#
+#  Filename    : aws/module/eks/module.info
+#  Date        : 21 NOV 2025
+#  Author      : CCOE
+#  Description : Terraform module for creation of eks
+#
+[info]
+version = 0.3.4

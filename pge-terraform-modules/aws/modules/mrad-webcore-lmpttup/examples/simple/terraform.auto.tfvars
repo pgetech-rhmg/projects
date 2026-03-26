@@ -1,0 +1,13 @@
+project_name        = "Engage-PTT-Second-Pass-Update"
+environment         = "Dev"
+app_id              = "2586"
+data_classification = "Internal"
+cris                = "Low"
+notify              = ["aucm@pge.com"]
+owner               = ["A1P2", "C1MP", "C3T1"]
+compliance          = ["None"]
+aws_region          = "us-west-2"
+account_num_r53     = "514712703977" # dev workspace value
+aws_r53_role        = "TFCBR53Role"  # dev workspace value
+create_lmpttup      = true
+prefix              = "engagetest"

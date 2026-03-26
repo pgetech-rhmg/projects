@@ -1,0 +1,76 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - PROJECT_ROOT_DIRECTORY
+    - ARTIFACTORY_HOST
+    - ARTIFACTORY_REPO_KEY
+    - DEPENDENCY_FILES_LOCATION
+  variables:
+    ARTIFACTORY_AUTH_PREFIX: 'Authorization:'
+    ARTIFACTORY_TOKEN : "${ARTIFACTORY_TOKEN}"
+    GIT_REPO_BRANCH   : "${GIT_REPO_BRANCH}"
+    GIT_REPO_URL      : "${GIT_REPO_URL}"
+    LAMBDA_FUNCTION_NAME : "${LAMBDA_FUNCTION_NAME}"
+    LAMBDA_ALIAS_NAME : "${LAMBDA_ALIAS_NAME}"
+phases:
+  install:
+    runtime-versions:
+      dotnet: $DOTNET_RUNTIME
+    commands:
+      - Write-Host "Entered the install phase... (Windows)"
+      - Write-Host "codebuild app language - $env:CODEBUILDAPP_LANGUAGE"
+      - Write-Host "dotnet runtime - $env:DOTNET_RUNTIME"
+      - Write-Host "Install JFROG CLI"
+      - Invoke-WebRequest -Uri "https://releases.jfrog.io/artifactory/jfrog-cli/v2/2.57.0/jfrog-cli-windows-amd64/jfrog.exe" -OutFile jfrog.exe
+      - .\jfrog.exe --version
+
+  pre_build:
+    commands:
+      - Write-Host "Entered the pre_build phase... (Windows)"
+      # - Write-Host "Making sure dotnet is installed"
+      # - dotnet --version
+      - Write-Host "Making sure GIT cli is installed"
+      - git --version
+      - Write-Host "Making sure JFROG cli is installed"
+      - .\jfrog.exe --version
+  build:
+    on-failure: ABORT
+    commands:
+      - Write-Host "Entered the build phase execution... (Windows)"
+      - Write-Host "PROJECT_ROOT_DIRECTORY - $env:PROJECT_ROOT_DIRECTORY"
+      - Write-Host "LAMBDA_FUNCTION_NAME - $env:LAMBDA_FUNCTION_NAME"
+      - Write-Host "EXCLUDE_FILES - $env:EXCLUDE_FILES"
+      - Write-Host "LAMBDA_UPDATE - $env:LAMBDA_UPDATE"
+      - |
+          if ($env:PROJECT_ROOT_DIRECTORY -ne "") {
+            Write-Host "Change directory to $env:PROJECT_ROOT_DIRECTORY"
+            Set-Location $env:PROJECT_ROOT_DIRECTORY
+            Get-ChildItem
+          }
+      - Get-ChildItem
+      - Write-Host "Skipping metadata file logic; using static artifact name"
+      - Compress-Archive -Path * -DestinationPath output.zip
+      - Write-Host "Created output.zip"
+      - Get-ChildItem
+      # JFrog CLI and AWS Lambda update commands should be adapted for Windows if needed
+      # Install Visual Studio Build Tools with ASP.NET workload if not present
+      # - |
+      #     $vsInstaller = "$env:TEMP\vs_buildtools.exe"
+      #     Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_buildtools.exe" -OutFile $vsInstaller
+      #     Start-Process -FilePath $vsInstaller -ArgumentList "--quiet --wait --norestart --nocache --installPath C:\BuildTools --add Microsoft.VisualStudio.Workload.WebBuildTools" -Wait
+      #     Write-Host "Visual Studio Build Tools installation complete."
+      # # Set VSToolsPath so MSBuild can find Microsoft.WebApplication.targets in Build Tools
+      # - $env:VSToolsPath = 'C:\BuildTools\MSBuild\Microsoft\VisualStudio\v17.0'
+      # # Use MSBuild.exe from Build Tools for classic web projects
+      # - 'C:\BuildTools\MSBuild\Current\Bin\MSBuild.exe $env:PROJECT_FILE /p:VSToolsPath="C:\BuildTools\MSBuild\Microsoft\VisualStudio\v17.0"'
+        
+artifacts:
+    files:
+      - '**/*'
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+    - '/root/.nuget/**/*'

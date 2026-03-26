@@ -1,0 +1,8 @@
+#
+#  Filename    : aws/module/route53/module.info
+#  Date        : 04 July 2022
+#  Author      : TCS
+#  Description : Terraform module for creation of route 53
+#
+[info]
+version = 0.1.1

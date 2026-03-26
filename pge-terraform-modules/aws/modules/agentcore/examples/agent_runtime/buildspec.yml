@@ -1,0 +1,47 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+
+phases:
+  install:
+    commands:
+      - echo "Entered the install phase..."
+      - echo "Installing WIZ CLI"
+      - echo $ENVIRONMENT
+      - curl -o wizcli https://downloads.wiz.io/wizcli/latest/wizcli-linux-amd64 && chmod +x wizcli
+      - export PATH=$PWD/:$PATH
+      - wizcli version
+      - wizcli auth --id "$WIZ_CLIENT_ID" --secret "$WIZ_CLIENT_SECRET" || echo "Wiz auth failed - continuing in ${ENVIRONMENT} environment"
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo "Logging into Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_NUMBER.dkr.ecr.$AWS_REGION.amazonaws.com
+
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the build phase..."
+      - echo "Building Docker image..."
+      - IMAGE_TAG=$(date +%Y%m%d-%H%M%S)-$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - echo "Image tag is $IMAGE_TAG"
+      - docker build -t $DOCKER_IMAGE_NAME:$IMAGE_TAG .
+      - docker tag $DOCKER_IMAGE_NAME:$IMAGE_TAG $ECR_REPOSITORY_URI:$IMAGE_TAG
+      - echo "Running Wiz security scan..."
+      - docker images
+      - wizcli docker scan --image $DOCKER_IMAGE_NAME:$IMAGE_TAG -f json > scan-result.json || echo "Wiz scan failed - skipping for ${ENVIRONMENT}"
+      - if [ -f "scan-result.json" ]; then chmod +x scan-result.json; SCAN_STATUS=$(jq -r ".status.\"verdict\"" scan-result.json); echo "Analyzing WIZ Scan result - $SCAN_STATUS"; if [ "$SCAN_STATUS" == "PASSED_BY_POLICY" ]; then echo "SCANNING PASSED - Proceeding further"; else REPORT_URL=$(jq -r '.reportUrl' scan-result.json); echo "Found Vulnerabilities - Report at $REPORT_URL"; if [[ "${ENVIRONMENT,,}" != "dev" ]]; then echo "***** NOT pushing image *****"; exit 1; else echo "******* CONTINUING as DEV ENVIRONMENT *******"; fi; fi; else echo "Wiz scan file not found - skipping for ${ENVIRONMENT}"; fi
+
+  post_build:
+    commands:
+      - echo "Entered the post_build phase..."
+      - echo "Pushing Docker image to ECR..."
+      - docker push $ECR_REPOSITORY_URI:$IMAGE_TAG
+      - echo "Build completed successfully"
+      - printf '[{"name":"bedrock-agent-runtime","imageUri":"%s"}]' $ECR_REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json

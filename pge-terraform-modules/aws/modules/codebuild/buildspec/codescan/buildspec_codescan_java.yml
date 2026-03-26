@@ -1,0 +1,119 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+#Regardless of what you compile your code with, the SonarQube analysis should be run with a specific Java version, For SonarQube 9.* compatibility, make sure the JAVA_HOME=/path/to/java11
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - PROJECT_NAME
+    - PROJECT_ROOT_DIRECTORY
+  variables:
+    ARTIFACTORY_AUTH_PREFIX: 'Authorization:'
+    SONAR_TOKEN            : "${SONAR_TOKEN}"
+    ARTIFACTORY_TOKEN : "${ARTIFACTORY_TOKEN}"
+    GIT_REPO_BRANCH   : "${GIT_REPO_BRANCH}"
+phases:
+  install:
+    runtime-versions:
+      java: $JAVA_RUNTIME_CODESCAN
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo "Making sure Java is installed"
+      - echo `java -version`
+      - echo "Making sure Maven is installed"
+      - echo `mvn --version`
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the build phase..."
+      - echo Build started on `date`
+      - |
+        if [ "$DOWNLOAD_ARTIFACT" = "true" ] ; then
+          echo "Skipping SonarScan because download_artifact is true, going to check QG status check"
+        else
+          if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+            echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+            cd $PROJECT_ROOT_DIRECTORY
+            ls -l
+          fi
+          SONAR_BRANCH_SCANNED=${GIT_REPO_BRANCH}
+          echo `pwd`
+          ls -lart
+          ARTIFACT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -Dinternal_user=$ARTIFACTORY_USER -Dinternal_pw=$ARTIFACTORY_TOKEN ${OPTIONAL_ATTRIBUTES} -s settings.xml)
+
+          echo "SONAR_HOST - $SONAR_HOST"
+          echo "PROJECT_NAME - $PROJECT_NAME"
+          echo "ARTIFACT_VERSION - $ARTIFACT_VERSION"
+          echo "SONAR_TOKEN - $SONAR_TOKEN"
+          echo "ARTIFACTORY_USER - $ARTIFACTORY_USER"
+          echo "Running Sonar Analysis for branch ${SONAR_BRANCH_SCANNED}"
+          export COMMAND=$(echo "mvn clean verify sonar:sonar -Dsonar.token=\"$SONAR_TOKEN\" -Dsonar.host.url=\"$SONAR_HOST\" -Dsonar.projectKey=\"$PROJECT_KEY\" -Dsonar.projectName=\"$PROJECT_NAME\" -Dversion=\"$ARTIFACT_VERSION\" -Dinternal_user=$ARTIFACTORY_USER -Dinternal_pw=$ARTIFACTORY_TOKEN -Dsonar.branch.name=$SONAR_BRANCH_SCANNED -Dsonar.maven.scanAll=true ${OPTIONAL_ATTRIBUTES} -s settings.xml")
+          echo $COMMAND
+          eval $COMMAND
+        fi
+
+      - |
+        # Parse and format SonarQube tags from JSON
+        APPID=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.AppID')
+        ORDER=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.Order')
+        TFC_WSID=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.tfc_wsid')
+        NOTIFY=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.Notify')
+        OWNER=$(echo "$SONAR_PROJECT_TAGS" | jq -r '.Owner')
+
+        # Replace _ with - for SonarQube compliance
+        NOTIFY="${NOTIFY//_/-}"
+        OWNER="${OWNER//_/-}"
+
+        # Build the tags string
+        FORMATTED_TAGS="${APPID},${NOTIFY},${ORDER},${OWNER},${TFC_WSID}"
+
+        # Lowercase and remove non-compliant characters
+        FORMATTED_TAGS=$(echo "$FORMATTED_TAGS" | tr '[:upper:]' '[:lower:]')
+        FORMATTED_TAGS=$(echo "$FORMATTED_TAGS" | sed 's/[^a-z0-9+-.#,]//g')
+
+        echo "Setting SonarQube project tags: $FORMATTED_TAGS"
+        curl -X POST "$SONAR_HOST/api/project_tags/set" \
+          -u "$SONAR_TOKEN:" \
+          -d "project=$PROJECT_KEY" \
+          -d "tags=$FORMATTED_TAGS"
+          
+      # checking quality gate status
+      - sleep 30;
+      - echo "checking SonarQube Quality Gate Status for branch ${SONAR_BRANCH_SCANNED}"
+      - curl -s -u "$SONAR_TOKEN:" -G --data-urlencode "branch=$SONAR_BRANCH_SCANNED" --data-urlencode "projectKey=$PROJECT_KEY"  "$SONAR_HOST"/api/qualitygates/project_status > result.json
+      - cat result.json
+      # Quality scan validation. Build will fail for all enviroments other than Dev if ERROR/WARN found. Build will fail if QG is not attached.
+      - |
+        if [[ $(jq -r '.projectStatus.status' result.json) != OK ]] ; then
+          echo "ERROR/WARN found or there's no QG attached in the Sonar server. Please verify"
+          if [[ "${APP_ENVIRONMENT,,}" != "dev" ]] ; then
+              export CODEBUILD_BUILD_SUCCEEDING=0 ;
+          else
+             echo "DEV environment, hence allowed with ERROR/WARN. Check and fix reported issues before moving to prod here - $SONAR_HOST/dashboard?id=$PROJECT_NAME" ;
+          fi
+        elif [[ $(jq -r '.projectStatus.status' result.json) == None ]] ; then 
+          echo "Quality Gate status is None, verify if Quality Gate is attached to sonar project"
+          export CODEBUILD_BUILD_SUCCEEDING=0 ;
+        fi
+
+
+
+  post_build:
+    commands:  
+      - |
+        if [[ $CODEBUILD_BUILD_SUCCEEDING == 0 ]]; then 
+            echo "Quality gate status is not success - exiting with error"
+            echo " **** check your application vulnerabilities and coverage here - $SONAR_HOST/dashboard?id=$PROJECT_NAME"
+            exit 1; 
+        else
+          echo 'Build Success'
+        fi
+
+artifacts:
+    files:
+      - '**/*'
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html 
+cache:
+  paths:
+  - '/root/.m2/**/*'

@@ -1,0 +1,8 @@
+#
+#  Filename    : aws/module/transfer-family/module.info
+#  Date        : 19 Oct 2022
+#  Author      : TCS
+#  Description : Terraform module for creation of Transfer Family
+#
+[info]
+version = 0.1.2

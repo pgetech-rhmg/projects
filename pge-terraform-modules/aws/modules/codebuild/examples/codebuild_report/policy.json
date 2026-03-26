@@ -1,0 +1,18 @@
+{
+  "Version" : "2012-10-17",
+  "Id"      : "default",
+  "Statement" : [{
+    "Sid"    : "default",
+    "Effect" : "Allow",
+    "Principal" : {
+      "AWS" : "arn:${partition}:iam::${account_num}:root"
+    },
+    "Action" : [
+      "codebuild:BatchGetReportGroups",
+      "codebuild:BatchGetReports",
+      "codebuild:ListReportsForReportGroup",
+      "codebuild:DescribeTestCases"
+    ],
+    "Resource" : "arn:aws:codebuild:${aws_region}:${account_num}:report-group/${codebuild_rg_name}"
+  }]
+}

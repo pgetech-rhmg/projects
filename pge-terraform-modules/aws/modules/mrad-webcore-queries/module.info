@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 2025-05-08
+#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
+#  Description : AWM Webcore Queries Module
+#
+[info]
+version = 0.1.6

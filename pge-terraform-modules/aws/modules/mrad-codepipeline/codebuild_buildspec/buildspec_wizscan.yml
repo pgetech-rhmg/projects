@@ -1,0 +1,63 @@
+---
+version: 0.2
+
+env:
+  variables:
+    CURL_COMMAND_SWITCHES: '-k -v -H'
+    AUTH_BEARER_HEADER: 'Authorization: Bearer'
+  parameter-store:
+    GITHUB_TOKEN: MRAD_GITHUB_TOKEN
+
+phases:
+  install:
+    commands:
+      - env
+      - echo "Installing WIZ CLI"
+      - echo "$ENVIRONMENT"
+      - echo "$APP_OWNERS"
+      - mkdir -p /tmp/wizcli
+      - curl -o /tmp/wizcli/wizcli https://downloads.wiz.io/wizcli/latest/wizcli-linux-amd64
+      - chmod +x /tmp/wizcli/wizcli
+      - export PATH=$PWD/:$PATH
+      - export PATH=/tmp/wizcli:$PATH
+      - /tmp/wizcli/wizcli version
+      - /tmp/wizcli/wizcli auth --id "$WIZ_CLIENT_ID" --secret "$WIZ_CLIENT_SECRET"
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - pwd
+      - echo "Making sure Curl is installed"
+      - echo `curl --version`
+
+  build:
+    commands:
+      - echo "Entered the build phase..."
+      - export ACCOUNT_NAME_RAW="$(source common.sh; account_name_from_branch)"
+      - export ACCOUNT_NAME="$(echo $ACCOUNT_NAME_RAW | awk '{print tolower($0)}')"
+      - export AWS_ACCOUNT_NUMBER="$(source common.sh; account_number_from_branch)"
+      - echo Build started on `date`
+      - aws --version
+      - TAG=$(date +%Y-%m-%d.%H.%M.%S)
+      - echo $TAG
+
+      - echo $(date +%Y-%m-%d)
+      - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+      - python --version
+      - echo "Building image(s) ..."
+      - |
+          for url in $ECR_REPO_URLS; do
+            cat Dockerfile.tmpl | envsubst > Dockerfile
+            docker build --build-arg DOCKER_ENV=${NODE_ENV} --build-arg PROJECT=${PROJECT_NAME} --build-arg GITHUB_TOKEN=${GITHUB_TOKEN} -t ${LOWER_PROJECT_NAME}-${BRANCH}:${GIT_HASH} .
+            /tmp/wizcli/wizcli docker scan --image ${LOWER_PROJECT_NAME}-${BRANCH}:${GIT_HASH}
+            docker tag ${LOWER_PROJECT_NAME}-${BRANCH}:${GIT_HASH} $url:${GIT_HASH}
+            docker tag ${LOWER_PROJECT_NAME}-${BRANCH}:${GIT_HASH} $url:latest
+            docker push $url:${GIT_HASH}
+            docker push $url:latest
+          done
+
+      - echo **********  Successfully Executed ***************
+
+artifacts:
+  files:
+    - '**/*'

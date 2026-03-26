@@ -1,0 +1,118 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - ARTIFACT_NAME
+    - PROJECT_ROOT_DIRECTORY
+    - ARTIFACTORY_REPO_KEY
+    - ARTIFACTORY_REPO_KEY_PATH
+    - NODEJS_VERSION
+    - CODEBUILD_BUILD_NUMBER
+    - ARTIFACTORY_UPLOAD_FILE
+    - S3_STATIC_WEB_BUCKET
+    - S3_STATIC_WEB_BUCKET_REGION
+    - S3_WEB_CLOUDFRONT_DISTRIBUTION_ID
+  variables:
+    ARTIFACTORY_TOKEN : "${ARTIFACTORY_TOKEN}"
+    ARTIFACTORY_HOST  : "${ARTIFACTORY_HOST}"
+    ARTIFACTORY_REPO_KEY : "${ARTIFACTORY_REPO_KEY}"
+    ARTIFACTORY_REPO_KEY_PATH : "${ARTIFACTORY_REPO_KEY_PATH}"
+    GIT_REPO_BRANCH   : "${GIT_REPO_BRANCH}"
+    ARTIFACTORY_UPLOAD_FILE : "${ARTIFACTORY_UPLOAD_FILE}"
+    S3_STATIC_WEB_BUCKET: "${S3_STATIC_WEB_BUCKET}"
+    S3_STATIC_WEB_BUCKET_REGION: "${S3_STATIC_WEB_BUCKET_REGION}"
+phases:
+  install:
+    runtime-versions:
+      nodejs: 16
+    commands:
+      - echo "Entered the install phase..."
+      # Installing jfrog cli
+      - 'ls -lart'
+      - echo "Install JFROG CLI"
+      - curl -k -fL https://install-cli.jfrog.io | sh && jf --version
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo `git --version`
+      - echo "Making sure JFROG cli is installed"
+      - echo `jf --version`
+
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the build phase execution..."
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+      # - echo Build started on `date`
+      # - ls -lart
+      # - echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+      # # - cd $PROJECT_ROOT_DIRECTORY
+      # - export SERVER_ID="https://jfrog.nonprod.pge.com"
+      # - export CODEBUILD_NAME=`echo "$CODEBUILD_BUILD_ID" | awk '{split($0,a,":"); print a[1]}'`
+      # - echo "CODEBUILD_BUILD_ID - $CODEBUILD_BUILD_ID"
+      # - echo "CODEBUILD_NAME - $CODEBUILD_NAME"
+      # - echo "CODEBUILD_BUILD_NUMBER - $CODEBUILD_BUILD_NUMBER"
+      # - echo "CODEBUILD_SRC_DIR - $CODEBUILD_SRC_DIR"
+      # - echo "GIT_REPO_BRANCH - $GIT_REPO_BRANCH"
+      # - echo "CODEBUILD_RESOLVED_SOURCE_VERSION - $CODEBUILD_RESOLVED_SOURCE_VERSION"
+      # - echo "SERVER_ID - $SERVER_ID"
+      # - echo "Deploy Artifact $ARTIFACT_NAME to Artifactory Host $ARTIFACTORY_HOST with REPO-KEY-PATH $ARTIFACTORY_REPO_KEY_PATH"
+      # - echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+      # - echo present working directory `pwd`
+
+      # # Jfrog server conifguration
+
+      # - jf c add "${ARTIFACTORY_HOST}" --access-token="${ARTIFACTORY_TOKEN}" --url="${ARTIFACTORY_HOST}" --interactive=false
+      # - jf rt ping
+      # - jf c s
+      # - echo "ARTIFACTORY_REPO_KEY_PATH-$ARTIFACTORY_REPO_KEY_PATH"
+      # - echo "ARTIFACTORY_REPO_KEY-$ARTIFACTORY_REPO_KEY"
+
+      # # Jfrog repo configuraiton
+
+      # - jf rt npmc --repo-deploy $ARTIFACTORY_REPO_KEY_PATH --repo-resolve $ARTIFACTORY_REPO_KEY
+      # - echo "artifact_file - $artifact_file"
+      # - jf c s
+
+      # # Resolving dependancies
+      # # - jf rt npm-install --build-name=$CODEBUILD_NAME --build-number=$CODEBUILD_BUILD_NUMBER
+
+      # # Uploading artifacts to jfrog
+      # # - jf rt npm-publish --build-name=$CODEBUILD_NAME --build-number=$CODEBUILD_BUILD_NUMBER
+      # # - ls -larth *.tgz
+      # - zip -r $ARTIFACTORY_UPLOAD_FILE.zip .
+      # - jf rt u "$ARTIFACTORY_UPLOAD_FILE.zip" $ARTIFACTORY_REPO_KEY_PATH/{1}/ --recursive=false --access-token="$ARTIFACTORY_TOKEN" --url="$ARTIFACTORY_HOST/artifactory" --build-name="$CODEBUILD_NAME" --build-number="$CODEBUILD_BUILD_NUMBER"
+
+
+  post_build:
+    commands:
+      # - echo "only required if appspec.yml exists other than root directory"
+      # - find . -type f -name "appspec.yml" -exec cp {} $CODEBUILD_SRC_DIR/ \;
+      # - echo "verifying appspec.yml" && ls $CODEBUILD_SRC_DIR/appspec.yml
+      # - echo "updating artifact name without version for appspec.yml"
+      # - find . -type f -name "$ARTIFACT_FULL_NAME" -exec cp {} $CODEBUILD_SRC_DIR/$ARTIFACT_ID.$ARTIFACT_TYPE \;
+      # - echo "verifying artifact $ARTIFACT_ID.$ARTIFACT_TYPE" && ls $CODEBUILD_SRC_DIR/$ARTIFACT_ID.$ARTIFACT_TYPE
+
+      - echo Transferring files to S3
+      - aws s3 rm s3://$S3_STATIC_WEB_BUCKET/ --region $S3_STATIC_WEB_BUCKET_REGION --recursive --include "*"
+      - aws s3 cp dist/$PROJECT_ROOT_DIRECTORY/ s3://$S3_STATIC_WEB_BUCKET/ --recursive --region $S3_STATIC_WEB_BUCKET_REGION
+      - aws cloudfront create-invalidation --distribution-id $S3_WEB_CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
+      - echo Build completed on `date`
+
+artifacts:
+    files:
+      - '**/*'
+      - appspec.yml
+
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+  - '/root/.npm/**/*'

@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 18 Aug 2025
+#  Author      : Balaji Venkataraman (b1v6@pge.com)
+#  Description : Module for vpc secondary cidr association
+#
+[info]
+version = 0.1.0

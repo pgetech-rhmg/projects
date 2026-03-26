@@ -1,0 +1,31 @@
+version: 0.2
+env:
+  shell: bash
+  parameter-store:
+    GITHUB_TOKEN: "MRAD_GITHUB_TOKEN"
+  secrets-manager:
+    SONAR_TOKEN: "webcore_sonar:token"
+phases:
+  install:
+    commands:
+      - echo "Download SonarScanner"
+      - wget -q -O sonar-scanner-cli.zip $SONAR_CLI_DOWNLOAD_URL
+      - echo "Unzip SonarScanner"
+      - unzip sonar-scanner-cli.zip
+      - rm sonar-scanner-cli.zip
+      - echo "Install SonarScanner"
+      - mv sonar-scanner-* /opt/sonar-scanner
+      - echo -e "#/bin/bash\nexport PATH=$PATH:/opt/sonar-scanner/bin" >> /etc/profile.d/sonar-scanner.sh
+      - source /etc/profile.d/sonar-scanner.sh
+      - echo "Running sonar-scanner -v"
+      - sonar-scanner -v
+      - echo "Sonar Scanner is installed"
+  build:
+    commands:
+      - env | sort
+      - pwd
+      - ls -al
+      - bash ./buildspecs/buildspec-sonarqube.sh
+  post_build:
+    commands:
+      - echo SonarQube Scanner completed on `date`

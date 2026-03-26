@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 01 July 2024
+#  Author      : Eric Barnard (e6bo@pge.com)
+#  Description : module meta data (version) for registry
+#
+[info]
+version = 0.1.2

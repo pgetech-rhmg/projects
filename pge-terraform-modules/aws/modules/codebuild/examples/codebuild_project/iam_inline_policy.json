@@ -1,0 +1,56 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+      {
+          "Effect": "Allow",
+          "Resource": "*",
+          "Action": [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+          ]
+      },
+      {
+          "Effect": "Allow",
+          "Action": [
+              "ec2:CreateNetworkInterface",
+              "ec2:DescribeDhcpOptions",
+              "ec2:DescribeNetworkInterfaces",
+              "ec2:DeleteNetworkInterface",
+              "ec2:DescribeSubnets",
+              "ec2:DescribeSecurityGroups",
+              "ec2:DescribeVpcs",
+              "secretsmanager:GetSecretValue",
+              "secretsmanager:DescribeSecret"
+          ],
+          "Resource": "*"
+      },
+    {
+        "Effect": "Allow",
+        "Action": [
+          "ec2:CreateNetworkInterfacePermission"
+        ],
+        "Resource": [
+        "arn:aws:ec2:${aws_region}:${account_num}:network-interface/*"
+        ],
+        "Condition": {
+          "StringLike": {
+            "ec2:Subnet": [
+              "arn:aws:ec2:${aws_region}:${account_num}:subnet/*"
+            ],
+            "ec2:AuthorizedService": "codebuild.amazonaws.com"
+          }
+        }
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+            "s3:*"
+        ],
+        "Resource": [
+            "${s3_arn}",
+            "${s3_arn}/*"
+        ]
+    }
+  ]
+}

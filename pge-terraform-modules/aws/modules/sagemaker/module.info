@@ -1,0 +1,8 @@
+#
+#  Filename    : aws/module/sagemaker/module.info
+#  Date        : 10 Oct 2022
+#  Author      : TCS
+#  Description : Terraform module for creation of sagemaker
+#
+[info]
+version = 0.1.3

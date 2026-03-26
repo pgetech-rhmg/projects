@@ -1,0 +1,14 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "Allow Staging Dev to copy into Vault Dev Vault",
+        "Effect": "Allow",
+        "Action": "backup:CopyIntoBackupVault",
+        "Resource": "*",
+        "Principal": {
+          "AWS": "arn:aws:iam::654654458533:root"
+        }
+      }
+    ]
+  }

@@ -1,0 +1,117 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables:
+    - ARTIFACT_NAME
+    - PROJECT_ROOT_DIRECTORY    
+    - ARTIFACTORY_HOST
+    - ARTIFACTORY_REPO_KEY
+    - ARTIFACTORY_REPO_KEY_PATH
+    - DEPENDENCY_FILES_LOCATION
+    - DOTNET_VERSION
+  variables:
+    ARTIFACTORY_AUTH_PREFIX: 'Authorization:'
+    ARTIFACTORY_TOKEN : "${ARTIFACTORY_TOKEN}"
+    GIT_REPO_BRANCH   : "${GIT_REPO_BRANCH}"
+    GIT_REPO_URL      : "${GIT_REPO_URL}"
+phases:
+  install:
+   commands:
+     - echo "Entered the install phase..."
+     
+     - yum install -y git
+     
+     - echo "Install JFROG CLI"
+     - curl -k -fL https://install-cli.jfrog.io | sh && jf --version
+
+
+  pre_build:
+    commands:
+      - echo "Entered the pre-build phase..."
+      - echo "Restore started on `date`"
+      
+      - echo "Making sure JFROG cli is installed"
+      - echo `jf --version`
+      
+  build:
+    commands:
+      - echo "Build started on `date`"
+      - pwd
+      - ls -lrta
+
+      # Publishing Artifacts to JFROG
+      - export SERVER_ID="$ARTIFACTORY_HOST"
+      - export CODEBUILD_NAME=`echo "$CODEBUILD_BUILD_ID" | awk '{split($0,a,":"); print a[1]}'`
+     
+      - echo "CODEBUILD_BUILD_ID - $CODEBUILD_BUILD_ID"
+      - echo "CODEBUILD_NAME - $CODEBUILD_NAME"
+      - echo "CODEBUILD_BUILD_NUMBER - $CODEBUILD_BUILD_NUMBER"
+      - echo "CODEBUILD_SRC_DIR - $CODEBUILD_SRC_DIR"
+      - echo "GIT_REPO_URL - $GIT_REPO_URL"
+      - echo "GIT_REPO_BRANCH - $GIT_REPO_BRANCH"
+      - echo "CODEBUILD_RESOLVED_SOURCE_VERSION - $CODEBUILD_RESOLVED_SOURCE_VERSION"  
+      - echo "SERVER_ID - $SERVER_ID"      
+      - echo "Deploy Artifact $ARTIFACT_NAME to Artifactory Host $ARTIFACTORY_HOST with REPO-KEY-PATH $ARTIFACTORY_REPO_KEY_PATH"
+     
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY/build_artifacts
+          ls -l
+        fi
+      
+      - jf c add "$SERVER_ID" --access-token="$ARTIFACTORY_TOKEN" --url="$ARTIFACTORY_HOST" --interactive=false
+      - jf c s
+      - jf rt ping
+
+      - |
+        if [ -f ./*.nupkg ] ; then
+          artifact_file="(*).nupkg"
+        elif [ -f ./*.zip ] ; then
+          artifact_file="(*).zip"
+        else
+           echo "Error: there is no artifact in the root directory"
+           exit 1
+        fi
+        
+      - echo "artifact_file - $artifact_file"
+        
+      # Uploading Artifact
+      - jf rt u "$artifact_file" $ARTIFACTORY_REPO_KEY_PATH/artifactory --recursive=false --access-token="$ARTIFACTORY_TOKEN" --url="$ARTIFACTORY_HOST/artifactory" --build-name="$CODEBUILD_NAME" --build-number="$CODEBUILD_BUILD_NUMBER"
+   
+     # Collecting environment variables
+      - jf rt bce "$CODEBUILD_NAME" "$CODEBUILD_BUILD_NUMBER"
+      
+      # Publishing dependencies
+      - |
+        if [ "$DEPENDENCY_FILES_LOCATION" != "" ] ; then
+            jf rt bad "$CODEBUILD_NAME" "$CODEBUILD_BUILD_NUMBER" "$DEPENDENCY_FILES_LOCATION"
+        fi
+        
+      # Publishing build-info
+      - jf rt bp "$CODEBUILD_NAME" "$CODEBUILD_BUILD_NUMBER" --build-url="$CODEBUILD_BUILD_ARN"
+      - jf rt bpr "$CODEBUILD_NAME" "$CODEBUILD_BUILD_NUMBER" $ARTIFACTORY_REPO_KEY --status="released"
+     
+      - jf c rm $SERVER_ID --quiet
+      - jf c s
+  post_build:
+    commands:
+      - echo post_build started on `date`
+      - cd $CODEBUILD_SRC_DIR/$PROJECT_ROOT_DIRECTORY
+      # code-deploy expects the appspec.yml file on the root directory, otherwise code-deploy will fail.
+      - echo "only required if appspec.yml exists other than root directory"
+      - find . -type f -name "appspec.yml" -exec cp {} $CODEBUILD_SRC_DIR/ \;
+      - echo "verifying appspec.yml" && ls -lrta $CODEBUILD_SRC_DIR
+      - pwd
+      - echo "CODEBUILD_SRC_DIR - $CODEBUILD_SRC_DIR"
+      - ls -lrta $CODEBUILD_SRC_DIR
+artifacts:
+  files:
+    - ./**/*
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html
+cache:
+  paths:
+    - '/root/.nuget/**/*'
+
+  

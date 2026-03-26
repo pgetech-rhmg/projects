@@ -1,0 +1,77 @@
+name: "InstallAndConfigureCloudWatchAgent"
+description: Install And Configure CloudWatch Agent
+schemaVersion: 1.0
+phases:
+  - name: "build"
+    steps:
+      - name: "UpdateSystem"
+        action: "ExecuteBash"
+        inputs:
+          commands:
+            - sudo yum update -y
+            - sudo yum install wget -y
+
+      - name: "InstallAndConfigureCloudWatchAgent"
+        action: "ExecuteBash"
+        inputs:
+          commands:
+            - wget https://s3.amazonaws.com/amazoncloudwatch-agent/redhat/amd64/latest/amazon-cloudwatch-agent.rpm
+            - sudo rpm -U ./amazon-cloudwatch-agent.rpm
+      - name: "CreateCloudWatchConfig"
+        action: "ExecuteBash"
+        inputs:
+          commands:
+            - |
+              sudo cat << 'EOF' > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+              {
+                "agent":{
+                  "metrics_collection_interval": 60,
+                  "run_as_user": "root"
+                },
+                "metrics":{
+                  "metrics_collected": {
+                    "mem": {
+                      "measurement": ["mem_used_percent"]
+                    },
+                    "disk": {
+                      "measurement": ["disk_used_percent"],
+                      "resources": ["/"]
+                    }
+                  }
+                }
+              }
+              EOF
+
+      - name: "ConfigureAndStartAgent"
+        action: "ExecuteBash"
+        inputs:
+          commands:
+            - sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+            - sudo systemctl enable amazon-cloudwatch-agent
+            - sudo systemctl start amazon-cloudwatch-agent
+
+  - name: validate
+    steps:
+      - name: VerifyCloudWatchAgent
+        action: "ExecuteBash"
+        inputs:
+          commands:
+            - systemctl status amazon-cloudwatch-agent
+            
+
+  - name: test
+    steps:
+      - name: TestCloudWatchAgent
+        action: "ExecuteBash"
+        inputs:
+          commands:
+            - |
+              sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status | grep running >/dev/null
+              if [ $? = 0 ]
+              then
+                  echo "Succeeded : CloudWatch agent is running"
+              else
+                  echo "Failed : CloudWatch agent is not running"
+              fi
+
+         

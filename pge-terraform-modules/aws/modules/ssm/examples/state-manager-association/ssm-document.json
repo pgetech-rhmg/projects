@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.3",
+  "description": "This Document is to trigger the Lambda function to perform remediation only.",
+  "assumeRole": "{{ AutomationAssumeRole }}",
+  "parameters": {
+    "AutomationAssumeRole": {
+      "default": "arn:aws:iam::750713712981:role/ccoe_remidiation_automation_doc_iam_role",
+      "type": "String"
+    },
+    "BucketName": {
+      "default": "aws-quicksetup-patchpol-241689241215",
+      "type": "String"
+    },
+    "LambdaFunctionArn": {
+      "default": "arn:aws:lambda:us-west-2:750713712981:function:baseline-overrides-cc",
+      "type": "String"
+    },
+    "PatchBaselines": {
+      "default": "{ \"AMAZON_LINUX\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-0d5ff2de2fa3fa0ff\", \"label\": \"AWS-AmazonLinuxDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for Amazon Linux Provided by AWS.\", \"disabled\": false }, \"AMAZON_LINUX_2\": { \"value\": \"pb-0999db2979a5977dc\", \"label\": \"PGE-AmazonLinux2PatchBaseline\", \"disabled\": false }, \"AMAZON_LINUX_2022\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-037a9df9b290208cf\", \"label\": \"AWS-AmazonLinux2022DefaultPatchBaseline\", \"description\": \"Default Patch Baseline for Amazon Linux 2022 Provided by AWS.\", \"disabled\": false }, \"CENTOS\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-0b641de5f3a9f3b2f\", \"label\": \"AWS-CentOSDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for CentOS Provided by AWS.\", \"disabled\": false }, \"DEBIAN\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-04d1ad3cad30d44ff\", \"label\": \"AWS-DebianDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for Debian Provided by AWS.\", \"disabled\": false }, \"MACOS\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-03dbdd88b851b829c\", \"label\": \"AWS-MacOSDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for MacOS Provided by AWS.\", \"disabled\": false }, \"ORACLE_LINUX\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-06ac4861e0c6d047f\", \"label\": \"AWS-OracleLinuxDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for Oracle Linux Server Provided by AWS.\", \"disabled\": false }, \"RASPBIAN\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-0bcede5146d0adbd4\", \"label\": \"AWS-RaspbianDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for Raspbian Provided by AWS.\", \"disabled\": false }, \"REDHAT_ENTERPRISE_LINUX\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-054123d940f3d2056\", \"label\": \"AWS-RedHatDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for Redhat Enterprise Linux Provided by AWS.\", \"disabled\": false }, \"ROCKY_LINUX\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-0b12e36f68dafa2ba\", \"label\": \"AWS-RockyLinuxDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for Rocky Linux Provided by AWS.\", \"disabled\": false }, \"SUSE\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-0aee740f9a480ec2e\", \"label\": \"AWS-SuseDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for Suse Provided by AWS.\", \"disabled\": false }, \"UBUNTU\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-0dcda0730ce35c5e6\", \"label\": \"AWS-UbuntuDefaultPatchBaseline\", \"description\": \"Default Patch Baseline for Ubuntu Provided by AWS.\", \"disabled\": false }, \"WINDOWS\": { \"value\": \"arn:aws:ssm:us-west-2:280605243866:patchbaseline/pb-04fb4ae6142167966\", \"label\": \"AWS-DefaultPatchBaseline\", \"description\":\"Default Patch Baseline for Windows Provided by AWS.\", \"disabled\": false } }",
+      "type": "String"
+    }
+  },
+  "mainSteps": [
+    {
+      "inputs": {
+        "FunctionName": "{{ LambdaFunctionArn }}",
+        "InputPayload": {
+          "ResourceProperties": {
+            "BucketName": "{{ BucketName }}",
+            "PatchBaselines": "{{ PatchBaselines }}"
+          },
+          "RequestType": "Remediate"
+        }
+      },
+      "name": "invokeBaselineOverridesLambdaFunction",
+      "action": "aws:invokeLambdaFunction",
+      "timeoutSeconds": 300
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 2024-10-17
+#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
+#  Description : AWM Webcore GIS Seed Lambda Module
+#
+[info]
+version = 0.0.18

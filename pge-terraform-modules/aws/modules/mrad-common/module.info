@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 04 Apr 2025
+#  Author      : PGE
+#  Description : module meta data (version) for registry
+#
+[info]
+version = 1.0.8

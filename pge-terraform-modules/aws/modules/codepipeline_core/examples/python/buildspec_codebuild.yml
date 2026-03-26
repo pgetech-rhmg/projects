@@ -1,0 +1,56 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+  git-credential-helper: yes
+  exported-variables: #export environment variables from the current build stage to subsequent stages in the pipeline
+    - PROJECT_ROOT_DIRECTORY
+    - PYTHON_RUNTIME
+phases:
+  install:
+    runtime-versions:
+      python: $PYTHON_RUNTIME
+    commands:
+      - echo "Entered the install phase..."
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo "Making sure Python is installed"
+      - echo "python version is `python --version`" && echo "pip version is `pip --version`"
+
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "Entered the build phase execution..."
+      - echo Build started on `date`
+
+      - |
+        if [ "$PROJECT_ROOT_DIRECTORY" != "" ] ; then
+          echo "Change directory to $PROJECT_ROOT_DIRECTORY"
+          cd $PROJECT_ROOT_DIRECTORY
+          ls -l
+        fi
+
+      #installing virtualenv and activating it
+      - echo "installing and activating virtualenv"
+      - python -m pip install virtualenv
+      - python -m virtualenv webapp
+      - . webapp/bin/activate
+      #refactoring $ARTIFACTORY_HOST without https
+      - REFACTORED_ARTIFACTORY_HOST=$(echo $ARTIFACTORY_HOST | cut -d'/' -f3 | cut -d':' -f1)
+      - echo "artifactory host without https is $REFACTORED_ARTIFACTORY_HOST"
+
+      # pip.conf update to virtualenv
+      - echo "updating pip.conf to artifactory"
+      - echo [global] >> webapp/pip.conf
+
+      - echo index-url = https://$ARTIFACTORY_USER:$ARTIFACTORY_TOKEN@$REFACTORED_ARTIFACTORY_HOST/artifactory/api/pypi/$ARTIFACTORY_REPO_KEY/simple >> webapp/pip.conf
+      # installing required pip dependencies
+      - pip install -r requirements.txt
+      - pip install pysqlite3
+      - pip install pysqlite3-binary
+      # building project
+      - python manage.py migrate && python manage.py collectstatic && python manage.py check
+
+artifacts:
+    files:
+      - '**/*'

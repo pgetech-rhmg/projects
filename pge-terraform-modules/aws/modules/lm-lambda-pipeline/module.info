@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 28 Feb 2025
+#  Author      : Sean Fairchild (s3ff@pge.com)
+#  Description : module meta data (version) for registry
+#
+[info]
+version = 0.0.3

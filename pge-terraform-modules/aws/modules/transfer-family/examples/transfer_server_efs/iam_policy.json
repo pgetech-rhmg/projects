@@ -1,0 +1,15 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:transfer:${aws_region}:${account_num}:server/*"
+            ],
+            "Action": [
+                "ec2:DescribeVpcEndpoints",
+                "ec2:ModifyVpcEndpoint"
+            ]
+        }
+    ]
+}

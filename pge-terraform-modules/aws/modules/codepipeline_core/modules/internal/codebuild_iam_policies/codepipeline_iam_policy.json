@@ -1,0 +1,99 @@
+{
+    "Statement": [
+        {
+            "Action": [
+                "codepipeline:*",
+                "cloudformation:DescribeStacks",
+                "cloudformation:ListChangeSets",
+                "cloudtrail:DescribeTrails",
+                "codebuild:BatchGetProjects",
+                "codebuild:CreateProject",
+                "codebuild:BatchGetBuilds",
+                "codebuild:ListCuratedEnvironmentImages",
+                "codebuild:StartBuild",
+                "codebuild:ListProjects",
+                "codedeploy:CreateDeployment",
+                "codedeploy:CreateApplication",
+                "codedeploy:CreateDeploymentGroup",
+                "codedeploy:GetDeployment",
+                "codedeploy:GetDeploymentConfig",
+                "codedeploy:RegisterApplicationRevision",
+                "codedeploy:*",
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:DeleteObjectVersion"
+            ],
+            "Effect": "Allow",
+            "Resource": "*"
+        },
+        {
+            "Action": [
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:GetBucketPolicy",
+                "s3:GetBucketVersioning",
+                "s3:GetObjectVersion",
+                "s3:CreateBucket",
+                "s3:PutBucketPolicy",
+                "s3:DeleteObject",
+                "s3:DeleteObjectVersion"
+            ],
+            "Effect": "Allow",
+            "Resource": "${codepipeline_bucket_arn}"
+        },
+        {
+            "Action": [
+                "iam:PassRole"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:iam::*:role/service-role/cwe-role-*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": [
+                        "events.amazonaws.com"
+                    ]
+                }
+            }
+        },
+        {
+            "Action": [
+                "iam:PassRole"
+            ],
+            "Effect": "Allow",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": [
+                        "codepipeline.amazonaws.com"
+                    ]
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ssm:PutParameter",
+                "ssm:GetParameters"
+            ],
+            "Resource": "arn:aws:ssm:*:*:parameter/*"
+        },
+        {
+            "Action": [
+                "events:PutRule",
+                "events:PutTargets",
+                "events:DeleteRule",
+                "events:DisableRule",
+                "events:RemoveTargets"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:events:*:*:rule/codepipeline-*"
+            ]
+        }
+    ],
+    "Version": "2012-10-17"
+}

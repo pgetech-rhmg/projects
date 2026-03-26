@@ -1,0 +1,8 @@
+#
+#  Filename    : aws/modules/emr/module.info
+#  Date        : 24 November 2024
+#  Author      : Mohamed Rizvan
+#  Description : Terraform module for creation of EMR and EMR Serverless
+#
+[info]
+version = 0.1.1

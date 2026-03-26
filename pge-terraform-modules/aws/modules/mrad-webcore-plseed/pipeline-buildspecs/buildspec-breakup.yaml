@@ -1,0 +1,27 @@
+version: 0.2
+
+# TERRAFORM VERSION ONLY
+# Do not use with CloudFormation-based infrastructure!
+
+# Variables defined using "${varname}" will be processed by Terraform.
+# Variables defined using "$VARNAME" will be processed by AWS CodeBuild.
+
+env:
+  shell: bash
+  parameter-store:
+    GITHUB_TOKEN: MRAD_GITHUB_TOKEN
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+  build:
+    commands:
+      - SWAP_ENV=$SWAP_ENV CHANNEL=$CHANNEL bash ./terraform/seed/pipeline-buildspecs/rec-get-ids.sh
+      - cat ./out/*.json | jq -s 'flatten' > ids.json
+      - ls -al ids.json
+      - pwd
+      - mkdir seeds
+      - ls -al
+      - NODE_TLS_REJECT_UNAUTHORIZED="0" CHANNEL=$CHANNEL ENVIRONMENT=$ENVIRONMENT node ./src/orchestrator/broken-seed.js
+      - echo "finshed downloading at $(date)"
+      - aws s3 sync ./seeds/ s3://$PIPELINE_BUCKET/seeds/

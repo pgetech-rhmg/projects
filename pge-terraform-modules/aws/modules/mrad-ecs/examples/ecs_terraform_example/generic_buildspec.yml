@@ -1,0 +1,61 @@
+---
+    version: 0.2
+    
+    env:
+      variables:
+        CURL_COMMAND_SWITCHES: '-k -v -H'
+        AUTH_BEARER_HEADER: 'Authorization: Bearer'
+        NODE_ENV: 'Dev'
+        PROJECT_NAME: 'ecs-terraform-example-pipeline'
+        CLUSTER_NAME: 'ECS-Terraform-Example-Cluster-tfc-dev'
+        SERVICE_NAME: 'ECS-Terraform-Example-ECS-tfc-dev'
+        ECR_REPO: 'ecs-terraform-example-ecs-tfc-dev'
+
+       
+    
+    phases:
+      install:
+        commands:
+          - env
+          - echo "Installing WIZ CLI"
+          - echo "$ENVIRONMENT"
+          - echo "$APP_OWNERS"
+
+          - mkdir -p /tmp/wizcli
+          - curl -o /tmp/wizcli/wizcli https://downloads.wiz.io/wizcli/latest/wizcli-linux-amd64
+          - chmod +x /tmp/wizcli/wizcli
+          - /tmp/wizcli/wizcli version
+          - /tmp/wizcli/wizcli auth --id "$WIZ_CLIENT_ID" --secret "$WIZ_CLIENT_SECRET"
+    
+      pre_build:
+          commands:
+            - echo "Entered the pre_build phase..."
+            - pwd
+            - echo "Making sure Curl is installed"
+            - echo `curl --version`
+     
+      build:
+        commands:
+          - echo "Entered the build phase..."
+          - echo Build started on `date`
+          - aws --version
+          - TAG=$(date +%Y-%m-%d.%H.%M.%S)
+          - echo $TAG
+
+          - echo $(date +%Y-%m-%d)
+          - aws ecr get-login --no-include-email --region us-west-2 | /bin/bash
+          - python --version
+
+          - echo "Building image ..."
+          - docker build --build-arg DOCKER_ENV=${NODE_ENV} --build-arg PROJECT=${PROJECT_NAME} --build-arg GITHUB_TOKEN=${GIT_PASS_KEY_PATH} -t ${ARTIFACTORY_HOST}/${ECR_REPO}:${CODEBUILD_RESOLVED_SOURCE_VERSION} .
+          - /tmp/wizcli//wizcli docker scan --image ${ARTIFACTORY_HOST}/${ECR_REPO}:${CODEBUILD_RESOLVED_SOURCE_VERSION}
+          - docker tag ${ARTIFACTORY_HOST}/${ECR_REPO}:${CODEBUILD_RESOLVED_SOURCE_VERSION} ${ARTIFACTORY_HOST}/${ECR_REPO}:latest
+          - docker push ${ARTIFACTORY_HOST}/${ECR_REPO}:${CODEBUILD_RESOLVED_SOURCE_VERSION}
+          - docker push ${ARTIFACTORY_HOST}/${ECR_REPO}:latest
+          
+          - aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
+          - echo **********  Successfully Executed ***************
+    
+    artifacts:
+      files:
+        - '**/*'

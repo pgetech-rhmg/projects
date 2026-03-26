@@ -1,0 +1,99 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "FISExperimentActions",
+            "Effect": "Allow",
+            "Action": [
+                "fis:ListTagsForResource",
+                "fis:GetExperimentTemplate",
+                "fis:StartExperiment",
+                "fis:StopExperiment",
+                "fis:ListExperiments",
+                "fis:ListActions",
+                "fis:ListTargetResourceTypes"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "EC2Actions",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:StopInstances",
+                "ec2:StartInstances",
+                "ec2:RebootInstances",
+                "ec2:TerminateInstances",
+                "ec2:DescribeInstances",
+                "ec2:DescribeTags"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "EC2InjectApiError",
+            "Effect": "Allow",
+            "Action": "ec2:InjectApiError",
+            "Resource": "*",
+            "Condition": {
+                "ForAnyValue:StringEquals": {
+                    "ec2:FisActionId": [
+                        "aws:ec2:api-insufficient-instance-capacity-error",
+                        "aws:ec2:asg-insufficient-instance-capacity-error"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "SSMActions",
+            "Effect": "Allow",
+            "Action": [
+                "ssm:SendCommand",
+                "ssm:ListCommands",
+                "ssm:CancelCommand",
+                "ssm:GetCommandInvocation",
+                "ssm:DescribeInstanceInformation",
+                "ssm:StartAutomationExecution",
+                "ssm:GetAutomationExecution",
+                "ssm:StopAutomationExecution"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "IAMPassRole",
+            "Effect": "Allow",
+            "Action": "iam:PassRole",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": [
+                        "ssm.amazonaws.com",
+                        "fis.amazonaws.com"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "S3LoggingAccess",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:GetBucketAcl",
+                "s3:GetBucketPolicy",
+                "s3:PutBucketPolicy"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "CloudWatchLogsAccess",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogDelivery",
+                "logs:PutResourcePolicy",
+                "logs:DescribeResourcePolicies",
+                "logs:DescribeLogGroups"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

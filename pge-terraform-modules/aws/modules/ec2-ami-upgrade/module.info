@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 08 January 2024
+#  Author      : PGE
+#  Description : module ec2 ami upgrade
+#
+[info]
+version = 0.1.0

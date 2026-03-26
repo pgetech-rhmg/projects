@@ -1,0 +1,21 @@
+{
+    "Statement": [
+        {
+            "Condition": {
+                "StringEquals": {
+                    "aws:PrincipalOrgID": [
+                        "${principal_orgid}"
+                    ]
+                }
+            },
+            "Effect": "Allow",
+            "Action": "*",
+            "Principal": {
+                "AWS": "*"
+            },
+            "Resource": "*",
+            "Sid": "Orglevelallow"
+        }
+    ],
+    "Version": "2012-10-17"
+}

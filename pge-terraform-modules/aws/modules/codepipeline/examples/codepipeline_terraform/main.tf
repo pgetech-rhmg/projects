@@ -1,0 +1,201 @@
+/*
+ * # AWS codepipeline project User module example
+ * # CodeScan and CodePublish stages buildpsec files gets added by terraform module. CodePublish stage makes reads project name and version from setup.py and generates tar file with built code and uploads to artifactory
+ * # Prerequisites : In the variables 'ssm_parameter_github_oauth_token','project_root_directory', 'unit_test_commands', 'github_repo_url', 'dependency_file_location' Provide the suitable values respectively in tfvars for testing.
+ * # Code verified using terraform validate and terraform fmt -check.
+ * # Known Issue: The secret manager VPC endpoint configured in the SecureByDesign AWS account is not denying the call to secret manager and hence we made some adjustments in the VPC endpoint policy and enabled "Allow all" in the policy temporarily to make the connection to secret manager work.
+*/
+#
+#  Filename    : aws/modules/codepipeline/examples/codepipeline_python/main.tf
+#  Date        : 28 January 2022
+#  Author      : TCS
+#  Description : The terraform module creates a codepipeline python
+
+locals {
+  AppID              = var.AppID
+  Environment        = var.Environment
+  DataClassification = var.DataClassification
+  CRIS               = var.CRIS
+  Notify             = var.Notify
+  Owner              = var.Owner
+  Compliance         = var.Compliance
+  optional_tags      = var.optional_tags
+  aws_role           = var.aws_role
+}
+
+module "tags" {
+  source  = "app.terraform.io/pgetech/tags/aws"
+  version = "0.1.0"
+
+  AppID              = local.AppID
+  Environment        = local.Environment
+  DataClassification = local.DataClassification
+  CRIS               = local.CRIS
+  Notify             = local.Notify
+  Owner              = local.Owner
+  Compliance         = local.Compliance
+}
+
+
+#############################################################
+
+module "codepipeline_terraform" {
+  source = "../../modules/codepipeline_terraform"
+
+  codepipeline_name = var.codepipeline_name
+  role_arn          = module.codepipeline_iam_role.arn
+  region            = data.aws_region.current.name
+  project_key       = var.project_key
+  project_name      = var.project_name
+
+  #Dynamic stages are added inside stages = [] block. stage "test" is addedd to test dynamic stage and a code build module is added as additional configuration.
+  stages = [
+
+  ]
+  tags = merge(module.tags.tags, local.optional_tags)
+
+  secretsmanager_github_token_secret_name = var.secretsmanager_github_token_secret_name
+  github_org                              = var.github_org
+  repo_name                               = var.repo_name
+  branch                                  = var.branch
+  pollchanges                             = var.pollchanges
+
+  artifact_store_location_bucket     = module.s3.id
+  encryption_key_id                  = var.s3_kms_key_arn # module.kms_key.key_arn
+  environment_type_codebuild         = var.environment_type_codebuild
+  environment_type_codescan          = var.environment_type_codescan
+  environment_type_codepublish       = var.environment_type_codepublish
+  codebuild_role_service             = var.codebuild_role_service
+  custom_codebuild_policy_file       = "${path.module}/${var.codebuild_additional_policy}"
+  custom_codescan_policy_file        = "${path.module}/${var.codebuild_additional_policy}"
+  custom_codepublish_policy_file     = "${path.module}/${var.codebuild_additional_policy}"
+  source_location_codebuild          = var.source_location_codebuild
+  environment_image_codebuild        = var.environment_image_codebuild
+  environment_image_codescan         = var.environment_image_codescan
+  environment_image_codepublish      = var.environment_image_codepublish
+  concurrent_build_limit_codepublish = var.concurrent_build_limit_codepublish
+  concurrent_build_limit_codescan    = var.concurrent_build_limit_codescan
+  concurrent_build_limit_codebuild   = var.concurrent_build_limit_codebuild
+  compute_type_codebuild             = var.compute_type_codebuild
+  compute_type_codescan              = var.compute_type_codescan
+  compute_type_codepublish           = var.compute_type_codepublish
+  artifact_path                      = var.artifact_path
+  artifact_bucket_owner_access       = var.artifact_bucket_owner_access
+  artifact_location                  = module.s3.id
+  cidr_egress_rules                  = var.cidr_egress_rules
+  sg_name                            = var.sg_name
+  sg_description                     = var.sg_description
+  source_buildspec_codebuild         = file("${path.module}/buildspec_codebuild.yml")
+  #It will support multiple environment variables. We can pass multiple values through the varable "environment_variables"
+  #environment_variables_codebuild - stage 2 environment variables
+  #environment variables takes precedence over variables set on buildpsec files
+  environment_variables_codebuild_stage = [
+    {
+      name  = "AWS_ORG_ID"
+      value = var.aws_org_id
+      type  = "PLAINTEXT"
+    },
+    {
+      name  = "PROJECT_ROOT_DIRECTORY"
+      value = var.project_root_directory
+      type  = "PLAINTEXT"
+    },
+    {
+      name  = "ARTIFACTORY_REPO_KEY"
+      value = var.ssm_parameter_artifactory_repo_name
+      type  = "PARAMETER_STORE"
+    },
+    {
+      name  = "TF_TOKEN"
+      value = var.secretsmanager_terraform_token
+      type  = "SECRETS_MANAGER"
+    },
+    {
+      name  = "PYTHON_RUNTIME"
+      value = var.python_runtime
+      type  = "PLAINTEXT"
+    },
+    {
+      name  = "CCOE_GITHUB_PAT"
+      value = var.secretsmanager_ccoe_ssm_patch_pat
+      type  = "SECRETS_MANAGER"
+    },
+  ]
+  #Environment variables of yml file
+  project_root_directory    = var.project_root_directory
+  github_branch             = var.branch
+  github_repo_url           = var.github_repo_url
+  unit_test_commands        = var.unit_test_commands
+  dependency_files_location = var.dependency_files_location
+  #ssm parameter variables
+  subnet_ids            = [data.aws_ssm_parameter.subnet_id1.value, data.aws_ssm_parameter.subnet_id2.value, data.aws_ssm_parameter.subnet_id3.value]
+  vpc_id                = data.aws_ssm_parameter.vpc_id.value
+  codebuild_sc_token    = var.secretsmanager_github_token_secret_name
+  artifactory_repo_name = data.aws_ssm_parameter.artifactory_repo_name.value
+  artifactory_host      = data.aws_ssm_parameter.artifactory_host.value
+  sonar_host            = data.aws_ssm_parameter.sonar_host.value
+  #secrets manager variables
+  secretsmanager_artifactory_user  = var.secretsmanager_artifactory_user
+  secretsmanager_artifactory_token = var.secretsmanager_artifactory_token
+  secretsmanager_sonar_token       = var.secretsmanager_sonar_token
+  kms_key_arn                      = var.s3_kms_key_arn # module.kms_key.key_arn
+  python_runtime                   = var.python_runtime
+}
+
+####################################################################################
+#######################################################
+# BEWARE: The S3 module can't use athis key created here.
+# A CMK must be created prior to applying this script.
+#######################################################
+module "s3" {
+  source  = "app.terraform.io/pgetech/s3/aws"
+  version = "0.1.0"
+
+  acl           = "private"
+  bucket_name   = var.bucket_name
+  force_destroy = true
+  policy        = data.aws_iam_policy_document.allow_access.json
+  kms_key_arn   = var.s3_kms_key_arn # module.kms_key.key_arn
+  tags          = merge(module.tags.tags, local.optional_tags)
+}
+
+data "aws_iam_policy_document" "allow_access" {
+  statement {
+    principals {
+      type        = "AWS"
+      identifiers = [data.aws_caller_identity.current.id]
+    }
+    actions = [
+      "s3:GetObject",
+      "s3:ListBucket",
+      "s3:PutObject"
+    ]
+    resources = [
+      module.s3.arn,
+      "${module.s3.arn}/*"
+    ]
+  }
+}
+
+######################################################################################
+#IAM role for codepipeline - Inline policy is required to create role so it is configured as template_fle
+module "codepipeline_iam_role" {
+  source  = "app.terraform.io/pgetech/iam/aws"
+  version = "0.1.0"
+
+  name        = "codepipeline_${var.codepipeline_name}_iam_role"
+  aws_service = var.codepipeline_role_service
+  tags        = merge(module.tags.tags, local.optional_tags)
+  #inline_policy
+  inline_policy = [templatefile("${path.module}/codepipeline_iam_policy.json", { codepipeline_bucket_arn = module.s3.arn, s3_kms_key_arn = var.s3_kms_key_arn })]
+}
+
+
+#################################################################################
+#EC2 configuration for Dynamic stage - CodeDeploy requires EC2
+resource "aws_iam_policy" "ec2_kms_policy" {
+  name        = "${var.ec2_name}-kms-policy"
+  description = "kms key policy for ec2"
+  policy      = file("${path.module}/kms_ec2_policy.json")
+}
+

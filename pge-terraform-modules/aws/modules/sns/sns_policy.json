@@ -1,0 +1,97 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CCOE-TFC Orglevelallow",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "*"
+      },
+      "Action": [
+        "sns:GetTopicAttributes",
+        "sns:SetTopicAttributes",
+        "sns:AddPermission",
+        "sns:RemovePermission",
+        "sns:DeleteTopic",
+        "sns:Subscribe",
+        "sns:ListSubscriptionsByTopic",
+        "sns:Publish",
+        "sns:Receive"
+      ],
+      "Resource": "arn:aws:sns:${aws_region}:${account_num}:${snstopic_name}",
+      "Condition": {
+        "StringEquals": {
+          "aws:PrincipalOrgID": "${principal_orgid}"
+        }
+      }
+    },
+    {
+      "Sid": "CCOE-TFC DenyFromInternet",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "sns:GetTopicAttributes",
+        "sns:SetTopicAttributes",
+        "sns:AddPermission",
+        "sns:RemovePermission",
+        "sns:DeleteTopic",
+        "sns:Subscribe",
+        "sns:ListSubscriptionsByTopic",
+        "sns:Publish",
+        "sns:Receive"
+      ],
+      "Resource": "arn:aws:sns:${aws_region}:${account_num}:${snstopic_name}",
+      "Condition": {
+        "NotIpAddress": {
+          "aws:SourceIp": [
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "131.89.0.0/16",
+            "131.90.0.0/16",
+            "192.80.244.1",
+            "192.80.244.15",
+            "192.80.244.101",
+            "192.80.244.108",
+            "192.80.244.113",
+            "192.80.244.117",
+            "192.80.244.132",
+            "192.80.244.142",
+            "192.80.244.162",
+            "192.80.244.169"
+          ]
+        },
+        "Bool": {
+          "aws:ViaAWSService": "false"
+        },
+        "StringNotEquals": {
+          "aws:PrincipalOrgID": "${principal_orgid}"
+        }
+      }
+    },
+    {
+      "Sid": "CCOE-TFC DenyNonSecureAccess",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "sns:GetTopicAttributes",
+        "sns:SetTopicAttributes",
+        "sns:AddPermission",
+        "sns:RemovePermission",
+        "sns:DeleteTopic",
+        "sns:Subscribe",
+        "sns:ListSubscriptionsByTopic",
+        "sns:Publish",
+        "sns:Receive"
+      ],
+      "Resource": [
+        "arn:aws:sns:${aws_region}:${account_num}:${snstopic_name}"
+      ],
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      }
+    }
+  ]
+}

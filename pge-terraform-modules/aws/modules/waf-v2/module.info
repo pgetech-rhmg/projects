@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 05 Dec 2022
+#  Author      : TCS
+#  Description : module meta data (version) for registry
+#
+[info]
+version = 0.1.3

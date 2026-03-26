@@ -1,0 +1,33 @@
+{
+  "Statement": [
+    {
+      "Action": [
+        "cloudformation:DescribeStacks",
+        "cloudformation:ListChangeSets",
+        "cloudtrail:DescribeTrails",
+        "codebuild:BatchGetBuilds",
+        "codebuild:BatchGetProjects",
+        "codebuild:CreateProject",
+        "codebuild:ListCuratedEnvironmentImages",
+        "codebuild:ListProjects",
+        "codebuild:StartBuild",
+        "codeconnections:*",
+        "codedeploy:*",
+        "codedeploy:CreateApplication",
+        "codedeploy:CreateDeployment",
+        "codedeploy:CreateDeploymentGroup",
+        "codedeploy:GetDeployment",
+        "codedeploy:GetDeploymentConfig",
+        "codedeploy:RegisterApplicationRevision",
+        "codepipeline:*",
+        "codestar-connections:*",
+        "ecs:*",
+        "lambda:UpdateFunctionCode",
+        "s3:*"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ],
+  "Version": "2012-10-17"
+}

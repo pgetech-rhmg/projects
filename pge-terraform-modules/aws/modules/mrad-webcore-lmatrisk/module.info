@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 2025-07-24
+#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
+#  Description : AWM Webcore At Risk Lambda Module
+#
+[info]
+version = 0.1.14

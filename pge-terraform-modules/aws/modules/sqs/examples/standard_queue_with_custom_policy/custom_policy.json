@@ -1,0 +1,15 @@
+{
+    "Version": "2012-10-17",
+    "Id": "Queue_Policy_UUID",
+    "Statement": [
+      {
+        "Sid": "Queue1",
+        "Effect": "Allow",
+        "Principal": {
+          "AWS": "*"
+        },
+        "Action": "sqs:SendMessage",
+        "Resource": "*"
+      }
+    ]
+  }

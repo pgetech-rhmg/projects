@@ -1,0 +1,8 @@
+#
+#  Filename    : aws/module/kinesis-firehose/module.info
+#  Date        : 19 Oct 2022
+#  Author      : TCS
+#  Description : Terraform module for creation of kinesis-firehose
+
+[info]
+version = 0.1.2

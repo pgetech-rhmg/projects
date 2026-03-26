@@ -1,0 +1,55 @@
+# Do not change version. This is the version of aws buildspec, not the version of your buldspec file.
+version: 0.2
+env:
+ 
+
+  git-credential-helper: yes
+
+phases:
+  install:
+    runtime-versions:
+      java: $JAVA_RUNTIME
+    commands:
+
+      - ls -al
+      - echo "install kubectl"
+      - curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/linux/amd64/kubectl
+      - chmod +x ./kubectl
+      - mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+      - echo 'export PATH=$PATH:$HOME/bin' >> ~/.bashrc
+      - kubectl version --short --client
+
+      - echo "install Helm CLI for building Helm charts"
+      - curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+      - chmod 700 get_helm.sh
+      - ./get_helm.sh
+      - helm version
+      - aws eks --region $AWS_REGION update-kubeconfig --name $EKS_CLUSTER_NAME
+      - kubectl get pods --all-namespaces
+
+  pre_build:
+    commands:
+      - echo "Entered the pre_build phase..."
+      - echo "Making sure Java is installed"
+
+  build:
+    on-failure: ABORT
+    commands:
+
+      - ls -al
+      - echo "Rollback Helmcharts Revision $REVISION"
+      - helm history $CONTAINER_NAME --namespace $NAMESPACE
+      - helm rollback $CONTAINER_NAME $REVISION -n $NAMESPACE
+      - helm history $CONTAINER_NAME --namespace $NAMESPACE
+
+      
+  post_build:
+    commands:
+       - echo ".."
+       
+       
+
+#adding default cache paths, https://docs.aws.amazon.com/codeartifact/latest/ug/dependency-caching.html 
+cache:
+  paths:
+  - '/root/.m2/**/*'

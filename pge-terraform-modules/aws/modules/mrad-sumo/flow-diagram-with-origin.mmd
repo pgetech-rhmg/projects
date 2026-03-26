@@ -1,0 +1,30 @@
+graph TD
+
+    subgraph "PGE MRAD AWS Infra"
+        A["CloudWatch Log Group (var.log_group_name) <font color='green'>(user/module input)</font>"]
+        B["Subscription Filter (aws_cloudwatch_log_subscription_filter.sumo_firehose) <font color='green'>(created in mrad-sumo/sumologic.tf)</font>"]
+    C["Kinesis Firehose Delivery Stream (data.aws_kinesis_firehose_delivery_stream.sumo_firehose) <font color='green'>(referenced via SSM, created in mrad-shared-infra)</font>"]
+    M["Lambda Data Transformer (module.sumo_data_transformer) <font color='blue'>(created in mrad-shared-infra, sets _sourceCategory)</font>"]
+        D["IAM Role for Firehose (data.aws_iam_role.firehose_role) <font color='blue'>(referenced, created in mrad-shared-infra)</font>"]
+        F["SSM Parameter: Firehose Stream Name (data.aws_ssm_parameter.sumo_firehose_stream_name) <font color='blue'>(referenced, created in mrad-shared-infra)</font>"]
+        G["SSM Parameter: Firehose Backup Bucket (data.aws_ssm_parameter.sumo_firehose_backup_bucket) <font color='blue'>(referenced, created in mrad-shared-infra)</font>"]
+        H["S3 Backup Bucket (data.aws_s3_bucket.sumo_firehose_backup_bucket) <font color='blue'>(referenced via SSM, created in mrad-shared-infra)</font>"]
+        I["SSM Parameter: Sumo HTTP Endpoint URL (data.aws_ssm_parameter.sumo_firehose_http_endpoint_url) <font color='blue'>(referenced, created in mrad-shared-infra)</font>"]
+        J["Sumo Logic HTTP Endpoint (external, not managed by this module)"]
+        K["KMS Key for Kinesis (data.aws_kms_key.kinesis) <font color='blue'>(referenced, AWS managed)</font>"]
+
+        A --> B
+    B --> C
+    B --> D
+    C --> M
+    M --> J
+        F --> C
+        G --> H
+        H --> C
+        I --> J
+        K --> C
+        D --> B
+    end
+    subgraph "Sumo Logic Infra"
+        J --> L["Sumo Logic Log Management and Analysis (Sumo Logic Platform)"]
+    end

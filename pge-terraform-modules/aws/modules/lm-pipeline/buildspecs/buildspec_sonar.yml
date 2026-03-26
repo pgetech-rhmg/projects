@@ -1,0 +1,30 @@
+version: 0.2
+
+env:
+  secrets-manager:
+    GITHUB_TOKEN: "system/github"
+
+phases:
+  install:
+    commands:
+      - echo "Download SonarScanner CLI"
+      - wget -q -O sonar-scanner-cli.zip $SONAR_CLI_DOWNLOAD_URL
+      - echo "Unzip"
+      - unzip sonar-scanner-cli.zip
+      - rm sonar-scanner-cli.zip
+      - SONAR_DIR_NAME=$(find . -maxdepth 1 -type d -name "sonar-scanner*" | head -n 1)
+      - ls -la ./$SONAR_DIR_NAME/bin/
+      - export PATH=$PATH:$(pwd)/$SONAR_DIR_NAME/bin/
+      - sonar-scanner -v
+      - echo "Sonar Scanner is installed"
+      - git config --global url."https://$GITHUB_TOKEN@github.com/".insteadOf ssh://git@github.com/
+  build:
+    commands:
+      - cd ${build_path}
+      - npm install
+      - npm test
+
+      - sonar-scanner -Dsonar.token="$SONAR_TOKEN" -Dsonar.branch.name=$BRANCH
+  post_build:
+    commands:
+      - echo SonarQube Scanner completed on `date`

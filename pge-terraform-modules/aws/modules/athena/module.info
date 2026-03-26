@@ -1,0 +1,9 @@
+#
+# Module: aws/modules/athena
+# Author: PG&E
+# Created: Jan 02, 2026
+#  Description : module Athena
+#
+
+[info]
+version = 0.1.0

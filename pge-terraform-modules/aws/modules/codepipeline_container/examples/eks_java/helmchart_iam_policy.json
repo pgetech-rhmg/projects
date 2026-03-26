@@ -1,0 +1,42 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+    {
+    "Effect": "Allow",
+    
+    "Action": [
+        "cloudwatch:List*",
+        "cloudwatch:Describe*",
+        "cloudwatch:Get*",
+        "ec2:*",
+        "logs:GetLogEvents",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:CreateLogGroup",
+        "codecommit:GetBranch",
+        "codecommit:GetCommit",
+        "codecommit:GetRepository",
+        "codecommit:ListBranches",
+        "s3:*",
+        "s3:ListBucket",
+        "s3:PutObject",
+        "eks:*",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetRandomPassword",
+        "secretsmanager:GetResourcePolicy",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:ListSecretVersionIds",
+        "secretsmanager:ListSecrets"
+      ],
+    "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "ssm:PutParameter",
+            "ssm:GetParameters"
+        ],
+        "Resource": "arn:aws:ssm:*:*:parameter/CodeBuild/*"
+    }
+    ]
+    }

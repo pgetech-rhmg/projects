@@ -1,0 +1,9 @@
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - echo Updating lambda with ECR image $ECR_REGISTRY:$GIT_HASH
+      - aws lambda update-function-code --publish --function-name "${lambda_name}" --image-uri $ECR_REGISTRY:$GIT_HASH
+
+      - echo Lambda deployment complete

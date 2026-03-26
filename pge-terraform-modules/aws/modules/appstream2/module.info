@@ -1,0 +1,8 @@
+#
+#  Filename    : aws/module/appstream2/module.info
+#  Date        : 19 Aug 2022
+#  Author      : TCS
+#  Description : Terraform module for creation of Appstream-2.0
+#
+[info]
+version = 0.2.1

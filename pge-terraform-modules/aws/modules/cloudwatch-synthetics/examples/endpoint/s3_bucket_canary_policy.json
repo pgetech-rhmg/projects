@@ -1,0 +1,34 @@
+{
+  "Version": "2012-10-17",
+  "Id": "CanariesReportsBucketPolicy",
+  "Statement": [
+    {
+      "Sid": "Permissions",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${account_num}:role/${aws_role}"
+      },
+      "Action": ["s3:*"],
+      "Resource": ["arn:aws:s3:::${bucket_name}",
+        "arn:aws:s3:::${bucket_name}/*"]
+    },
+    {
+      "Sid": "AllowSSLRequestsOnly",
+      "Effect": "Deny",
+      "Action": "s3:*",
+      "Resource": ["arn:aws:s3:::${bucket_name}",
+      "arn:aws:s3:::${bucket_name}/*"
+    ],
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      },
+      "Principal": {
+        "AWS": "arn:aws:iam::${account_num}:role/${aws_role}"
+      }
+    }
+  ]
+}
+
+

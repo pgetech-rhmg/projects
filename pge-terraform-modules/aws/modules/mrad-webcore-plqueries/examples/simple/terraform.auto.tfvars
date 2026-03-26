@@ -1,0 +1,13 @@
+project_name            = "webcore-pipelines"
+environment             = "Dev"
+app_id                  = "2586"
+data_classification     = "Internal"
+cris                    = "Low"
+notify                  = ["aucm@pge.com"]
+owner                   = ["A1P2", "C1MP", "C3T1"]
+compliance              = ["None"]
+aws_region              = "us-west-2"
+queries_repo_name       = "Engage-Queries-ECS"
+queries_repo_org        = "PGEDigitalCatalyst"
+target_workspace        = "devinfra01"
+create_queries_pipeline = true

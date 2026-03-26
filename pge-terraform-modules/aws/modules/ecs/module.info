@@ -1,0 +1,9 @@
+#
+#  Filename    : aws/module/ecs/module.info
+#  Date        : 29 Nov 2022
+#  Author      : Tek Yantra
+
+#  Description : Terraform module for creation of ecs
+#
+[info]
+version = 0.1.4

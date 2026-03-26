@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 25 Mar 2025
+#  Author      : Sethu Lakshmi (Sul3@pge.com)
+#  Description : module meta data (version) for registry
+#
+[info]
+version = 0.0.1

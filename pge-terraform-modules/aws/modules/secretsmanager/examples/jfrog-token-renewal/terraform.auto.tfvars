@@ -1,0 +1,77 @@
+account_num = "750713712981"
+aws_region  = "us-west-2"
+aws_role    = "CloudAdmin"
+kms_role    = "CloudAdmin"
+
+#parameter store names
+vpc_id_name     = "/vpc/2/id"
+subnet_id1_name = "/vpc/2/privatesubnet1/id"
+
+#Tags
+AppID              = "443"                                            #"Identify the application this asset belongs to by its AMPS APP ID.Format = APP-####"
+Environment        = "Dev"                                            #Dev, Test, QA, Prod (only one)
+DataClassification = "Internal"                                       #Public, Internal, Confidential, Restricted, Privileged (only one)
+CRIS               = "Low"                                            #"Cyber Risk Impact Score High, Medium, Low (only one)"
+Notify             = ["m7k3@pge.com", "c1gx@pge.com", "sy10@pge.com"] #Who to notify for system failure or maintenance. Should be a group or list of email addresses."
+Owner              = ["m7k3", "c1gx", "sy10"]                         #List three owners of the system, as defined by AMPS Director, Client Owner and IT Leadeg"
+Compliance         = ["None"]
+Order              = 8115205                                          #Order must be between 7 and 9 digits
+
+#secretsmanager variables
+secretsmanager_name        = "test-jfrog-token"
+secretsmanager_description = "jfrog token renewal with rotation enabled"
+#secret_string = {access_token:"<access_token>", refresh_token:"<refresh_token>", user_name:"<svc-act-name>"}  #enter sensitive values directly on terraform workspace, do not commit to github. To run with terraform test make sure to add local env variable by running `export TF_VAR_secret_string='{ access_token:"<access_token>", refresh_token:"<refresh_token>", user_name:"<svc-act-name>" }'`
+secret_version_enabled  = true
+rotation_enabled        = true
+rotation_after_days     = 70 #generates new token before expiring, default expiration on initial token is 90 days. CCOE automation will rotate token before 15 days of expiration if token has not been rotated already. 
+recovery_window_in_days = 0  #this is set to 0 days for testing terraform destroy. It is recommended to use 7 days or higher based on business requirement.
+
+#Kms
+kms_name        = "jfrog-token-renewal"
+kms_description = "CMK for encrypting jfrog token renewal lambda function and secrets manager credentials"
+
+#Lambda
+function_name  = "jfrog-token-renewal"
+description    = "jfrog token renewal lambda function"
+runtime        = "python3.12"
+handler        = "lambda_function.lambda_handler"
+source_dir     = "lambda_source_code"
+lambda_timeout = 300
+publish        = true
+jfrog_host     = "https://jfrog.nonprod.pge.com" #replace it with prod
+
+#security_group
+lambda_sg_name        = "jfrog-token-renewal-lambda-sg"
+lambda_sg_description = "Security group for jfrog token renwal lambda"
+
+# lambda_cidr_ingress_rules = [{
+#     from             = 443,
+#     to               = 443,
+#     protocol         = "tcp",
+#     cidr_blocks      = ["172.30.0.0/16", "192.168.0.0/16", "10.0.0.0/8"]
+#     ipv6_cidr_blocks = []
+#     description      = "CCOE Ingress rules"
+# }]
+
+lambda_cidr_egress_rules = [{
+  from             = 0,
+  to               = 0,
+  protocol         = "-1",
+  cidr_blocks      = ["0.0.0.0/0"]
+  ipv6_cidr_blocks = []
+  prefix_list_ids  = []
+  description      = "CCOE egress rules"
+}]
+
+#Iam_role
+iam_name        = "jfrog-token-renewal-role"
+iam_aws_service = ["lambda.amazonaws.com"]
+iam_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole", "arn:aws:iam::aws:policy/AWSLambda_FullAccess", "arn:aws:iam::aws:policy/SecretsManagerReadWrite"]
+
+#sns
+
+snstopic_name         = "jfrog-token-renewal-notification"           # Name of the SNS topic
+snstopic_display_name = "jfrog token renewal notification sns topic" # Display name of the SNS topic
+
+endpoint = ["m7k3@pge.com"] #Endpoint to send data to. The contents vary with the protocol.
+protocol = "email"

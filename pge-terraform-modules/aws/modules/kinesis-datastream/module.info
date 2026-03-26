@@ -1,0 +1,8 @@
+#
+#  Filename    : aws/module/kinesis-datastream/module.info
+#  Date        : 30 Aug 2022
+#  Author      : TCS
+#  Description : Terraform module for creation of kinesis-datastream
+#
+[info]
+version = 0.1.1

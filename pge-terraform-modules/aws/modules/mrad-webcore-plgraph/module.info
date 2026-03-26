@@ -1,0 +1,8 @@
+#
+#  Filename    : module.info
+#  Date        : 2025-07-24
+#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
+#  Description : AWM Webcore Pipeline for Graph Consumer and Poller Module
+#
+[info]
+version = 0.2.7
