@@ -5,6 +5,7 @@ ORG="pgetech"
 SEARCH="AWSTemplateFormatVersion"
 OUTFILE="cfn-repos.txt"
 TMPDIR="__scan_tmp"
+PROGRESS_FILE="__scan_progress.txt"
 REPO_LIST="repos.txt"
 
 ###############################################################################
@@ -20,14 +21,10 @@ log() {
 trap 'rm -rf "$TMPDIR"' EXIT
 mkdir -p "$TMPDIR"
 
-# Load previously found repos so we can skip them and preserve results
-declare -A ALREADY_FOUND=()
-if [[ -f "$OUTFILE" ]]; then
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && ALREADY_FOUND["$line"]=1
-  done < "$OUTFILE"
-  log "Loaded ${#ALREADY_FOUND[@]} previously found repos from $OUTFILE"
-fi
+# Ensure output file exists for grep lookups
+touch "$OUTFILE"
+ALREADY_FOUND=$(wc -l < "$OUTFILE" | tr -d ' ')
+log "Loaded $ALREADY_FOUND previously found repos from $OUTFILE"
 
 ###############################################################################
 # STEP 1: Fetch repo list (or reuse existing)
@@ -52,20 +49,10 @@ echo
 ###############################################################################
 # STEP 2: Load scan progress for resume support
 ###############################################################################
-PROGRESS_FILE="$TMPDIR/.scan_progress"
-declare -A SCANNED=()
+touch "$PROGRESS_FILE"
 
-# Load already-found repos as "already scanned"
-for repo in "${!ALREADY_FOUND[@]}"; do
-  SCANNED["$repo"]=1
-done
-
-# Load progress from any prior interrupted run
-if [[ -f "$PROGRESS_FILE" ]]; then
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && SCANNED["$line"]=1
-  done < "$PROGRESS_FILE"
-  log "Resuming — ${#SCANNED[@]} repos already processed"
+if [[ -s "$PROGRESS_FILE" ]]; then
+  log "Resuming — $(wc -l < "$PROGRESS_FILE" | tr -d ' ') repos already processed"
   echo
 fi
 
@@ -73,17 +60,18 @@ fi
 # STEP 3: Clone -> scan -> delete (incremental)
 ###############################################################################
 count=0
-found=${#ALREADY_FOUND[@]}
+found=$ALREADY_FOUND
 skipped=0
 
 log "Beginning clone-and-scan phase"
 echo
 
 while read -r repo; do
-  ((count++))
+  count=$((count + 1))
 
-  if [[ -n "${SCANNED[$repo]+x}" ]]; then
-    ((skipped++))
+  # Skip if already in output file or progress file
+  if grep -qxF "$repo" "$OUTFILE" "$PROGRESS_FILE" 2>/dev/null; then
+    skipped=$((skipped + 1))
     continue
   fi
 
@@ -99,7 +87,7 @@ while read -r repo; do
   fi
 
   if rg "$SEARCH" "$workdir" >/dev/null 2>&1; then
-    ((found++))
+    found=$((found + 1))
     log "  FOUND CloudFormation usage"
     echo "$repo" >> "$OUTFILE"
   else

@@ -1,7 +1,6 @@
 """Normalize Bedrock agent markdown output into a consistent section format."""
 
 import re
-import sys
 
 SECTIONS = [
     "Overview",

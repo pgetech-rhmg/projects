@@ -77,7 +77,7 @@ detect_category_percentages() {
   local data_pct=$((data * 100 / total))
 
   local other_pct=$((100 - platform_pct - application_pct - data_pct))
-  (( other_pct < 0 )) && other_pct=0
+  if (( other_pct < 0 )); then other_pct=0; fi
 
   echo "$platform_pct,$application_pct,$data_pct,$other_pct"
 }
@@ -91,29 +91,28 @@ if [[ ! -s "$OUTFILE" ]]; then
   echo "$CSV_HEADER" > "$OUTFILE"
 fi
 
-# Load already-analyzed repos so we can skip them on re-run
-declare -A ANALYZED=()
-if [[ -f "$OUTFILE" ]]; then
-  while IFS=',' read -r name _rest; do
-    [[ "$name" == "repo_name" ]] && continue
-    [[ -n "$name" ]] && ANALYZED["$name"]=1
-  done < "$OUTFILE"
-fi
-
 TOTAL=$(wc -l < "$INPUT_FILE" | tr -d ' ')
 count=0
 skipped=0
 
+# Count already-analyzed repos (CSV lines minus header)
+already=0
+if [[ -s "$OUTFILE" ]]; then
+  already=$(( $(wc -l < "$OUTFILE" | tr -d ' ') - 1 ))
+  if (( already < 0 )); then already=0; fi
+fi
+
 log "Starting CloudFormation repo analysis"
 log "Repos: $TOTAL"
-log "Already analyzed: ${#ANALYZED[@]}"
+log "Already analyzed: $already"
 echo
 
 while read -r repo; do
-  ((count++))
+  count=$((count + 1))
 
-  if [[ -n "${ANALYZED[$repo]+x}" ]]; then
-    ((skipped++))
+  # Skip if repo already has a row in the CSV
+  if grep -qm1 "^${repo}," "$OUTFILE" 2>/dev/null; then
+    skipped=$((skipped + 1))
     continue
   fi
 

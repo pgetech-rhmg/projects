@@ -3,6 +3,7 @@
 
 # Temp folders
 /__*
+__scan_progress.txt
 
 # Python
 __pycache__/
