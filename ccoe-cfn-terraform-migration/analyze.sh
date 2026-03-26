@@ -147,7 +147,11 @@ while read -r repo; do
     grep -RIl "AWSTemplateFormatVersion" "$workdir" \
       --include "*.yml" \
       --include "*.yaml" \
-      --include "*.json" || true
+      --include "*.json" \
+      --include "*.template" \
+      --exclude-dir "node_modules" \
+      --exclude-dir "vendor" \
+      --exclude-dir ".terraform" || true
   )
 
   cfn_count="${#cfn_files[@]}"

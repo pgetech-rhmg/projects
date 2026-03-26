@@ -86,7 +86,10 @@ while read -r repo; do
     continue
   fi
 
-  if rg "$SEARCH" "$workdir" >/dev/null 2>&1; then
+  if rg "$SEARCH" "$workdir" \
+       --glob '*.yml' --glob '*.yaml' --glob '*.json' --glob '*.template' \
+       --glob '!node_modules' --glob '!vendor' --glob '!.terraform' \
+       >/dev/null 2>&1; then
     found=$((found + 1))
     log "  FOUND CloudFormation usage"
     echo "$repo" >> "$OUTFILE"

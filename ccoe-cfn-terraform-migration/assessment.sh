@@ -123,8 +123,12 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r repo _ _ branch file_count _; do
     [[ -n "$file" ]] && CFN_FILES+=("$file")
   done < <(
     cd "$REPODIR" && \
-    find . -type f \( -name "*.yml" -o -name "*.yaml" -o -name "*.json" \) -print0 | \
-    xargs -0 grep -lE '(^|\s)(AWSTemplateFormatVersion|Resources)\s*:|"(AWSTemplateFormatVersion|Resources)"\s*:' 2>/dev/null || true
+    find . -type f \( -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.template" \) \
+      -not -path "*/node_modules/*" \
+      -not -path "*/.terraform/*" \
+      -not -path "*/vendor/*" \
+      -print0 | \
+    xargs -0 grep -lE '(^|\s)AWSTemplateFormatVersion\s*:|"AWSTemplateFormatVersion"\s*:' 2>/dev/null || true
   )
 
   TOTAL_FILES="${#CFN_FILES[@]}"
