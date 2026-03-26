@@ -1,8 +1,9 @@
-Please run /login · API Error: 403 {"error":{"message":"Invalid response received from bedrock: {\"Message\":\"User: 
-     arn:aws:sts::299329113195:assumed-role/portkey-app/2026226 is not authorized to perform: bedrock:InvokeModelWithResponseStream on resource: 
-     arn:aws:bedrock:us-west-2:299329113195:inference-profile/us.anthropic.claude-sonnet-4-6 because no identity-based policy allows the 
-     bedrock:InvokeModelWithResponseStream action\"}","type":null,"param":null,"code":null},"provider":"bedrock","hook_results":{"before_request_hooks":[{"verdict"
-     :true,"id":"pg-test2-18f69e","transformed":false,"checks":[{"data":null,"verdict":true,"id":"bedrock.guard","error":{"message":"Missing required 
-     credentials"},"execution_time":217,"transformed":false,"created_at":"2026-03-26T19:50:00.716Z","log":null,"fail_on_error":false}],"feedback":{"value":5,"weigh
-     t":1,"metadata":{"successfulChecks":"bedrock.guard","failedChecks":"","erroredChecks":""}},"execution_time":217,"async":false,"type":"guardrail","created_at":
-     "2026-03-26T19:50:00.716Z","deny":false}],"after_request_hooks":[]}}
+{
+	"env": {
+		"CLAUDE_CODE_USE_BEDROCK": "1",
+		"AWS_PROFILE": "your-aws-profile",
+		"AWS_REGION": "us-west-2",
+		"ANTHROPIC_MODEL": "us.anthropic.claude-sonnet-4-20250514-v1:0"
+	},
+	"model": "us.anthropic.claude-sonnet-4-20250514-v1:0"
+}
