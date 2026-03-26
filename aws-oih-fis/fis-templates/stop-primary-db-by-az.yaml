@@ -1,0 +1,47 @@
+---
+description: 'FIS Experiment: Stop Primary SQL Server instances in target AZ (with strict tag-based safety controls)'
+parameters:
+  targetAvailabilityZone:
+    description: 'The Availability Zone to target for the experiment'
+    value: 'SPECIFY_AT_RUNTIME'
+targets:
+  primaryDBInstancesInTargetAZ:
+    resourceType: aws:ec2:instance
+    selectionMode: ALL
+    resourceTags:
+      # REQUIRED: Both tags must match for instance to be targeted
+      FISTarget: 'True'
+      FISDBRole: Primary
+    filters:
+      - path: State.Name
+        values:
+          - running
+      - path: Placement.AvailabilityZone
+        values:
+          - $targetAvailabilityZone
+actions:
+  stopPrimaryDBInstances:
+    actionId: aws:ec2:stop-instances-v2
+    description: 'Stop primary SQL Server instances in target AZ to simulate AZ failure'
+    parameters:
+      duration: PT5M  # Keep instances stopped for 5 minutes
+    targets:
+      Instances: primaryDBInstancesInTargetAZ
+stopConditions:
+  - source: none
+    # TODO: Add CloudWatch alarm ARN to auto-stop experiment if critical metrics breach
+    # Example:
+    # - source: aws:cloudwatch:alarm
+    #   value: arn:aws:cloudwatch:REGION:ACCOUNT:alarm:ALARM_NAME
+roleArn: arn:aws:iam::ACCOUNT_ID:role/FISExperimentRole  # REPLACE: Your FIS IAM role ARN
+tags:
+  Name: OIH-Primary-DB-AZ-Failure-Stop
+  Environment: DEV
+  TestType: HA-DR
+  Component: SQL-Server-Primary
+  TargetAZ: us-west-2b
+  TestScenario: Primary-Failover
+logConfiguration:
+  cloudWatchLogsConfiguration:
+    logGroupArn: arn:aws:logs:REGION:ACCOUNT_ID:log-group:/aws/fis/experiments  # REPLACE: Your CloudWatch log group ARN
+  logSchemaVersion: 2

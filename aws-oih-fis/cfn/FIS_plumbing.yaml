@@ -1,0 +1,788 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS FIS Infrastructure for SQL Server HA/DR Chaos Engineering Testing'
+
+Parameters:
+  AppID:
+    Type: String
+    Default: '3554'
+    Description: Application ID for tagging
+
+  Environment:
+    Type: String
+    Default: 'Dev'
+    Description: Environment name
+    AllowedValues:
+      - Dev
+      - Test
+      - Prod
+
+  DataClassification:
+    Type: String
+    Default: 'Internal'
+    Description: Data classification level
+
+  CRIS:
+    Type: String
+    Default: 'Low'
+    Description: CRIS rating
+
+  NotifyEmails:
+    Type: String
+    Default: 'bdg3@pge.com_uvw2@pge.com_xyz3@pge.com'
+    Description: Notification email addresses (space-delimited)
+
+  OwnerList:
+    Type: String
+    Default: 'bdg3_uvw2_xyz3'
+    Description: Resource owners (space-delimited)
+
+  ComplianceList:
+    Type: String
+    Default: 'None'
+    Description: Compliance requirements (space-delimited)
+
+  Order:
+    Type: String
+    Default: '8115205'
+    Description: Order number
+
+  S3BucketName:
+    Type: String
+    Default: 'oih-dev-fis-logs'
+    Description: S3 bucket name for FIS experiment logs
+
+  PrimaryAZ:
+    Type: String
+    Default: 'us-west-2b'
+    Description: Availability Zone for Primary SQL Server instance (for EBS I/O pause experiments)
+    AllowedPattern: '^[a-z]{2}-[a-z]+-[0-9][a-z]$'
+    ConstraintDescription: Must be a valid AWS Availability Zone (e.g., us-west-2b)
+
+  SecondaryAZ:
+    Type: String
+    Default: 'us-west-2a'
+    Description: Availability Zone for Secondary SQL Server instance (for EBS I/O pause experiments)
+    AllowedPattern: '^[a-z]{2}-[a-z]+-[0-9][a-z]$'
+    ConstraintDescription: Must be a valid AWS Availability Zone (e.g., us-west-2a)
+
+  TertiaryAZ:
+    Type: String
+    Default: 'us-west-2c'
+    Description: Availability Zone with no database servers (for AZ failure simulation without DB impact)
+    AllowedPattern: '^[a-z]{2}-[a-z]+-[0-9][a-z]$'
+    ConstraintDescription: Must be a valid AWS Availability Zone (e.g., us-west-2c)
+
+Resources:
+  # SSM Parameters for AZ Configuration
+  FISPrimaryAZParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /fis/oih/primary-az
+      Type: String
+      Value: !Ref PrimaryAZ
+      Description: Availability Zone for Primary SQL Server instance
+      Tags:
+        Name: FIS-Primary-AZ
+        AppID: !Ref AppID
+        Environment: !Ref Environment
+
+  FISSecondaryAZParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /fis/oih/secondary-az
+      Type: String
+      Value: !Ref SecondaryAZ
+      Description: Availability Zone for Secondary SQL Server instance
+      Tags:
+        Name: FIS-Secondary-AZ
+        AppID: !Ref AppID
+        Environment: !Ref Environment
+
+  FISTertiaryAZParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /fis/oih/tertiary-az
+      Type: String
+      Value: !Ref TertiaryAZ
+      Description: Availability Zone with no database servers (non-DB AZ)
+      Tags:
+        Name: FIS-Tertiary-AZ
+        AppID: !Ref AppID
+        Environment: !Ref Environment
+
+  # S3 Bucket for FIS Experiment Logs
+  FISLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 90
+      Tags:
+        - Key: Name
+          Value: FIS-Experiment-Logs
+        - Key: AppID
+          Value: !Ref AppID
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CRIS
+          Value: !Ref CRIS
+        - Key: Notify
+          Value: !Ref NotifyEmails
+        - Key: Owner
+          Value: !Ref OwnerList
+        - Key: Compliance
+          Value: !Ref ComplianceList
+        - Key: Order
+          Value: !Ref Order
+
+  # S3 Bucket Policy for FIS Experiment Logs
+  FISLogsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FISLogsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AWSLogDeliveryWrite
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action:
+              - s3:PutObject
+            Resource: !Sub '${FISLogsBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+                aws:SourceAccount: !Ref AWS::AccountId
+          - Sid: AWSLogDeliveryAclCheck
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action:
+              - s3:GetBucketAcl
+            Resource: !GetAtt FISLogsBucket.Arn
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+          - Sid: FISExperimentRoleAccess
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt FISExperimentRole.Arn
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+              - s3:GetBucketLocation
+            Resource:
+              - !GetAtt FISLogsBucket.Arn
+              - !Sub '${FISLogsBucket.Arn}/*'
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt FISLogsBucket.Arn
+              - !Sub '${FISLogsBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  # CloudWatch Log Group for FIS Experiment Logs
+  FISExperimentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/fis/experiments
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: FIS-Experiment-Logs
+        - Key: AppID
+          Value: !Ref AppID
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CRIS
+          Value: !Ref CRIS
+        - Key: Notify
+          Value: !Ref NotifyEmails
+        - Key: Owner
+          Value: !Ref OwnerList
+        - Key: Compliance
+          Value: !Ref ComplianceList
+        - Key: Order
+          Value: !Ref Order
+
+  # IAM Role for FIS Experiments
+  FISExperimentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: FISExperimentRole
+      Description: IAM role for AWS FIS to execute chaos engineering experiments on EC2, EBS, and network resources
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: fis.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref FISExperimentPolicy
+      Tags:
+        - Key: Name
+          Value: FISExperimentRole
+        - Key: AppID
+          Value: !Ref AppID
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CRIS
+          Value: !Ref CRIS
+        - Key: Notify
+          Value: !Ref NotifyEmails
+        - Key: Owner
+          Value: !Ref OwnerList
+        - Key: Compliance
+          Value: !Ref ComplianceList
+        - Key: Order
+          Value: !Ref Order
+
+  # Managed Policy for FIS Experiment Permissions
+  FISExperimentPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: FISExperimentPolicy
+      Description: Comprehensive permissions for FIS experiments including EC2, EBS, Network, and CloudWatch Logs
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # EC2 Instance Actions
+          - Sid: EC2InstanceActions
+            Effect: Allow
+            Action:
+              - ec2:StopInstances
+              - ec2:StartInstances
+              - ec2:RebootInstances
+              - ec2:TerminateInstances
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceStatus
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'ec2:ResourceTag/FISTarget': 'True'
+
+          # EC2 Instance Describe (no tag condition needed)
+          - Sid: EC2DescribeActions
+            Effect: Allow
+            Action:
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceStatus
+              - ec2:DescribeTags
+            Resource: '*'
+
+          # EBS Volume Actions
+          - Sid: EBSVolumeActions
+            Effect: Allow
+            Action:
+              - ec2:PauseVolumeIO
+              - ec2:DescribeVolumes
+              - ec2:DescribeVolumeStatus
+              - ec2:DescribeSnapshots
+            Resource: '*'
+
+          # Network Disruption Actions
+          - Sid: NetworkDisruptionActions
+            Effect: Allow
+            Action:
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeSubnets
+              - ec2:DescribeVpcs
+              - ec2:ModifyNetworkInterfaceAttribute
+              - ec2:CreateNetworkInterface
+              - ec2:DeleteNetworkInterface
+              - ec2:AttachNetworkInterface
+              - ec2:DetachNetworkInterface
+            Resource: '*'
+
+          # CloudWatch Logs - Service Level Actions
+          - Sid: CloudWatchLogsServiceActions
+            Effect: Allow
+            Action:
+              - logs:CreateLogDelivery
+              - logs:GetLogDelivery
+              - logs:UpdateLogDelivery
+              - logs:DeleteLogDelivery
+              - logs:ListLogDeliveries
+            Resource: '*'
+
+          # CloudWatch Logs - Log Group Actions
+          - Sid: CloudWatchLogsGroupActions
+            Effect: Allow
+            Action:
+              - logs:PutLogEvents
+              - logs:CreateLogStream
+              - logs:DescribeLogStreams
+            Resource: !GetAtt FISExperimentLogGroup.Arn
+
+          # S3 Logs
+          - Sid: S3LogsActions
+            Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+              - s3:GetBucketLocation
+              - s3:ListBucket
+            Resource:
+              - !GetAtt FISLogsBucket.Arn
+              - !Sub '${FISLogsBucket.Arn}/*'
+
+          # FIS Service Actions
+          - Sid: FISServiceActions
+            Effect: Allow
+            Action:
+              - fis:InjectApiInternalError
+              - fis:InjectApiThrottleError
+              - fis:InjectApiUnavailableError
+            Resource: 'arn:aws:fis:*:*:experiment/*'
+
+  # ================================================================
+  # FIS Experiment Templates
+  # ================================================================
+
+  # EC2 Stop/Start - Primary DB Instances
+  FISTemplatePrimaryEC2Stop:
+    Type: AWS::FIS::ExperimentTemplate
+    Properties:
+      Description: Stop Primary SQL Server instances and auto-restart after 5 minutes
+      RoleArn: !GetAtt FISExperimentRole.Arn
+      StopConditions:
+        - Source: none
+      Targets:
+        primaryDBInstances:
+          ResourceType: aws:ec2:instance
+          SelectionMode: ALL
+          ResourceTags:
+            FISTarget: 'True'
+            FISDBRole: Primary
+          Filters:
+            - Path: State.Name
+              Values:
+                - running
+      Actions:
+        stopInstances:
+          ActionId: aws:ec2:stop-instances
+          Description: Stop primary instances and restart after 5 minutes
+          Parameters:
+            startInstancesAfterDuration: PT5M
+          Targets:
+            Instances: primaryDBInstances
+      LogConfiguration:
+        CloudWatchLogsConfiguration:
+          LogGroupArn: !GetAtt FISExperimentLogGroup.Arn
+        LogSchemaVersion: 2
+        S3Configuration:
+          BucketName: !Ref FISLogsBucket
+          Prefix: experiments/primary-ec2-stop
+      Tags:
+        Name: OIH-Primary-EC2-Stop
+        Environment: !Ref Environment
+        TestType: HA-DR
+        AppID: !Ref AppID
+        DataClassification: !Ref DataClassification
+        CRIS: !Ref CRIS
+        Notify: !Ref NotifyEmails
+        Owner: !Ref OwnerList
+        Compliance: !Ref ComplianceList
+        Order: !Ref Order
+
+  # EC2 Stop/Start - Secondary DB Instances
+  FISTemplateSecondaryEC2Stop:
+    Type: AWS::FIS::ExperimentTemplate
+    Properties:
+      Description: Stop Secondary SQL Server instances and auto-restart after 5 minutes
+      RoleArn: !GetAtt FISExperimentRole.Arn
+      StopConditions:
+        - Source: none
+      Targets:
+        secondaryDBInstances:
+          ResourceType: aws:ec2:instance
+          SelectionMode: ALL
+          ResourceTags:
+            FISTarget: 'True'
+            FISDBRole: Secondary
+          Filters:
+            - Path: State.Name
+              Values:
+                - running
+      Actions:
+        stopInstances:
+          ActionId: aws:ec2:stop-instances
+          Description: Stop secondary instances and restart after 5 minutes
+          Parameters:
+            startInstancesAfterDuration: PT5M
+          Targets:
+            Instances: secondaryDBInstances
+      LogConfiguration:
+        CloudWatchLogsConfiguration:
+          LogGroupArn: !GetAtt FISExperimentLogGroup.Arn
+        LogSchemaVersion: 2
+        S3Configuration:
+          BucketName: !Ref FISLogsBucket
+          Prefix: experiments/secondary-ec2-stop
+      Tags:
+        Name: OIH-Secondary-EC2-Stop
+        Environment: !Ref Environment
+        TestType: HA-DR
+        AppID: !Ref AppID
+        DataClassification: !Ref DataClassification
+        CRIS: !Ref CRIS
+        Notify: !Ref NotifyEmails
+        Owner: !Ref OwnerList
+        Compliance: !Ref ComplianceList
+        Order: !Ref Order
+
+  # EBS I/O Pause - Primary DB Volumes
+  FISTemplatePrimaryEBSIOPause:
+    Type: AWS::FIS::ExperimentTemplate
+    Properties:
+      Description: Pause I/O on EBS volumes attached to Primary SQL Server instances for 5 minutes
+      RoleArn: !GetAtt FISExperimentRole.Arn
+      StopConditions:
+        - Source: none
+      Targets:
+        primaryDBVolumes:
+          ResourceType: aws:ec2:ebs-volume
+          SelectionMode: ALL
+          ResourceTags:
+            FISTarget: 'True'
+            FISEBSTarget: 'True'
+            FISDBRole: Primary
+          Parameters:
+            availabilityZoneIdentifier: !Ref PrimaryAZ
+      Actions:
+        pauseVolumeIO:
+          ActionId: aws:ebs:pause-volume-io
+          Description: Pause I/O on primary DB volumes for 5 minutes
+          Parameters:
+            duration: PT5M
+          Targets:
+            Volumes: primaryDBVolumes
+      LogConfiguration:
+        CloudWatchLogsConfiguration:
+          LogGroupArn: !GetAtt FISExperimentLogGroup.Arn
+        LogSchemaVersion: 2
+        S3Configuration:
+          BucketName: !Ref FISLogsBucket
+          Prefix: experiments/primary-ebs-io-pause
+      Tags:
+        Name: OIH-Primary-EBS-IO-Pause
+        Environment: !Ref Environment
+        TestType: HA-DR
+        AppID: !Ref AppID
+        DataClassification: !Ref DataClassification
+        CRIS: !Ref CRIS
+        Notify: !Ref NotifyEmails
+        Owner: !Ref OwnerList
+        Compliance: !Ref ComplianceList
+        Order: !Ref Order
+
+  # EBS I/O Pause - Secondary DB Volumes
+  FISTemplateSecondaryEBSIOPause:
+    Type: AWS::FIS::ExperimentTemplate
+    Properties:
+      Description: Pause I/O on EBS volumes attached to Secondary SQL Server instances for 5 minutes
+      RoleArn: !GetAtt FISExperimentRole.Arn
+      StopConditions:
+        - Source: none
+      Targets:
+        secondaryDBVolumes:
+          ResourceType: aws:ec2:ebs-volume
+          SelectionMode: ALL
+          ResourceTags:
+            FISTarget: 'True'
+            FISEBSTarget: 'True'
+            FISDBRole: Secondary
+          Parameters:
+            availabilityZoneIdentifier: !Ref SecondaryAZ
+      Actions:
+        pauseVolumeIO:
+          ActionId: aws:ebs:pause-volume-io
+          Description: Pause I/O on secondary DB volumes for 5 minutes
+          Parameters:
+            duration: PT5M
+          Targets:
+            Volumes: secondaryDBVolumes
+      LogConfiguration:
+        CloudWatchLogsConfiguration:
+          LogGroupArn: !GetAtt FISExperimentLogGroup.Arn
+        LogSchemaVersion: 2
+        S3Configuration:
+          BucketName: !Ref FISLogsBucket
+          Prefix: experiments/secondary-ebs-io-pause
+      Tags:
+        Name: OIH-Secondary-EBS-IO-Pause
+        Environment: !Ref Environment
+        TestType: HA-DR
+        AppID: !Ref AppID
+        DataClassification: !Ref DataClassification
+        CRIS: !Ref CRIS
+        Notify: !Ref NotifyEmails
+        Owner: !Ref OwnerList
+        Compliance: !Ref ComplianceList
+        Order: !Ref Order
+
+  # Subnet-Level Network Disruption - AZ Failure Simulation (Primary AZ)
+  FISTemplateSubnetDisruptPrimaryAZ:
+    Type: AWS::FIS::ExperimentTemplate
+    Properties:
+      Description: Simulate complete AZ failure by disrupting all network traffic to subnets in Primary AZ for 5 minutes
+      RoleArn: !GetAtt FISExperimentRole.Arn
+      StopConditions:
+        - Source: none
+      Targets:
+        primaryAZSubnets:
+          ResourceType: aws:ec2:subnet
+          SelectionMode: ALL
+          ResourceTags:
+            FISTarget: 'True'
+            FISAZRole: Primary
+      Actions:
+        disruptConnectivity:
+          ActionId: aws:network:disrupt-connectivity
+          Description: Block all network connectivity to Primary AZ subnets for 5 minutes - simulates complete AZ failure
+          Parameters:
+            duration: PT5M
+            scope: all
+          Targets:
+            Subnets: primaryAZSubnets
+      LogConfiguration:
+        CloudWatchLogsConfiguration:
+          LogGroupArn: !GetAtt FISExperimentLogGroup.Arn
+        LogSchemaVersion: 2
+        S3Configuration:
+          BucketName: !Ref FISLogsBucket
+          Prefix: experiments/primary-az-subnet-disrupt
+      Tags:
+        Name: OIH-Primary-AZ-Subnet-Disrupt
+        Environment: !Ref Environment
+        TestType: HA-DR-AZ-Failure
+        AppID: !Ref AppID
+        DataClassification: !Ref DataClassification
+        CRIS: !Ref CRIS
+        Notify: !Ref NotifyEmails
+        Owner: !Ref OwnerList
+        Compliance: !Ref ComplianceList
+        Order: !Ref Order
+
+  # Subnet-Level Network Disruption - AZ Failure Simulation (Secondary AZ)
+  FISTemplateSubnetDisruptSecondaryAZ:
+    Type: AWS::FIS::ExperimentTemplate
+    Properties:
+      Description: Simulate complete AZ failure by disrupting all network traffic to subnets in Secondary AZ for 5 minutes
+      RoleArn: !GetAtt FISExperimentRole.Arn
+      StopConditions:
+        - Source: none
+      Targets:
+        secondaryAZSubnets:
+          ResourceType: aws:ec2:subnet
+          SelectionMode: ALL
+          ResourceTags:
+            FISTarget: 'True'
+            FISAZRole: Secondary
+      Actions:
+        disruptConnectivity:
+          ActionId: aws:network:disrupt-connectivity
+          Description: Block all network connectivity to Secondary AZ subnets for 5 minutes - simulates complete AZ failure
+          Parameters:
+            duration: PT5M
+            scope: all
+          Targets:
+            Subnets: secondaryAZSubnets
+      LogConfiguration:
+        CloudWatchLogsConfiguration:
+          LogGroupArn: !GetAtt FISExperimentLogGroup.Arn
+        LogSchemaVersion: 2
+        S3Configuration:
+          BucketName: !Ref FISLogsBucket
+          Prefix: experiments/secondary-az-subnet-disrupt
+      Tags:
+        Name: OIH-Secondary-AZ-Subnet-Disrupt
+        Environment: !Ref Environment
+        TestType: HA-DR-AZ-Failure
+        AppID: !Ref AppID
+        DataClassification: !Ref DataClassification
+        CRIS: !Ref CRIS
+        Notify: !Ref NotifyEmails
+        Owner: !Ref OwnerList
+        Compliance: !Ref ComplianceList
+        Order: !Ref Order
+
+  # Subnet-Level Network Disruption - AZ Failure Simulation (Tertiary AZ - No DB Servers)
+  FISTemplateSubnetDisruptTertiaryAZ:
+    Type: AWS::FIS::ExperimentTemplate
+    Properties:
+      Description: Simulate complete AZ failure by disrupting all network traffic to subnets in Tertiary AZ (no DB servers) for 5 minutes
+      RoleArn: !GetAtt FISExperimentRole.Arn
+      StopConditions:
+        - Source: none
+      Targets:
+        tertiaryAZSubnets:
+          ResourceType: aws:ec2:subnet
+          SelectionMode: ALL
+          ResourceTags:
+            FISTarget: 'True'
+            FISAZRole: Tertiary
+      Actions:
+        disruptConnectivity:
+          ActionId: aws:network:disrupt-connectivity
+          Description: Block all network connectivity to Tertiary AZ subnets for 5 minutes - simulates AZ failure in non-DB AZ
+          Parameters:
+            duration: PT5M
+            scope: all
+          Targets:
+            Subnets: tertiaryAZSubnets
+      LogConfiguration:
+        CloudWatchLogsConfiguration:
+          LogGroupArn: !GetAtt FISExperimentLogGroup.Arn
+        LogSchemaVersion: 2
+        S3Configuration:
+          BucketName: !Ref FISLogsBucket
+          Prefix: experiments/tertiary-az-subnet-disrupt
+      Tags:
+        Name: OIH-Tertiary-AZ-Subnet-Disrupt
+        Environment: !Ref Environment
+        TestType: HA-DR-AZ-Failure
+        AppID: !Ref AppID
+        DataClassification: !Ref DataClassification
+        CRIS: !Ref CRIS
+        Notify: !Ref NotifyEmails
+        Owner: !Ref OwnerList
+        Compliance: !Ref ComplianceList
+        Order: !Ref Order
+
+Outputs:
+  FISPrimaryAZParameter:
+    Description: SSM Parameter storing Primary AZ (DBAs can update via Parameter Store)
+    Value: !Ref FISPrimaryAZParameter
+    Export:
+      Name: !Sub '${AWS::StackName}-PrimaryAZParameter'
+
+  FISSecondaryAZParameter:
+    Description: SSM Parameter storing Secondary AZ (DBAs can update via Parameter Store)
+    Value: !Ref FISSecondaryAZParameter
+    Export:
+      Name: !Sub '${AWS::StackName}-SecondaryAZParameter'
+
+  FISPrimaryAZValue:
+    Description: Current Primary AZ value
+    Value: !Ref PrimaryAZ
+
+  FISSecondaryAZValue:
+    Description: Current Secondary AZ value
+    Value: !Ref SecondaryAZ
+
+  FISTertiaryAZParameter:
+    Description: SSM Parameter storing Tertiary AZ (non-DB AZ)
+    Value: !Ref FISTertiaryAZParameter
+    Export:
+      Name: !Sub '${AWS::StackName}-TertiaryAZParameter'
+
+  FISTertiaryAZValue:
+    Description: Current Tertiary AZ value
+    Value: !Ref TertiaryAZ
+
+  FISExperimentRoleArn:
+    Description: ARN of the FIS Experiment IAM Role
+    Value: !GetAtt FISExperimentRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-FISExperimentRoleArn'
+
+  FISExperimentLogGroupArn:
+    Description: ARN of the CloudWatch Log Group for FIS experiments
+    Value: !GetAtt FISExperimentLogGroup.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-FISExperimentLogGroupArn'
+
+  FISExperimentLogGroupName:
+    Description: Name of the CloudWatch Log Group for FIS experiments
+    Value: !Ref FISExperimentLogGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-FISExperimentLogGroupName'
+
+  FISExperimentRoleName:
+    Description: Name of the FIS Experiment IAM Role
+    Value: !Ref FISExperimentRole
+    Export:
+      Name: !Sub '${AWS::StackName}-FISExperimentRoleName'
+
+  FISLogsBucketName:
+    Description: Name of the S3 bucket for FIS experiment logs
+    Value: !Ref FISLogsBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FISLogsBucketName'
+
+  FISLogsBucketArn:
+    Description: ARN of the S3 bucket for FIS experiment logs
+    Value: !GetAtt FISLogsBucket.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-FISLogsBucketArn'
+
+  # Experiment Template IDs
+  FISTemplatePrimaryEC2StopId:
+    Description: ID of the Primary EC2 Stop experiment template
+    Value: !GetAtt FISTemplatePrimaryEC2Stop.Id
+    Export:
+      Name: !Sub '${AWS::StackName}-PrimaryEC2StopTemplateId'
+
+  FISTemplateSecondaryEC2StopId:
+    Description: ID of the Secondary EC2 Stop experiment template
+    Value: !GetAtt FISTemplateSecondaryEC2Stop.Id
+    Export:
+      Name: !Sub '${AWS::StackName}-SecondaryEC2StopTemplateId'
+
+  FISTemplatePrimaryEBSIOPauseId:
+    Description: ID of the Primary EBS I/O Pause experiment template
+    Value: !GetAtt FISTemplatePrimaryEBSIOPause.Id
+    Export:
+      Name: !Sub '${AWS::StackName}-PrimaryEBSIOPauseTemplateId'
+
+  FISTemplateSecondaryEBSIOPauseId:
+    Description: ID of the Secondary EBS I/O Pause experiment template
+    Value: !GetAtt FISTemplateSecondaryEBSIOPause.Id
+    Export:
+      Name: !Sub '${AWS::StackName}-SecondaryEBSIOPauseTemplateId'
+
+  FISTemplateSubnetDisruptPrimaryAZId:
+    Description: ID of the Primary AZ Subnet Network Disruption experiment template (AZ failure simulation)
+    Value: !GetAtt FISTemplateSubnetDisruptPrimaryAZ.Id
+    Export:
+      Name: !Sub '${AWS::StackName}-SubnetDisruptPrimaryAZTemplateId'
+
+  FISTemplateSubnetDisruptSecondaryAZId:
+    Description: ID of the Secondary AZ Subnet Network Disruption experiment template (AZ failure simulation)
+    Value: !GetAtt FISTemplateSubnetDisruptSecondaryAZ.Id
+    Export:
+      Name: !Sub '${AWS::StackName}-SubnetDisruptSecondaryAZTemplateId'
+
+  FISTemplateSubnetDisruptTertiaryAZId:
+    Description: ID of the Tertiary AZ Subnet Network Disruption experiment template (non-DB AZ failure simulation)
+    Value: !GetAtt FISTemplateSubnetDisruptTertiaryAZ.Id
+    Export:
+      Name: !Sub '${AWS::StackName}-SubnetDisruptTertiaryAZTemplateId'

@@ -1,0 +1,37 @@
+description: 'Disrupt network connectivity to isolated test subnet (AZ-D) - Safe validation test'
+roleArn: 'arn:aws:iam::302263046280:role/FISExperimentRole'
+
+stopConditions:
+  - source: none
+
+targets:
+  testSubnet:
+    resourceType: aws:ec2:subnet
+    selectionMode: ALL
+    resourceTags:
+      FISTarget: 'True'
+      FISAZRole: TestAZ
+
+actions:
+  disruptConnectivity:
+    actionId: aws:network:disrupt-connectivity
+    description: 'Block all network traffic to test subnet for 5 minutes - validates FIS disruption mechanism'
+    parameters:
+      duration: PT5M
+      scope: all
+    targets:
+      Subnets: testSubnet
+
+logConfiguration:
+  cloudWatchLogsConfiguration:
+    logGroupArn: 'arn:aws:logs:us-west-2:302263046280:log-group:/aws/fis/experiments:*'
+  logSchemaVersion: 2
+  s3Configuration:
+    bucketName: oih-dev-fis-logs
+    prefix: experiments/test-subnet-disruption
+
+tags:
+  Name: OIH-Test-Subnet-Network-Disruption
+  Environment: DEV
+  TestType: FIS-Validation
+  Purpose: Safe-Testing-in-Isolated-AZ

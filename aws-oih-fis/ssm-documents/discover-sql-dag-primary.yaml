@@ -1,0 +1,110 @@
+---
+schemaVersion: '2.2'
+description: 'Discover the primary replica in a SQL Server Database Availability Group (DAG)'
+parameters:
+  AvailabilityGroupName:
+    type: String
+    description: 'Name of the SQL Server Availability Group to query (optional)'
+    default: ''
+mainSteps:
+  - name: discoverPrimaryReplica
+    action: 'aws:runPowerShellScript'
+    inputs:
+      runCommand:
+          - |
+            # SQL Server DAG Primary Replica Discovery Script
+            # Uses Windows Failover Cluster cmdlets (no SQL authentication required)
+            $ErrorActionPreference = "Continue"
+
+            try {
+                # Get local server name and AWS metadata
+                $serverName = $env:COMPUTERNAME
+                Write-Output "=========================================="
+                Write-Output "SQL Server Availability Group Discovery"
+                Write-Output "=========================================="
+                Write-Output "Local Server: $serverName"
+                Write-Output ""
+
+                # Get AWS EC2 metadata
+                try {
+                    $token = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "21600"} -Method PUT -Uri http://169.254.169.254/latest/api/token -ErrorAction Stop -TimeoutSec 2
+                    $instanceId = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token} -Method GET -Uri http://169.254.169.254/latest/meta-data/instance-id -ErrorAction Stop -TimeoutSec 2
+                    $availabilityZone = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token} -Method GET -Uri http://169.254.169.254/latest/meta-data/placement/availability-zone -ErrorAction Stop -TimeoutSec 2
+                    $privateIp = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token} -Method GET -Uri http://169.254.169.254/latest/meta-data/local-ipv4 -ErrorAction Stop -TimeoutSec 2
+
+                    Write-Output "Instance ID: $instanceId"
+                    Write-Output "Availability Zone: $availabilityZone"
+                    Write-Output "Private IP: $privateIp"
+                } catch {
+                    Write-Output "Warning: Could not retrieve EC2 metadata"
+                }
+
+                Write-Output ""
+                Write-Output "=== Windows Failover Cluster Status ==="
+
+                # Check if this is a cluster member
+                try {
+                    $clusterName = (Get-Cluster).Name
+                    Write-Output "Cluster Name: $clusterName"
+                    Write-Output ""
+                } catch {
+                    Write-Output "ERROR: This server is not part of a Windows Failover Cluster"
+                    exit 1
+                }
+
+                # Get all cluster groups (includes AGs)
+                $clusterGroups = Get-ClusterGroup
+
+                # Filter for SQL-related groups (AG names often contain AG, SQL, or DAG)
+                $sqlGroups = $clusterGroups | Where-Object {
+                    $_.Name -like "*AG*" -or
+                    $_.Name -like "*SQL*" -or
+                    $_.Name -like "*DAG*" -or
+                    $_.GroupType -eq "AvailabilityGroup"
+                }
+
+                if ($sqlGroups) {
+                    foreach ($group in $sqlGroups) {
+                        $isPrimary = $group.OwnerNode -eq $serverName
+
+                        Write-Output "Availability Group: $($group.Name)"
+                        Write-Output "  Owner Node: $($group.OwnerNode)"
+                        Write-Output "  State: $($group.State)"
+                        Write-Output "  Group Type: $($group.GroupType)"
+
+                        if ($isPrimary) {
+                            Write-Output "  >>> THIS SERVER IS THE PRIMARY REPLICA <<<"
+                            if ($instanceId) {
+                                Write-Output "  >>> Primary Instance: $instanceId"
+                                Write-Output "  >>> Primary AZ: $availabilityZone"
+                            }
+                        } else {
+                            Write-Output "  (This server is SECONDARY)"
+                        }
+                        Write-Output ""
+                    }
+                } else {
+                    Write-Output "No SQL Availability Groups found in cluster"
+                }
+
+                # Summary output in structured format for easy parsing
+                Write-Output "=========================================="
+                Write-Output "SUMMARY"
+                Write-Output "=========================================="
+                $primaryCount = ($sqlGroups | Where-Object {$_.OwnerNode -eq $serverName}).Count
+                if ($primaryCount -gt 0) {
+                    Write-Output "ROLE: PRIMARY (owns $primaryCount AG(s))"
+                } else {
+                    Write-Output "ROLE: SECONDARY"
+                }
+                if ($instanceId) {
+                    Write-Output "INSTANCE_ID: $instanceId"
+                    Write-Output "AVAILABILITY_ZONE: $availabilityZone"
+                }
+                Write-Output "=========================================="
+
+            } catch {
+                Write-Output "ERROR: $($_.Exception.Message)"
+                Write-Output "Stack Trace: $($_.ScriptStackTrace)"
+                exit 1
+            }

@@ -1,0 +1,325 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'FIS Network Disruption Test Harness - Deploy in isolated AZ-D subnet to validate network disruption'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID where test resources will be deployed
+
+  TestSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: The isolated AZ-D subnet (100.64.x.x/24) where test resources will be deployed
+
+  TestSubnetCIDR:
+    Type: String
+    Default: '100.64.0.0/24'
+    Description: CIDR block of the test subnet (for security group rules)
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+    Description: Latest Amazon Linux 2 AMI ID
+
+Resources:
+  # ================================================================
+  # Security Group for Test Resources
+  # ================================================================
+  TestSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: FIS-Test-Harness-SG
+      GroupDescription: Security group for FIS network disruption test resources
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS from anywhere (for API Gateway testing)
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref TestSubnetCIDR
+          Description: ICMP within test subnet
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound
+      Tags:
+        - Key: Name
+          Value: FIS-Test-Harness-SG
+        - Key: Purpose
+          Value: FIS-Network-Disruption-Testing
+
+  # ================================================================
+  # IAM Role for Lambda Function
+  # ================================================================
+  TestLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: FIS-Test-Lambda-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/FIS-Test-*'
+      Tags:
+        - Key: Name
+          Value: FIS-Test-Lambda-Role
+        - Key: Purpose
+          Value: FIS-Network-Disruption-Testing
+
+  # ================================================================
+  # Lambda Function: VPC-Attached (will be isolated during disruption)
+  # ================================================================
+  TestVPCLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: FIS-Test-VPC-Lambda
+      Description: VPC-attached Lambda to test network disruption isolation
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt TestLambdaExecutionRole.Arn
+      Timeout: 10
+      VpcConfig:
+        SubnetIds:
+          - !Ref TestSubnetId
+        SecurityGroupIds:
+          - !Ref TestSecurityGroup
+      Code:
+        ZipFile: |
+          import json
+          import datetime
+          import socket
+          import urllib.request
+
+          def lambda_handler(event, context):
+              """
+              Test function that validates:
+              1. Function can execute
+              2. ENI is active in VPC
+              3. Can reach external services (when not isolated)
+              """
+              response = {
+                  'timestamp': str(datetime.datetime.utcnow()),
+                  'function_name': context.function_name,
+                  'request_id': context.request_id,
+                  'tests': {}
+              }
+
+              # Test 1: Basic execution
+              response['tests']['execution'] = 'SUCCESS'
+
+              # Test 2: DNS resolution
+              try:
+                  socket.gethostbyname('aws.amazon.com')
+                  response['tests']['dns_resolution'] = 'SUCCESS'
+              except Exception as e:
+                  response['tests']['dns_resolution'] = f'FAILED: {str(e)}'
+
+              # Test 3: External connectivity
+              try:
+                  req = urllib.request.Request('https://checkip.amazonaws.com', headers={'User-Agent': 'FIS-Test'})
+                  with urllib.request.urlopen(req, timeout=5) as resp:
+                      public_ip = resp.read().decode('utf-8').strip()
+                  response['tests']['external_connectivity'] = f'SUCCESS (NAT IP: {public_ip})'
+              except Exception as e:
+                  response['tests']['external_connectivity'] = f'FAILED: {str(e)}'
+
+              # Test 4: VPC ENI active
+              response['tests']['vpc_eni'] = 'SUCCESS (function has VPC ENI in subnet)'
+
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps(response, indent=2)
+              }
+      Tags:
+        - Key: Name
+          Value: FIS-Test-VPC-Lambda
+        - Key: Purpose
+          Value: FIS-Network-Disruption-Testing
+        - Key: IsolationTest
+          Value: VPC-Attached
+
+  # Lambda Function: Non-VPC (should NOT be affected by disruption)
+  TestRegionalLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: FIS-Test-Regional-Lambda
+      Description: Regional Lambda (no VPC) - should remain accessible during disruption
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt TestLambdaExecutionRole.Arn
+      Timeout: 10
+      Code:
+        ZipFile: |
+          import json
+          import datetime
+
+          def lambda_handler(event, context):
+              """
+              Control function - should work even during network disruption
+              since it's not VPC-attached
+              """
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps({
+                      'timestamp': str(datetime.datetime.utcnow()),
+                      'function_name': context.function_name,
+                      'message': 'Regional Lambda responding - NOT affected by subnet disruption',
+                      'vpc_attached': False
+                  }, indent=2)
+              }
+      Tags:
+        - Key: Name
+          Value: FIS-Test-Regional-Lambda
+        - Key: Purpose
+          Value: FIS-Network-Disruption-Testing
+        - Key: IsolationTest
+          Value: Regional-Control
+
+  # ================================================================
+  # CloudWatch Log Groups
+  # ================================================================
+  TestVPCLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${TestVPCLambdaFunction}'
+      RetentionInDays: 7
+
+  TestRegionalLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${TestRegionalLambdaFunction}'
+      RetentionInDays: 7
+
+  # ================================================================
+  # EC2 Test Instance (Optional - for SSH/SSM testing)
+  # ================================================================
+  TestEC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: FIS-Test-EC2-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Tags:
+        - Key: Name
+          Value: FIS-Test-EC2-Role
+
+  TestEC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: FIS-Test-EC2-InstanceProfile
+      Roles:
+        - !Ref TestEC2InstanceRole
+
+  TestEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: t3.micro
+      SubnetId: !Ref TestSubnetId
+      SecurityGroupIds:
+        - !Ref TestSecurityGroup
+      IamInstanceProfile: !Ref TestEC2InstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+
+          # Simple web server for connectivity testing
+          cat > /var/www/html/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>FIS Test Instance</title></head>
+          <body>
+            <h1>FIS Network Disruption Test Instance</h1>
+            <p>Hostname: $(hostname)</p>
+            <p>If you can see this, the instance is reachable!</p>
+            <p>Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)</p>
+          </body>
+          </html>
+          EOF
+
+          systemctl start httpd
+          systemctl enable httpd
+      Tags:
+        - Key: Name
+          Value: FIS-Test-EC2-Instance
+        - Key: Purpose
+          Value: FIS-Network-Disruption-Testing
+        - Key: FISTarget
+          Value: 'False'
+          # Note: Set to 'True' when you're ready to test disruption
+
+Outputs:
+  VPCLambdaFunctionArn:
+    Description: ARN of VPC-attached Lambda function (will be isolated during disruption)
+    Value: !GetAtt TestVPCLambdaFunction.Arn
+    Export:
+      Name: FIS-Test-VPC-Lambda-Arn
+
+  VPCLambdaFunctionName:
+    Description: Name of VPC-attached Lambda function
+    Value: !Ref TestVPCLambdaFunction
+
+  RegionalLambdaFunctionArn:
+    Description: ARN of Regional Lambda function (should NOT be affected)
+    Value: !GetAtt TestRegionalLambdaFunction.Arn
+    Export:
+      Name: FIS-Test-Regional-Lambda-Arn
+
+  RegionalLambdaFunctionName:
+    Description: Name of Regional Lambda function
+    Value: !Ref TestRegionalLambdaFunction
+
+  TestEC2InstanceId:
+    Description: Instance ID of test EC2 instance
+    Value: !Ref TestEC2Instance
+
+  TestEC2PrivateIP:
+    Description: Private IP of test EC2 instance
+    Value: !GetAtt TestEC2Instance.PrivateIp
+
+  TestSubnetIdOutput:
+    Description: Test subnet ID (tag this with FISTarget=True, FISAZRole=TestAZ to enable disruption)
+    Value: !Ref TestSubnetId
+
+  TestCommand1:
+    Description: Command to test VPC Lambda (before disruption)
+    Value: !Sub 'aws lambda invoke --function-name ${TestVPCLambdaFunction} --log-type Tail /tmp/vpc-lambda-response.json && cat /tmp/vpc-lambda-response.json | jq'
+
+  TestCommand2:
+    Description: Command to test Regional Lambda (control - should always work)
+    Value: !Sub 'aws lambda invoke --function-name ${TestRegionalLambdaFunction} --log-type Tail /tmp/regional-lambda-response.json && cat /tmp/regional-lambda-response.json | jq'
+
+  TestCommand3:
+    Description: Command to test EC2 connectivity via SSM
+    Value: !Sub 'aws ssm start-session --target ${TestEC2Instance}'
+
+  TagSubnetCommand:
+    Description: Command to tag the test subnet for FIS targeting
+    Value: !Sub 'aws ec2 create-tags --resources ${TestSubnetId} --tags Key=FISTarget,Value=True Key=FISAZRole,Value=TestAZ'
