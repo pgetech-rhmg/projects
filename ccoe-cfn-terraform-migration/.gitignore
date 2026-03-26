@@ -1,5 +1,5 @@
 # Excel Files
-*.xlsx
+# *.xlsx
 
 # Temp folders
 /__*

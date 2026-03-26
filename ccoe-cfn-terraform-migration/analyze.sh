@@ -174,7 +174,7 @@ extract_complexity() {
     # APP-nnnn pattern anywhere in the templates
     grep -RohE 'APP-[0-9]+' "${files[@]}" 2>/dev/null
   )
-  app_ids=$(echo "$app_ids" | sort -u | grep -v '^$' | paste -sd '|' -)
+  app_ids=$(echo "$app_ids" | grep -v '^!' | grep -v '^\$' | grep -v '^$' | sort -u | paste -sd '|' -)
   [[ -z "$app_ids" ]] && app_ids="none"
 
   # Existing Terraform in the repo
