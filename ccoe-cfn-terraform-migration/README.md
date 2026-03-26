@@ -48,7 +48,7 @@ Finds all non-archived repos in the `pgetech` GitHub org that contain `AWSTempla
 
 ## Stage 2 — Repository Analysis (`analyze.sh`)
 
-Classifies each CloudFormation repo by metadata and infrastructure category.
+Classifies each CloudFormation repo and extracts migration complexity signals. Produces two CSVs.
 
 ```bash
 ./analyze.sh
@@ -56,8 +56,16 @@ Classifies each CloudFormation repo by metadata and infrastructure category.
 
 **How it works:**
 1. For each repo in `cfn-repos.txt`, fetches metadata (created date, last push, default branch)
-2. Clones and locates all CFN templates (YAML + JSON)
-3. Categorizes AWS resource types using weighted signals:
+2. Clones and locates all CFN templates (YAML, JSON, .template — excludes `node_modules/`, `vendor/`, `.terraform/`)
+3. Categorizes AWS resource types using weighted signals
+4. Extracts migration complexity signals from the templates
+5. Checks for existing Terraform (`.tf` files) in the repo
+
+### Output 1 — `cfn-repo-analysis.csv` (what exists)
+
+```
+repo_name,created_at,last_pushed_at,default_branch,cfn_file_count,platform_pct,application_pct,data_pct,other_pct
+```
 
 | Category | Strong Signals (4x) | Supporting Signals (1x) |
 |----------|---------------------|------------------------|
@@ -65,11 +73,26 @@ Classifies each CloudFormation repo by metadata and infrastructure category.
 | Application | ECS, EKS, Lambda, ALB, API Gateway | — |
 | Data | RDS, DynamoDB, Glue, Redshift, Kinesis, Athena | — |
 
-**Output:** `cfn-repo-analysis.csv`
+### Output 2 — `cfn-migration-complexity.csv` (how hard to convert)
 
 ```
-repo_name,created_at,last_pushed_at,default_branch,cfn_file_count,platform_pct,application_pct,data_pct,other_pct
+repo_name,total_resources,resource_types,nested_stacks,cross_stack_refs,custom_resources,sam_transforms,parameters,conditions,has_terraform,cfn_lines
 ```
+
+| Column | What It Tells You |
+|--------|-------------------|
+| `total_resources` | Number of `Type: AWS::*` resource declarations across all templates |
+| `resource_types` | Pipe-delimited list of unique AWS resource types (e.g. `AWS::EC2::Instance\|AWS::Lambda::Function`) |
+| `nested_stacks` | Count of `AWS::CloudFormation::Stack` — each becomes a Terraform module |
+| `cross_stack_refs` | Count of `Fn::ImportValue` / `!ImportValue` — need `terraform_remote_state` or data sources |
+| `custom_resources` | Count of `AWS::CloudFormation::CustomResource` / `Custom::*` — no direct Terraform equivalent |
+| `sam_transforms` | Whether SAM (`AWS::Serverless::`) is used — each SAM resource expands to multiple TF resources |
+| `parameters` | Count of `Parameters:` sections — become Terraform `variable` blocks |
+| `conditions` | Count of `Fn::If` / `!If` / `Conditions:` — become `count`/`for_each` ternaries |
+| `has_terraform` | Whether `.tf` files already exist in the repo |
+| `cfn_lines` | Total lines of CloudFormation code |
+
+Both files are keyed on `repo_name` and joinable in Excel or downstream scripts.
 
 ---
 
@@ -136,7 +159,7 @@ All scripts skip completed work automatically:
 | Script | Skip Logic |
 |--------|-----------|
 | `search.sh` | Skips repos in `cfn-repos.txt` or `__scan_progress.txt`. Reuses `repos.txt`. |
-| `analyze.sh` | Skips repos already in `cfn-repo-analysis.csv`. |
+| `analyze.sh` | Skips repos already in both `cfn-repo-analysis.csv` and `cfn-migration-complexity.csv`. |
 | `assessment.sh` | Skips repos with existing non-empty `results/{repo}_agent_results.md`. |
 
 ### Full Clean Re-run
@@ -144,7 +167,7 @@ All scripts skip completed work automatically:
 Delete all generated files and start from scratch:
 
 ```bash
-rm -f repos.txt cfn-repos.txt __scan_progress.txt cfn-repo-analysis.csv
+rm -f repos.txt cfn-repos.txt __scan_progress.txt cfn-repo-analysis.csv cfn-migration-complexity.csv
 rm -rf results/
 ```
 
@@ -154,13 +177,14 @@ rm -rf results/
 
 ```
 search.sh                  — Stage 1: discover CFN repos
-analyze.sh                 — Stage 2: classify and produce CSV
+analyze.sh                 — Stage 2: classify and produce CSVs
 assessment.sh              — Stage 3: AI assessment via Bedrock
 invoke_agent.py            — Bedrock agent invocation + output normalization
 normalize.py               — Markdown section normalizer (shared)
 repos.txt                  — All non-archived repos (generated)
 cfn-repos.txt              — Repos containing CFN (generated)
-cfn-repo-analysis.csv      — Analysis CSV (generated)
+cfn-repo-analysis.csv      — Analysis CSV: metadata + categories (generated)
+cfn-migration-complexity.csv — Complexity CSV: migration signals (generated)
 __scan_progress.txt        — Resume tracker for search.sh (generated)
 results/                   — Per-repo assessment markdown (generated)
 ```

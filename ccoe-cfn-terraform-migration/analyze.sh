@@ -4,6 +4,7 @@ set -euo pipefail
 ORG="pgetech"
 INPUT_FILE="cfn-repos.txt"
 OUTFILE="cfn-repo-analysis.csv"
+COMPLEXITY_FILE="cfn-migration-complexity.csv"
 TMPDIR="__repo_scan_tmp"
 
 trap 'rm -rf "$TMPDIR"' EXIT
@@ -83,12 +84,78 @@ detect_category_percentages() {
 }
 
 ###############################################################################
-# CSV Header — only write if file doesn't exist or is empty
+# MIGRATION COMPLEXITY EXTRACTION
 ###############################################################################
-CSV_HEADER="repo_name,created_at,last_pushed_at,default_branch,cfn_file_count,platform_pct,application_pct,data_pct,other_pct"
+extract_complexity() {
+  local files=("$@")
+
+  # Total resource declarations (Type: AWS:: in YAML, "Type": "AWS:: in JSON)
+  local total_resources
+  total_resources=$(grep -RohE \
+    '(Type:\s+AWS::[A-Za-z0-9:]+|"Type"\s*:\s*"AWS::[A-Za-z0-9:]+)' \
+    "${files[@]}" 2>/dev/null | wc -l | tr -d ' ')
+
+  # Unique resource types — pipe-delimited list
+  local resource_types
+  resource_types=$(grep -RohE \
+    'AWS::[A-Za-z0-9]+::[A-Za-z0-9]+' \
+    "${files[@]}" 2>/dev/null | sort -u | paste -sd '|' -)
+  [[ -z "$resource_types" ]] && resource_types="none"
+
+  # Nested stacks
+  local nested_stacks
+  nested_stacks=$(grep -Rc 'AWS::CloudFormation::Stack' \
+    "${files[@]}" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+
+  # Cross-stack references (Fn::ImportValue or !ImportValue)
+  local cross_stack_refs
+  cross_stack_refs=$(grep -RocE \
+    '(Fn::ImportValue|!ImportValue)' \
+    "${files[@]}" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+
+  # Custom resources
+  local custom_resources
+  custom_resources=$(grep -RocE \
+    '(AWS::CloudFormation::CustomResource|Custom::)' \
+    "${files[@]}" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+
+  # SAM transforms
+  local sam_transforms="false"
+  if grep -RqE '(AWS::Serverless::|Transform.*AWS::Serverless)' \
+       "${files[@]}" 2>/dev/null; then
+    sam_transforms="true"
+  fi
+
+  # Parameters count (top-level Parameters: sections)
+  local parameters
+  parameters=$(grep -Rc '^Parameters:' \
+    "${files[@]}" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+
+  # Conditions (Fn::If, Condition:, Conditions: section)
+  local conditions
+  conditions=$(grep -RocE \
+    '(Fn::If|!If|^Conditions:)' \
+    "${files[@]}" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+
+  # Total CFN lines across all template files
+  local cfn_lines
+  cfn_lines=$(cat "${files[@]}" 2>/dev/null | wc -l | tr -d ' ')
+
+  echo "${total_resources},${resource_types},${nested_stacks},${cross_stack_refs},${custom_resources},${sam_transforms},${parameters},${conditions},${cfn_lines}"
+}
+
+###############################################################################
+# CSV Headers — only write if file doesn't exist or is empty
+###############################################################################
+ANALYSIS_HEADER="repo_name,created_at,last_pushed_at,default_branch,cfn_file_count,platform_pct,application_pct,data_pct,other_pct"
+COMPLEXITY_HEADER="repo_name,total_resources,resource_types,nested_stacks,cross_stack_refs,custom_resources,sam_transforms,parameters,conditions,has_terraform,cfn_lines"
 
 if [[ ! -s "$OUTFILE" ]]; then
-  echo "$CSV_HEADER" > "$OUTFILE"
+  echo "$ANALYSIS_HEADER" > "$OUTFILE"
+fi
+
+if [[ ! -s "$COMPLEXITY_FILE" ]]; then
+  echo "$COMPLEXITY_HEADER" > "$COMPLEXITY_FILE"
 fi
 
 TOTAL=$(wc -l < "$INPUT_FILE" | tr -d ' ')
@@ -110,8 +177,9 @@ echo
 while read -r repo; do
   count=$((count + 1))
 
-  # Skip if repo already has a row in the CSV
-  if grep -qm1 "^${repo}," "$OUTFILE" 2>/dev/null; then
+  # Skip if repo already has a row in both CSVs
+  if grep -qm1 "^${repo}," "$OUTFILE" 2>/dev/null && \
+     grep -qm1 "^${repo}," "$COMPLEXITY_FILE" 2>/dev/null; then
     skipped=$((skipped + 1))
     continue
   fi
@@ -156,19 +224,51 @@ while read -r repo; do
 
   cfn_count="${#cfn_files[@]}"
 
+  #############################################################################
+  # Check for existing Terraform in the repo
+  #############################################################################
+  has_terraform="false"
+  if find "$workdir" -name "*.tf" -not -path "*/.terraform/*" -not -path "*/node_modules/*" \
+       -print -quit 2>/dev/null | grep -q .; then
+    has_terraform="true"
+  fi
+
+  #############################################################################
+  # Write results
+  #############################################################################
   if [[ "$cfn_count" -eq 0 ]]; then
     log "  No CloudFormation templates found"
-    echo "$repo,$created_at,$pushed_at,$default_branch,0,0,0,0,100" >> "$OUTFILE"
+
+    if ! grep -qm1 "^${repo}," "$OUTFILE" 2>/dev/null; then
+      echo "$repo,$created_at,$pushed_at,$default_branch,0,0,0,0,100" >> "$OUTFILE"
+    fi
+    if ! grep -qm1 "^${repo}," "$COMPLEXITY_FILE" 2>/dev/null; then
+      echo "$repo,0,none,0,0,0,false,0,0,$has_terraform,0" >> "$COMPLEXITY_FILE"
+    fi
+
     rm -rf "$workdir"
     continue
   fi
 
-  IFS=',' read platform_pct application_pct data_pct other_pct \
-    <<< "$(detect_category_percentages "${cfn_files[@]}")"
-
   log "  CFN files: $cfn_count"
 
-  echo "$repo,$created_at,$pushed_at,$default_branch,$cfn_count,$platform_pct,$application_pct,$data_pct,$other_pct" >> "$OUTFILE"
+  # Category analysis
+  if ! grep -qm1 "^${repo}," "$OUTFILE" 2>/dev/null; then
+    IFS=',' read platform_pct application_pct data_pct other_pct \
+      <<< "$(detect_category_percentages "${cfn_files[@]}")"
+
+    echo "$repo,$created_at,$pushed_at,$default_branch,$cfn_count,$platform_pct,$application_pct,$data_pct,$other_pct" >> "$OUTFILE"
+  fi
+
+  # Migration complexity
+  if ! grep -qm1 "^${repo}," "$COMPLEXITY_FILE" 2>/dev/null; then
+    complexity=$(extract_complexity "${cfn_files[@]}")
+    echo "$repo,$complexity,$has_terraform" >> "$COMPLEXITY_FILE"
+
+    # Log key signals
+    IFS=',' read total_resources resource_types nested cross custom sam params conds cfn_lines <<< "$complexity"
+    log "  Resources: $total_resources | Nested stacks: $nested | Cross-stack refs: $cross | Custom: $custom | SAM: $sam | Terraform exists: $has_terraform"
+  fi
 
   rm -rf "$workdir"
 
@@ -177,4 +277,5 @@ done < "$INPUT_FILE"
 echo
 log "Analysis complete"
 log "Repos skipped (already analyzed): $skipped"
-log "CSV written to: $OUTFILE"
+log "Analysis CSV: $OUTFILE"
+log "Complexity CSV: $COMPLEXITY_FILE"
