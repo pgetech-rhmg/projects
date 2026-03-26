@@ -1,22 +1,14 @@
-# CFN-to-Terraform Conversion Prompt
-
-Copy and paste the following into Claude Code, replacing the placeholders.
-
----
-
-```
-I need you to convert a CloudFormation project to Terraform using PG&E's Terraform module standards.
+Convert a CloudFormation project to Terraform using PG&E's Terraform module standards.
 
 ## Inputs
 
 ### 1. CloudFormation Source
-Project: <REPO_NAME>
-CFN templates are in: <PATH_TO_CFN_FILES>
+Project: $ARGUMENTS
 
-Read all CloudFormation template files (.yml, .yaml, .json, .template) in that directory.
+Find all CloudFormation template files (.yml, .yaml, .json, .template) in the $ARGUMENTS project directory by searching for files containing `AWSTemplateFormatVersion`. Exclude `node_modules/`, `vendor/`, and `.terraform/` directories. Read every template file completely.
 
 ### 2. Complexity Data
-Read the combined report CSV at ccoe-cfn-terraform-migration/cfn-combined-report.csv. Find the row where repo_name matches the input "Project". From that row, extract:
+Read the combined report CSV at ccoe-cfn-terraform-migration/cfn-combined-report.csv. Find the row where repo_name matches `$ARGUMENTS`. From that row, extract:
 - **resource_types** — the pipe-delimited list of AWS resource types (e.g. AWS::S3::Bucket|AWS::IAM::Role|AWS::Lambda::Function). This tells you exactly what AWS services are involved.
 - **total_resources** — how many resource declarations to convert
 - **nested_stacks, cross_stack_refs, custom_resources, sam_transforms** — complexity flags that affect the conversion approach
@@ -70,12 +62,11 @@ For each matching PG&E module, read:
 
 ## Output
 
-Create the .infra/ directory in the <REPO_NAME> project with all Terraform files. Also create a README.md in .infra/ that documents:
+Create the .infra/ directory in the $ARGUMENTS project with all Terraform files. Also create a README.md in .infra/ that documents:
 - What was converted (resource mapping table: CFN resource → Terraform resource → PG&E module)
 - What was NOT converted and why
 - File layout
 - Configuration values and their sources
 - Design decisions
 
-After creating the files, run terraform fmt to verify formatting.
-```
+After creating the files, run `terraform fmt` to verify formatting.
