@@ -1,9 +1,0 @@
-{
-	"env": {
-		"CLAUDE_CODE_USE_BEDROCK": "1",
-		"AWS_PROFILE": "your-aws-profile",
-		"AWS_REGION": "us-west-2",
-		"ANTHROPIC_MODEL": "us.anthropic.claude-sonnet-4-20250514-v1:0"
-	},
-	"model": "us.anthropic.claude-sonnet-4-20250514-v1:0"
-}
