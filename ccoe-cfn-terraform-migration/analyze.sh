@@ -87,6 +87,8 @@ detect_category_percentages() {
 # MIGRATION COMPLEXITY EXTRACTION
 ###############################################################################
 extract_complexity() {
+  local workdir="$1"
+  shift
   local files=("$@")
 
   # Total resource declarations (Type: AWS:: in YAML, "Type": "AWS:: in JSON)
@@ -141,14 +143,55 @@ extract_complexity() {
   local cfn_lines
   cfn_lines=$(cat "${files[@]}" 2>/dev/null | wc -l | tr -d ' ')
 
-  echo "${total_resources},${resource_types},${nested_stacks},${cross_stack_refs},${custom_resources},${sam_transforms},${parameters},${conditions},${cfn_lines}"
+  # AWS account IDs — extract 12-digit numbers from ARN patterns, deduplicate
+  local aws_account_ids
+  aws_account_ids=$(grep -RohE \
+    'arn:aws[a-z-]*:[a-z0-9-]+:[a-z0-9-]*:[0-9]{12}:' \
+    "${files[@]}" 2>/dev/null \
+    | grep -oE '[0-9]{12}' | sort -u | paste -sd '|' -)
+  [[ -z "$aws_account_ids" ]] && aws_account_ids="none"
+
+  # App identifiers — values from common CFN tag keys
+  # YAML: Key: Application / Value: MyApp (two lines)
+  # JSON: "Key": "Application", "Value": "MyApp" (one line)
+  local app_ids
+  app_ids=$(
+    # YAML — grep Key line, print next line (Value), extract value
+    grep -RnE 'Key:\s*(Application|AppName|AppId|Project)$' \
+      "${files[@]}" 2>/dev/null \
+      | while IFS=: read -r file lineno _; do
+          sed -n "$((lineno + 1))p" "$file" 2>/dev/null
+        done \
+      | grep -oE 'Value:\s*\S+' \
+      | sed -E 's/Value:\s*//'
+
+    # JSON — single line "Key": "...", "Value": "..."
+    grep -RohE '"Key"\s*:\s*"(Application|AppName|AppId|Project)"\s*,\s*"Value"\s*:\s*"[^"]+"' \
+      "${files[@]}" 2>/dev/null \
+      | grep -oE '"Value"\s*:\s*"[^"]+"' \
+      | sed -E 's/"Value"\s*:\s*"//; s/"$//'
+
+    # APP-nnnn pattern anywhere in the templates
+    grep -RohE 'APP-[0-9]+' "${files[@]}" 2>/dev/null
+  )
+  app_ids=$(echo "$app_ids" | sort -u | grep -v '^$' | paste -sd '|' -)
+  [[ -z "$app_ids" ]] && app_ids="none"
+
+  # Existing Terraform in the repo
+  local has_terraform="false"
+  if find "$workdir" -name "*.tf" -not -path "*/.terraform/*" -not -path "*/node_modules/*" \
+       -print -quit 2>/dev/null | grep -q .; then
+    has_terraform="true"
+  fi
+
+  echo "${total_resources},${resource_types},${nested_stacks},${cross_stack_refs},${custom_resources},${sam_transforms},${parameters},${conditions},${has_terraform},${cfn_lines},${aws_account_ids},${app_ids}"
 }
 
 ###############################################################################
 # CSV Headers — only write if file doesn't exist or is empty
 ###############################################################################
 ANALYSIS_HEADER="repo_name,created_at,last_pushed_at,default_branch,cfn_file_count,platform_pct,application_pct,data_pct,other_pct"
-COMPLEXITY_HEADER="repo_name,total_resources,resource_types,nested_stacks,cross_stack_refs,custom_resources,sam_transforms,parameters,conditions,has_terraform,cfn_lines"
+COMPLEXITY_HEADER="repo_name,total_resources,resource_types,nested_stacks,cross_stack_refs,custom_resources,sam_transforms,parameters,conditions,has_terraform,cfn_lines,aws_account_ids,app_ids"
 
 if [[ ! -s "$OUTFILE" ]]; then
   echo "$ANALYSIS_HEADER" > "$OUTFILE"
@@ -225,7 +268,7 @@ while read -r repo; do
   cfn_count="${#cfn_files[@]}"
 
   #############################################################################
-  # Check for existing Terraform in the repo
+  # Check for existing Terraform in the repo (for zero-CFN case)
   #############################################################################
   has_terraform="false"
   if find "$workdir" -name "*.tf" -not -path "*/.terraform/*" -not -path "*/node_modules/*" \
@@ -243,7 +286,7 @@ while read -r repo; do
       echo "$repo,$created_at,$pushed_at,$default_branch,0,0,0,0,100" >> "$OUTFILE"
     fi
     if ! grep -qm1 "^${repo}," "$COMPLEXITY_FILE" 2>/dev/null; then
-      echo "$repo,0,none,0,0,0,false,0,0,$has_terraform,0" >> "$COMPLEXITY_FILE"
+      echo "$repo,0,none,0,0,0,false,0,0,$has_terraform,0,none,none" >> "$COMPLEXITY_FILE"
     fi
 
     rm -rf "$workdir"
@@ -262,12 +305,12 @@ while read -r repo; do
 
   # Migration complexity
   if ! grep -qm1 "^${repo}," "$COMPLEXITY_FILE" 2>/dev/null; then
-    complexity=$(extract_complexity "${cfn_files[@]}")
-    echo "$repo,$complexity,$has_terraform" >> "$COMPLEXITY_FILE"
+    complexity=$(extract_complexity "$workdir" "${cfn_files[@]}")
+    echo "$repo,$complexity" >> "$COMPLEXITY_FILE"
 
     # Log key signals
-    IFS=',' read total_resources resource_types nested cross custom sam params conds cfn_lines <<< "$complexity"
-    log "  Resources: $total_resources | Nested stacks: $nested | Cross-stack refs: $cross | Custom: $custom | SAM: $sam | Terraform exists: $has_terraform"
+    IFS=',' read total_resources resource_types nested cross custom sam params conds has_tf cfn_lines acct_ids app_names <<< "$complexity"
+    log "  Resources: $total_resources | Nested stacks: $nested | Cross-stack refs: $cross | Custom: $custom | SAM: $sam | Terraform exists: $has_tf | Accounts: $acct_ids | Apps: $app_names"
   fi
 
   rm -rf "$workdir"

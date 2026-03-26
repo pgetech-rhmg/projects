@@ -76,7 +76,7 @@ repo_name,created_at,last_pushed_at,default_branch,cfn_file_count,platform_pct,a
 ### Output 2 — `cfn-migration-complexity.csv` (how hard to convert)
 
 ```
-repo_name,total_resources,resource_types,nested_stacks,cross_stack_refs,custom_resources,sam_transforms,parameters,conditions,has_terraform,cfn_lines
+repo_name,total_resources,resource_types,nested_stacks,cross_stack_refs,custom_resources,sam_transforms,parameters,conditions,has_terraform,cfn_lines,aws_account_ids,app_ids
 ```
 
 | Column | What It Tells You |
@@ -91,6 +91,8 @@ repo_name,total_resources,resource_types,nested_stacks,cross_stack_refs,custom_r
 | `conditions` | Count of `Fn::If` / `!If` / `Conditions:` — become `count`/`for_each` ternaries |
 | `has_terraform` | Whether `.tf` files already exist in the repo |
 | `cfn_lines` | Total lines of CloudFormation code |
+| `aws_account_ids` | Pipe-delimited list of unique 12-digit account IDs extracted from ARNs |
+| `app_ids` | Pipe-delimited list of unique app identifiers from CFN tag values (`Application`, `AppName`, `AppId`, `Project`) |
 
 Both files are keyed on `repo_name` and joinable in Excel or downstream scripts.
 
