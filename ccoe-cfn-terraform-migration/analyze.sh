@@ -7,7 +7,6 @@ OUTFILE="cfn-repo-analysis.csv"
 TMPDIR="__repo_scan_tmp"
 
 trap 'rm -rf "$TMPDIR"' EXIT
-
 mkdir -p "$TMPDIR"
 
 ###############################################################################
@@ -15,14 +14,6 @@ mkdir -p "$TMPDIR"
 ###############################################################################
 log() {
   echo ">> $*"
-}
-
-###############################################################################
-# CLEANUP
-###############################################################################
-cleanup_repo() {
-  local dir="$1"
-  [[ -n "$dir" && -d "$dir" ]] && rm -rf "$dir"
 }
 
 ###############################################################################
@@ -92,22 +83,43 @@ detect_category_percentages() {
 }
 
 ###############################################################################
-# CSV Header
+# CSV Header — only write if file doesn't exist or is empty
 ###############################################################################
-echo "repo_name,created_at,last_pushed_at,default_branch,cfn_file_count,platform_pct,application_pct,data_pct,other_pct" > "$OUTFILE"
+CSV_HEADER="repo_name,created_at,last_pushed_at,default_branch,cfn_file_count,platform_pct,application_pct,data_pct,other_pct"
+
+if [[ ! -s "$OUTFILE" ]]; then
+  echo "$CSV_HEADER" > "$OUTFILE"
+fi
+
+# Load already-analyzed repos so we can skip them on re-run
+declare -A ANALYZED=()
+if [[ -f "$OUTFILE" ]]; then
+  while IFS=',' read -r name _rest; do
+    [[ "$name" == "repo_name" ]] && continue
+    [[ -n "$name" ]] && ANALYZED["$name"]=1
+  done < "$OUTFILE"
+fi
 
 TOTAL=$(wc -l < "$INPUT_FILE" | tr -d ' ')
 count=0
+skipped=0
 
 log "Starting CloudFormation repo analysis"
 log "Repos: $TOTAL"
+log "Already analyzed: ${#ANALYZED[@]}"
 echo
 
 while read -r repo; do
   ((count++))
+
+  if [[ -n "${ANALYZED[$repo]+x}" ]]; then
+    ((skipped++))
+    continue
+  fi
+
   log "[$count/$TOTAL] Processing $repo"
 
-  repo_json=$(gh api repos/$ORG/$repo 2>/dev/null || true)
+  repo_json=$(gh api "repos/$ORG/$repo" 2>/dev/null || true)
   [[ -z "$repo_json" ]] && log "  Unable to fetch metadata — skipping" && continue
 
   created_at=$(format_date "$(echo "$repo_json" | jq -r '.created_at')")
@@ -118,15 +130,12 @@ while read -r repo; do
   rm -rf "$workdir"
 
   log "  Cloning default branch: $default_branch"
-  echo
 
   git clone --depth=1 --branch "$default_branch" \
     "https://github.com/$ORG/$repo.git" "$workdir" >/dev/null 2>&1 || {
       log "  Clone failed — skipping"
       continue
     }
-
-  echo
 
   #############################################################################
   # Find CloudFormation templates (YAML + JSON)
@@ -147,6 +156,7 @@ while read -r repo; do
   if [[ "$cfn_count" -eq 0 ]]; then
     log "  No CloudFormation templates found"
     echo "$repo,$created_at,$pushed_at,$default_branch,0,0,0,0,100" >> "$OUTFILE"
+    rm -rf "$workdir"
     continue
   fi
 
@@ -157,11 +167,11 @@ while read -r repo; do
 
   echo "$repo,$created_at,$pushed_at,$default_branch,$cfn_count,$platform_pct,$application_pct,$data_pct,$other_pct" >> "$OUTFILE"
 
-  cleanup_repo "$workdir"
+  rm -rf "$workdir"
 
 done < "$INPUT_FILE"
 
 echo
 log "Analysis complete"
+log "Repos skipped (already analyzed): $skipped"
 log "CSV written to: $OUTFILE"
-

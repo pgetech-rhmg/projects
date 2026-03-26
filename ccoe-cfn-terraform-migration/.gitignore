@@ -3,3 +3,7 @@
 
 # Temp folders
 /__*
+
+# Python
+__pycache__/
+*.pyc

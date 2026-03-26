@@ -4,6 +4,7 @@ set -euo pipefail
 ###############################################################################
 # CONFIG
 ###############################################################################
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_BIN="$(command -v python3.11 || command -v python3)"
 
 ORG="pgetech"
@@ -18,9 +19,8 @@ AWS_PROFILE_DEFAULT="pge-sso"
 : "${AWS_PROFILE:=$AWS_PROFILE_DEFAULT}"
 export AWS_PROFILE
 
-ROOTDIR="$(pwd)"
-WORKDIR="$ROOTDIR/__cfn_agent_tmp"
-RESULTSDIR="$ROOTDIR/results"
+WORKDIR="$SCRIPT_DIR/__cfn_agent_tmp"
+RESULTSDIR="$SCRIPT_DIR/results"
 
 # ---- SIZE CONTROL ----
 MAX_FILES_SINGLE=25
@@ -106,33 +106,26 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r repo _ _ branch file_count _; do
   # STEP 1 — CLONE
   ###########################################################################
   log "Cloning repository..."
-  echo
 
   git clone \
     --depth=1 \
     --branch="$branch" \
     "https://github.com/${ORG}/${repo}.git" \
-    "$REPODIR" >/dev/null
+    "$REPODIR" >/dev/null 2>&1
 
   ###########################################################################
-  # STEP 2 — DISCOVER CFN FILES
+  # STEP 2 — DISCOVER CFN FILES (in a subshell to avoid cd side effects)
   ###########################################################################
-  echo
   log "Discovering CloudFormation files..."
-
-  cd "$REPODIR"
 
   CFN_FILES=()
   while IFS= read -r file; do
-    if grep -Eq '(^|\s)(AWSTemplateFormatVersion|Resources)\s*:' "$file" || \
-       grep -Eq '"AWSTemplateFormatVersion"\s*:|"Resources"\s*:' "$file"; then
-      CFN_FILES+=("$file")
-    fi
+    [[ -n "$file" ]] && CFN_FILES+=("$file")
   done < <(
-    find . -type f \( -name "*.yml" -o -name "*.yaml" -o -name "*.json" \)
+    cd "$REPODIR" && \
+    find . -type f \( -name "*.yml" -o -name "*.yaml" -o -name "*.json" \) -print0 | \
+    xargs -0 grep -lE '(^|\s)(AWSTemplateFormatVersion|Resources)\s*:|"(AWSTemplateFormatVersion|Resources)"\s*:' 2>/dev/null || true
   )
-
-  cd "$ROOTDIR"
 
   TOTAL_FILES="${#CFN_FILES[@]}"
   if (( TOTAL_FILES == 0 )); then
@@ -198,101 +191,18 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r repo _ _ branch file_count _; do
     fi
 
     #########################################################################
-    # AGENT INVOCATION — CHUNK (WITH NORMALIZATION)
+    # AGENT INVOCATION — CHUNK
     #########################################################################
-    CHUNK_NUM=$((c + 1))
-
-    "$PYTHON_BIN" <<PY
-import boto3
-import pathlib
-import uuid
-import re
-from botocore.config import Config
-
-SECTIONS = [
-    "Overview",
-    "Architecture Summary",
-    "Identified Resources",
-    "Issues & Risks",
-    "Technical Debt",
-    "Terraform Migration Complexity",
-    "Recommended Migration Path",
-]
-
-def normalize(md: str, repo: str) -> str:
-    blocks = {}
-    current = None
-    buf = []
-
-    for line in md.splitlines():
-        m = re.match(r"^##\\s+\\d+\\. (.+)", line)
-        if m:
-            if current:
-                blocks[current] = "\\n".join(buf).strip()
-            current = m.group(1)
-            buf = []
-        elif current:
-            buf.append(line)
-
-    if current:
-        blocks[current] = "\\n".join(buf).strip()
-
-    out = [f"# Repository Assessment: {repo}", ""]
-    for i, sec in enumerate(SECTIONS, 1):
-        out.append(f"## {i}. {sec}")
-        out.append(blocks.get(sec) or "Not Observed")
-        out.append("")
-    return "\\n".join(out)
-
-config = Config(read_timeout=300, connect_timeout=30)
-client = boto3.client(
-    "bedrock-agent-runtime",
-    region_name="${AWS_REGION}",
-    config=config
-)
-
-input_text = pathlib.Path("${INPUT_TXT}").read_text(encoding="utf-8", errors="replace")
-
-prompt = f"""
-You are analyzing PARTIAL CloudFormation input (chunk ${CHUNK_NUM} of ${CHUNKS}).
-
-You MUST follow the REQUIRED OUTPUT FORMAT exactly.
-Do NOT rename, reorder, omit, or add sections.
-If information is missing, output Not Observed.
-
-REQUIRED OUTPUT FORMAT:
-
-# Repository Assessment: ${repo}
-
-## 1. Overview
-## 2. Architecture Summary
-## 3. Identified Resources
-## 4. Issues & Risks
-## 5. Technical Debt
-## 6. Terraform Migration Complexity
-## 7. Recommended Migration Path
-
-BEGIN CLOUDFORMATION INPUT
-{input_text}
-END CLOUDFORMATION INPUT
-"""
-
-response = client.invoke_agent(
-    agentId="${AGENT_ID}",
-    agentAliasId="${AGENT_ALIAS_ID}",
-    sessionId=str(uuid.uuid4()),
-    inputText=prompt,
-)
-
-raw = "".join(
-    event["chunk"]["bytes"].decode("utf-8", errors="replace")
-    for event in response.get("completion", [])
-    if "chunk" in event
-)
-
-normalized = normalize(raw, "${repo}")
-pathlib.Path("${RESULT_CHUNK}").write_text(normalized, encoding="utf-8")
-PY
+    "$PYTHON_BIN" "$SCRIPT_DIR/invoke_agent.py" \
+      --agent-id "$AGENT_ID" \
+      --agent-alias-id "$AGENT_ALIAS_ID" \
+      --region "$AWS_REGION" \
+      --repo "$repo" \
+      --input-file "$INPUT_TXT" \
+      --output-file "$RESULT_CHUNK" \
+      --mode chunk \
+      --chunk-num "$((c + 1))" \
+      --total-chunks "$CHUNKS"
 
     CHUNK_RESULTS+=("$RESULT_CHUNK")
     log "Completed chunk $((c+1))"
@@ -312,103 +222,17 @@ PY
 
     for f in "${CHUNK_RESULTS[@]}"; do
       cat "$f" >> "$CONSOLIDATION_INPUT"
-      echo -e "\n\n---\n\n" >> "$CONSOLIDATION_INPUT"
+      printf "\n\n---\n\n" >> "$CONSOLIDATION_INPUT"
     done
 
-    "$PYTHON_BIN" <<PY
-import boto3
-import pathlib
-import uuid
-import re
-from botocore.config import Config
-
-SECTIONS = [
-    "Overview",
-    "Architecture Summary",
-    "Identified Resources",
-    "Issues & Risks",
-    "Technical Debt",
-    "Terraform Migration Complexity",
-    "Recommended Migration Path",
-]
-
-def normalize(md: str, repo: str) -> str:
-    blocks = {}
-    current = None
-    buf = []
-
-    for line in md.splitlines():
-        m = re.match(r"^##\\s+\\d+\\. (.+)", line)
-        if m:
-            if current:
-                blocks[current] = "\\n".join(buf).strip()
-            current = m.group(1)
-            buf = []
-        elif current:
-            buf.append(line)
-
-    if current:
-        blocks[current] = "\\n".join(buf).strip()
-
-    out = [f"# Repository Assessment: {repo}", ""]
-    for i, sec in enumerate(SECTIONS, 1):
-        out.append(f"## {i}. {sec}")
-        out.append(blocks.get(sec) or "Not Observed")
-        out.append("")
-    return "\\n".join(out)
-
-config = Config(read_timeout=300, connect_timeout=30)
-client = boto3.client(
-    "bedrock-agent-runtime",
-    region_name="${AWS_REGION}",
-    config=config
-)
-
-analysis_text = pathlib.Path("${CONSOLIDATION_INPUT}").read_text(
-    encoding="utf-8", errors="replace"
-)
-
-prompt = f"""
-You are consolidating multiple PARTIAL repository assessments.
-
-You MUST preserve the REQUIRED OUTPUT FORMAT exactly.
-Do NOT invent data.
-If a section cannot be confidently derived, output Not Observed.
-
-REQUIRED OUTPUT FORMAT:
-
-
-# Repository Assessment: ${repo}
-
-## 1. Overview
-## 2. Architecture Summary
-## 3. Identified Resources
-## 4. Issues & Risks
-## 5. Technical Debt
-## 6. Terraform Migration Complexity
-## 7. Recommended Migration Path
-
-BEGIN ANALYSIS INPUT
-{analysis_text}
-END ANALYSIS INPUT
-"""
-
-response = client.invoke_agent(
-    agentId="${AGENT_ID}",
-    agentAliasId="${AGENT_ALIAS_ID}",
-    sessionId=str(uuid.uuid4()),
-    inputText=prompt,
-)
-
-raw = "".join(
-    event["chunk"]["bytes"].decode("utf-8", errors="replace")
-    for event in response.get("completion", [])
-    if "chunk" in event
-)
-
-normalized = normalize(raw, "${repo}")
-pathlib.Path("${RESULT_FILE}").write_text(normalized, encoding="utf-8")
-PY
+    "$PYTHON_BIN" "$SCRIPT_DIR/invoke_agent.py" \
+      --agent-id "$AGENT_ID" \
+      --agent-alias-id "$AGENT_ALIAS_ID" \
+      --region "$AWS_REGION" \
+      --repo "$repo" \
+      --input-file "$CONSOLIDATION_INPUT" \
+      --output-file "$RESULT_FILE" \
+      --mode consolidate
   fi
 
   log "Completed analysis for $repo"
@@ -423,4 +247,3 @@ done
 echo
 log "All repository analyses complete"
 log "Results directory: $RESULTSDIR"
-
