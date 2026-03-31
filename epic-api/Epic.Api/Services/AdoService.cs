@@ -368,6 +368,25 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         };
     }
 
+    public async Task CancelBuildAsync(int buildId, CancellationToken ct = default)
+    {
+        var url = $"{BaseUrl}/build/builds/{buildId}?api-version=7.1";
+        var json = JsonSerializer.Serialize(new { status = "cancelling" });
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, url);
+        var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{Pat}"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+        request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+        var response = await httpClient.SendAsync(request, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException($"ADO API returned {(int)response.StatusCode}: {body}");
+        }
+    }
+
     private async Task<JsonElement?> CallApiAsync(string url, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);

@@ -27,7 +27,10 @@ module "secretmanager" {
   app_name                = var.app_name
   environment             = var.environment
   tags                    = module.tags.tags
-  secrets                 = var.secrets
+  secrets = merge(var.secrets, {
+    "AWS_RDS_SECRET_ARN" = aws_rds_cluster.epic.master_user_secret[0].secret_arn
+    "AWS_RDS_ENDPOINT"   = aws_rds_cluster.epic.endpoint
+  })
   secrets_description     = var.secrets_description
   secret_version_enabled  = true
   recovery_window_in_days = 0
@@ -363,8 +366,6 @@ RestartSec=5
 User=ec2-user
 Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment=AWS_RDS_SECRET_ARN=${aws_rds_cluster.epic.master_user_secret[0].secret_arn}
-Environment=AWS_RDS_ENDPOINT=${aws_rds_cluster.epic.endpoint}
 
 [Install]
 WantedBy=multi-user.target

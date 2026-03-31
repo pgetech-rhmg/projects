@@ -44,6 +44,7 @@ export class AppService {
         environment: detail.environment,
         lastPipelineRun: null,
         branch: null,
+        runId: null,
         runStatus: null,
         triggeredBy: null,
         successRate: null
@@ -68,5 +69,10 @@ export class AppService {
     deployInfra: string;
   }): Observable<{ runId: number; url: string }> {
     return this.http.post<{ runId: number; url: string }>(`${this.api}/api/apps/${appName}/runs`, params);
+  }
+
+  /** Cancel a running pipeline build. */
+  cancelRun(appName: string, runId: number): Observable<void> {
+    return this.http.post<void>(`${this.api}/api/apps/${appName}/runs/${runId}/cancel`, {});
   }
 }

@@ -87,4 +87,23 @@ public sealed class AppsController : ControllerBase
             return NotFound();
         }
     }
+
+    /// <summary>
+    /// Cancel a running pipeline build.
+    /// </summary>
+    [HttpPost("{name}/runs/{runId:int}/cancel")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> CancelRun(string name, int runId, CancellationToken ct)
+    {
+        try
+        {
+            await _appService.CancelRunAsync(name, runId, ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
 }

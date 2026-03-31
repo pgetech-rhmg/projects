@@ -414,6 +414,23 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         };
     }
 
+    public async Task CancelRunAsync(string appName, int runId, CancellationToken ct = default)
+    {
+        var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == appName, ct)
+            ?? throw new KeyNotFoundException($"App '{appName}' not found");
+
+        await ado.CancelBuildAsync(runId, ct);
+
+        // Update local DB record if we have it
+        var run = await db.Set<PipelineRunEntity>()
+            .FirstOrDefaultAsync(r => r.Id == runId && r.AppId == entity.Id, ct);
+        if (run is not null)
+        {
+            run.Status = "Cancelled";
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
     // ----- Mapping helpers -----
 
     private static ManagedApp ToManagedApp(AppEntity entity)
@@ -430,6 +447,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             Environment = entity.Environment,
             LastPipelineRun = lastRun?.StartedAt.ToString("o"),
             Branch = lastRun?.Branch,
+            RunId = lastRun?.Id,
             RunStatus = lastRun is not null ? Enum.Parse<RunStatus>(lastRun.Status, true) : null,
             TriggeredBy = lastRun?.TriggeredBy,
             SuccessRate = totalRuns > 0 ? Math.Round((double)successfulRuns / totalRuns * 100, 2) : null

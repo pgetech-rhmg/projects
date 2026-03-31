@@ -549,7 +549,7 @@ export class App implements OnInit, OnDestroy {
         const triggeredAt = new Date().toISOString();
         const currentApp = this.apps().find(a => a.name === appName);
         this.pendingApps.set(appName, {
-          ...(currentApp ?? { name: appName, technology: '', cloud: '', environment: env, successRate: null }),
+          ...(currentApp ?? { name: appName, technology: '', cloud: '', environment: env, runId: null, successRate: null }),
           lastPipelineRun: triggeredAt,
           branch,
           environment: env,
@@ -568,6 +568,20 @@ export class App implements OnInit, OnDestroy {
         this.loading.set(false);
         this.showToast(`Failed to trigger pipeline run for "${appName}".`);
       }
+    });
+  }
+
+  protected onCancelRun(app: ManagedApp, event: Event): void {
+    event.stopPropagation();
+    if (!app.runId) return;
+    this.appService.cancelRun(app.name, app.runId).subscribe({
+      next: () => {
+        this.apps.update(list => list.map(a =>
+          a.name === app.name ? { ...a, runStatus: 'Cancelled' as const } : a
+        ));
+        this.showToast(`Pipeline run #${app.runId} for "${app.name}" has been cancelled.`);
+      },
+      error: () => this.showToast(`Failed to cancel pipeline run for "${app.name}".`)
     });
   }
 
