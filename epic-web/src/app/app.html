@@ -130,16 +130,6 @@
                 <span class="badge badge--status badge--status-{{ app.runStatus | lowercase }}">
                   {{ app.runStatus }}
                 </span>
-                @if (app.runStatus === 'Running' && app.runId) {
-                  <button class="cancel-btn" (click)="onCancelRun(app, $event)" title="Cancel this run">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10"/>
-                      <line x1="15" y1="9" x2="9" y2="15"/>
-                      <line x1="9" y1="9" x2="15" y2="15"/>
-                    </svg>
-                  </button>
-                }
               </td>
               <td class="success-rate">
                 {{ app.successRate !== null ? app.successRate.toFixed(2) + '%' : '—' }}
@@ -264,7 +254,19 @@
                 @for (run of pagedRuns(); track run.id) {
                   <tr>
                     <td class="run-id"><a class="run-link" [href]="getRunUrl(run.id)" target="_blank" rel="noopener" (click)="$event.stopPropagation()">#{{ run.id }}</a></td>
-                    <td><span class="badge badge--status badge--status-{{ run.status | lowercase }}">{{ run.status }}</span></td>
+                    <td>
+                      <span class="badge badge--status badge--status-{{ run.status | lowercase }}">{{ run.status }}</span>
+                      @if (run.status === 'Running') {
+                        <button class="cancel-btn" (click)="onCancelRunById(run.id)" title="Cancel this run">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="15" y1="9" x2="9" y2="15"/>
+                            <line x1="9" y1="9" x2="15" y2="15"/>
+                          </svg>
+                        </button>
+                      }
+                    </td>
                     <td class="run-branch">{{ run.branch }}</td>
                     <td><span class="badge badge--env badge--env-{{ run.environment }}">{{ run.environment }}</span></td>
                     <td class="timestamp">{{ run.triggeredBy }}</td>

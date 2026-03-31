@@ -572,17 +572,26 @@ export class App implements OnInit, OnDestroy {
     });
   }
 
-  protected onCancelRun(app: ManagedApp, event: Event): void {
-    event.stopPropagation();
-    if (!app.runId) return;
-    this.appService.cancelRun(app.name, app.runId).subscribe({
+  protected onCancelRunById(runId: number): void {
+    const appName = this.appDetail()?.name;
+    if (!appName) return;
+    this.appService.cancelRun(appName, runId).subscribe({
       next: () => {
+        // Update the run in the modal's detail
+        this.appDetail.update(detail => {
+          if (!detail) return detail;
+          return {
+            ...detail,
+            runs: detail.runs.map(r => r.id === runId ? { ...r, status: 'Cancelled' as const } : r)
+          };
+        });
+        // Update main table if this was the latest run
         this.apps.update(list => list.map(a =>
-          a.name === app.name ? { ...a, runStatus: 'Cancelled' as const } : a
+          a.name === appName && a.runId === runId ? { ...a, runStatus: 'Cancelled' as const } : a
         ));
-        this.showToast(`Pipeline run #${app.runId} for "${app.name}" has been cancelled.`);
+        this.showToast(`Pipeline run #${runId} for "${appName}" has been cancelled.`);
       },
-      error: () => this.showToast(`Failed to cancel pipeline run for "${app.name}".`)
+      error: () => this.showToast(`Failed to cancel pipeline run for "${appName}".`)
     });
   }
 
