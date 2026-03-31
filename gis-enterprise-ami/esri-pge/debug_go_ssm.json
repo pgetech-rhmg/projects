@@ -1,0 +1,176 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Configure Go Server site using cinc-client (multi-step, per-step logging + waits)",
+  "parameters": {
+    "goFileServer": { "type": "String" },
+    "goServer": { "type": "String" }
+  },
+  "mainSteps": [
+
+    {
+      "action": "aws:runShellScript",
+      "name": "prepSystem",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/go-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/prepSystem.log\") 2>&1",
+          "echo \"=== prepSystem: starting at $(date) ===\"",
+          "",
+          "sudo yum update -y || true",
+          "sudo yum install -y amazon-ssm-agent ruby wget git unzip dmidecode --nogpgcheck || true",
+          "systemctl enable amazon-ssm-agent || true",
+          "systemctl start amazon-ssm-agent || true",
+          "",
+          "echo \"=== prepSystem: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "downloadAssets",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/go-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/downloadAssets.log\") 2>&1",
+          "echo \"=== downloadAssets: starting at $(date) ===\"",
+          "",
+          "mkdir -p \"/opt/certificates\"",
+          "aws s3 cp \"s3://pge-project/aes_ps.com.cer\" \"/opt/certificates/aes_ps.com.cer\" --region us-east-2 || (echo 'Failed to download root cert' >&2; exit 1)",
+          "aws s3 cp \"s3://pge-project/staraespsdotcomks.p12\"  \"/opt/certificates/staraespsdotcomks.p12\" --region us-east-2 || (echo 'Failed to download pfx cert' >&2; exit 1)",
+          "",
+          "mkdir -p \"/opt/license/11.5\"",
+          "aws s3 cp \"s3://pge-project/Server_Ent_Adv.ecp\" \"/opt/license/11.5/Server_Ent_Adv.ecp\" --region us-east-2 || (echo 'Failed to download license' >&2; exit 1)",
+          "",
+          "echo \"=== downloadAssets: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "installCinc",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/go-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/installCinc.log\") 2>&1",
+          "echo \"=== installCinc: starting at $(date) ===\"",
+          "",
+          "curl -L https://omnitruck.cinc.sh/install.sh | sudo bash -s -- -v 18.5.0",
+          "export PATH=\"$PATH:/opt/cinc/bin\"",
+          "mkdir -p /opt/cinc/cookbooks /opt/cinc/attributes /opt/cinc/cache",
+          "git clone --depth 1 https://github.com/Esri/arcgis-cookbook.git /opt/cinc/temp",
+          "mv /opt/cinc/temp/cookbooks/* /opt/cinc/cookbooks/ || true",
+          "rm -rf /opt/cinc/temp || true",
+          "",
+          "echo \"=== installCinc: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "runFileServerConfig",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/go-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/go-server-fileserver.log\") 2>&1",
+          "echo \"=== runFileServerConfig: starting at $(date) ===\"",
+          "",
+          "echo 'ewogICAgImFyY2dpcyI6IHsKICAgICAgICAicnVuX2FzX3VzZXIiOiAiYXJjZ2lzIiwKICAgICAgICAiZmlsZXNlcnZlciI6IHsKICAgICAgICAgICAgImRpcmVjdG9yaWVzIjogWyIvZ2lzZGF0YS9hcmNnaXNzZXJ2ZXIiLCIvZ2lzZGF0YS9hcmNnaXNzZXJ2ZXIvcmFzdGVyc3RvcmUiXSwgICAgICAgICAgICAKICAgICAgICAgICAgInNoYXJlcyI6IFsiL2dpc2RhdGEvYXJjZ2lzc2VydmVyIl0KICAgICAgICB9CiAgICB9LAogICAgInJ1bl9saXN0IjogWwogICAgICAgICJyZWNpcGVbbmZzOjpzZXJ2ZXJdIiwKICAgICAgICAicmVjaXBlW2FyY2dpcy1lbnRlcnByaXNlOjpzeXN0ZW1dIiwKICAgICAgICAicmVjaXBlW2FyY2dpcy1lbnRlcnByaXNlOjpmaWxlc2VydmVyXSIKICAgIF0KfQ==' | base64 --decode > /opt/cinc/attributes/go-server-fileserver.json",
+          "cinc-client -z -j /opt/cinc/attributes/go-server-fileserver.json 2>&1 | tee -a \"$LOG_DIR/go-server-fileserver.log\"",
+          "RC=${PIPESTATUS[0]}",
+          "if [ $RC -ne 0 ]; then echo \"FileServer cinc-client failed with exit $RC\" >&2; exit $RC; fi",
+          "touch /var/run/go_fileserver_done",
+          "echo \"=== runFileServerConfig: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "waitForFileServer",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/go-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/waitForFileServer.log\") 2>&1",
+          "echo \"Waiting for go_fileserver_done marker...\"",
+          "COUNT=0",
+          "while [ ! -f /var/run/go_fileserver_done ]; do",
+          "  sleep 5",
+          "  COUNT=$((COUNT+1))",
+          "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for go_fileserver_done' >&2; exit 1; fi",
+          "done",
+          "echo \"go_fileserver_done found, continuing.\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "runGoServerConfig",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/go-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/go-server.log\") 2>&1",
+          "echo \"=== runGoServerConfig: starting at $(date) ===\"",
+          "",
+          "echo 'ewogICAgImFyY2dpcyI6IHsKICAgICAgICAicnVuX2FzX3VzZXIiOiAiYXJjZ2lzIiwKICAgICAgICAidmVyc2lvbiI6ICIxMS41IiwKICAgICAgICAicmVwb3NpdG9yeSI6IHsKICAgICAgICAgICAgImFyY2hpdmVzIjogIi9vcHQvc29mdHdhcmUvYXJjaGl2ZXMiLAogICAgICAgICAgICAic2V0dXBzIjogIi9vcHQvc29mdHdhcmUvc2V0dXBzIgogICAgICAgIH0sCiAgICAgICAgInNlcnZlciI6IHsKICAgICAgICAgICAgImhvc3RuYW1lIjogIjEwLjAuMC40IiwKCQkJImluc3RhbGxfZGlyIjogIi9vcHQiLAogICAgICAgICAgICAiaW5zdGFsbF9zeXN0ZW1fcmVxdWlyZW1lbnRzIjogdHJ1ZSwgICAgICAgICAgICAKICAgICAgICAgICAgImFkbWluX3VzZXJuYW1lIjogInNpdGVhZG1pbiIsCiAgICAgICAgICAgICJhZG1pbl9wYXNzd29yZCI6ICJzaXRlYWRtaW4xIiwKICAgICAgICAgICAgImF1dGhvcml6YXRpb25fZmlsZSI6ICIvb3B0L3NvZnR3YXJlL2F1dGhvcml6YXRpb25fZmlsZXMvMTEuNS9TZXJ2ZXJfRW50X0Fkdi5lY3AiLAogICAgICAgICAgICAibG9nX2xldmVsIjogIldBUk5JTkciLAogICAgICAgICAgICAiZW5hYmxlX2RlYnVnIjogZmFsc2UsCiAgICAgICAgICAgICJsb2dfZGlyIjogIi9vcHQvYXJjZ2lzL3NlcnZlci91c3IvbG9ncyIsCiAgICAgICAgICAgICJkaXJlY3Rvcmllc19yb290IjogIi9uZXQvZmlsZXNlcnZlci9naXNkYXRhL2FyY2dpc3NlcnZlciIsCiAgICAgICAgICAgICJjb25maWdfc3RvcmVfdHlwZSI6ICJGSUxFU1lTVEVNIiwKICAgICAgICAgICAgImNvbmZpZ19zdG9yZV9jb25uZWN0aW9uX3N0cmluZyI6ICIvbmV0L0ZJTEVTRVJWRVIvZ2lzZGF0YS9hcmNnaXNzZXJ2ZXIvY29uZmlnLXN0b3JlIiwKICAgICAgICAgICAgInNvY19tYXhfaGVhcF9zaXplIjogNjQsCiAgICAgICAgICAgICJzZXJ2aWNlc19kaXJfZW5hYmxlZCI6IHRydWUsCiAgICAgICAgICAgICJzeXN0ZW1fcHJvcGVydGllcyI6IHsKICAgICAgICAgICAgICAgICJzdXNwZW5kZWRNYWNoaW5lVW5yZWdpc3RlclRocmVzaG9sZCI6IC0xLAogICAgICAgICAgICAgICAgIm1hY2hpbmVTdXNwZW5kVGhyZXNob2xkIjogNjAKICAgICAgICAgICAgfSwKCQkJIndhX25hbWUiOiAiZ28iLAoJCQkid2ViX2NvbnRleHRfdXJsIjogImh0dHBzOi8vYWxiLmRvbWFpbi5jb20vZ28iCgkJCSJpc19ob3N0aW5nIjogdHJ1ZSwKCQkJImtleXN0b3JlX2ZpbGUiOiAiL29wdC9jZXJ0aWZpY2F0ZXMvc3RhcmFlc3BzZG90Y29ta3MucDEyIiwKCQkJImtleXN0b3JlX3Bhc3N3b3JkIjogInBmeCIsCgkJCSJjZXJ0X2FsaWFzIjogImdvcGZ4IiwKCQkJImltcG9ydF9jZXJ0aWZpY2F0ZV9jaGFpbiI6IHRydWUsCgkJCSJyb290X2NlcnQiOiAiL29wdC9jZXJ0aWZpY2F0ZXMvYWVzX3BzLmNvbS5jZXIiLAoJCQkicm9vdF9jZXJ0X2FsaWFzIjogInJvb3QiCQkJCiAgICAgICAgfQogICAgfSwKICAgICJydW5fbGlzdCI6IFsKICAgICAgICAicmVjaXBlW2FyY2dpcy1lbnRlcnByaXNlOjpzZXJ2ZXJdIgogICAgXQp9' | base64 --decode > /opt/cinc/attributes/go-server.json",
+          "cinc-client -z -j /opt/cinc/attributes/go-server.json 2>&1 | tee -a \"$LOG_DIR/go-server.log\"",
+          "RC=${PIPESTATUS[0]}",
+          "if [ $RC -ne 0 ]; then echo \"Go Server cinc-client failed with exit $RC\" >&2; exit $RC; fi",
+          "touch /var/run/go_server_done",
+          "echo \"=== runGoServerConfig: finished at $(date) ===\""
+        ]
+      }
+    },
+
+    {
+      "action": "aws:runShellScript",
+      "name": "waitForGoServer",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "set -euxo pipefail",
+          "",
+          "LOG_DIR=/var/log/go-config",
+          "mkdir -p \"$LOG_DIR\"",
+          "exec > >(tee -a \"$LOG_DIR/waitForGoServer.log\") 2>&1",
+          "echo \"Waiting for go_server_done marker...\"",
+          "COUNT=0",
+          "while [ ! -f /var/run/go_server_done ]; do",
+          "  sleep 5",
+          "  COUNT=$((COUNT+1))",
+          "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for go_server_done' >&2; exit 1; fi",
+          "done",
+          "echo \"go_server_done found, continuing.\""
+        ]
+      }
+    }
+
+  ]
+}

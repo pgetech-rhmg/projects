@@ -1,0 +1,8 @@
+{
+  "components": [
+    "webadapter",
+    "portal",
+    "datastore",
+    "server"
+  ]
+}

@@ -1,0 +1,942 @@
+schemaVersion: '2.2'
+description: 'Configure ArcGIS DataStore - Primary or Standby node deployment with high availability'
+parameters:
+  ServerAdminUser:
+    type: String
+    description: 'ArcGIS Server Hosted administrator username'
+    default: 'siteadmin'
+  ServerAdminPassword:
+    type: String
+    description: 'ArcGIS Server Hosted administrator password (use SecureString)'
+  DatastoreRole:
+    type: String
+    description: 'DataStore role: Primary or Standby'
+    default: 'Primary'
+    allowedValues:
+      - 'Primary'
+      - 'Standby'
+  InstanceId:
+    type: String
+    description: 'ArcGIS DataStore EC2 Instance ID (for internal use)'
+    default: ''
+  InstanceIp:
+    type: String
+    description: 'ArcGIS DataStore EC2 Instance IP (for internal use)'
+    default: ''
+  HostedArcGISServerDNSName:
+    type: String
+    description: 'Hosted ArcGIS Server DNS name (for internal use)'
+    default: ''
+  PrimaryDataStoreDNSName:
+    type: String
+    description: 'Primary DataStore DNS name (for internal use)'
+    default: ''
+  PrivateIPDNSName:
+    type: String
+    description: 'ArcGIS DataStore EC2 Private IP DNS name (for internal use)'
+    default: ''
+  Stores:
+    type: String
+    description: 'Types of stores to configure (for internal use)'
+    default: 'relational'
+  DataStoreS3URI:
+    type: String
+    description: 'S3 URI for ArcGIS DataStore installer (for internal use)'
+    default: 's3://elevate-installer/esri/arcgis-enterprise/11-5/ArcGIS_DataStore_Linux_115_195461.tar.gz'
+mainSteps:
+  - name: DisableRHELSubscriptionManager
+    action: 'aws:runShellScript'
+    description: 'Disable RHEL Subscription Manager to prevent subscription prompts'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          subscription-manager config --rhsm.manage_repos=0
+          subscription-manager config --rhsm.auto_enable_yum_plugins=0
+          sed -i 's/enabled[ ]*=[ ]*1/enabled=0/g' /etc/yum/pluginconf.d/subscription-manager.conf
+          
+  - name: InitializeSystem
+    action: 'aws:runShellScript'
+    description: 'Initialize system and install DataStore if needed'
+    timeoutSeconds: 3600
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "========================================" 
+          echo "Starting ArcGIS DataStore initialization" 
+          echo "Time: $(date)" 
+          echo "========================================" 
+          
+          INSTANCE_ID="{{ InstanceId }}"
+
+          # Update instance hostname
+          hostnamectl set-hostname "{{ PrivateIPDNSName }}"
+          echo "SUCCESS: Hostname updated to {{ PrivateIPDNSName }}"
+
+  - name: InstallSystemPackages
+    action: 'aws:runShellScript'
+    description: 'Install required system packages for DataStore'
+    timeoutSeconds: 1800
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+
+          echo "========================================" 
+          echo "INSTALL SYSTEM PACKAGES" 
+          echo "========================================" 
+          
+          echo "Installing RHEL system packages for DataStore..."
+          # Required packages for ArcGIS DataStore
+          packages=(
+            "gettext" "curl" "wget" "unzip" "tar" "gzip" "which" "hostname"
+            "net-tools" "procps-ng" "util-linux" "systemd" "sudo" "fontconfig"
+            "libX11" "libXext" "libXtst" "libXi" "libXrender" "libXrandr"
+            "glibc-langpack-en" "nfs-utils"
+          )
+          
+          for package in "${packages[@]}"; do
+            echo "Installing package: $package"
+            yum install -y "$package" || echo "WARNING: Failed to install $package"
+          done
+          
+          echo "SUCCESS: System packages installation completed"
+
+  - name: ConfigureSystemOptimizations
+    action: 'aws:runShellScript'
+    description: 'Configure system optimizations and limits for DataStore'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+
+          echo "========================================" 
+          echo "CONFIGURE SYSTEM OPTIMIZATIONS" 
+          echo "========================================" 
+          
+          RUN_AS_USER="arcgis"
+          
+          echo "Configuring system optimizations for DataStore..."
+          
+          # Configure sysctl optimizations
+          cat >> /etc/sysctl.conf << 'EOF'
+          
+          # ArcGIS DataStore system optimization
+          vm.max_map_count = 262144
+          vm.swappiness = 1
+          EOF
+          
+          # Apply sysctl settings
+          sysctl -p
+          
+          # Configure system limits
+          cat >> /etc/security/limits.conf << EOF
+          
+          # ArcGIS DataStore limits
+          ${RUN_AS_USER}    hard    nofile     65536
+          ${RUN_AS_USER}    soft    nofile     65536
+          ${RUN_AS_USER}    hard    nproc      25059
+          ${RUN_AS_USER}    soft    nproc      25059
+          ${RUN_AS_USER}    hard    memlock    unlimited
+          ${RUN_AS_USER}    soft    memlock    unlimited
+          ${RUN_AS_USER}    hard    fsize      unlimited
+          ${RUN_AS_USER}    soft    fsize      unlimited
+          ${RUN_AS_USER}    hard    as         unlimited
+          ${RUN_AS_USER}    soft    as         unlimited
+          EOF
+          
+          echo "SUCCESS: System optimizations configured"
+
+  - name: ConfigureFirewall
+    action: 'aws:runShellScript'
+    description: 'Configure firewall for DataStore ports'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "========================================" 
+          echo "CONFIGURE FIREWALL" 
+          echo "========================================" 
+          
+          echo "Configuring firewall for DataStore..."
+          
+          # DataStore ports
+          DATASTORE_PORTS="2443,4369,9220,9320,9820,9828,9829,9830,9831,9840,9850,9876,9900,25672,44369,45671,45672,29079-29090"
+          
+          if systemctl is-active firewalld > /dev/null 2>&1; then
+            echo "Configuring firewalld rules..."
+            
+            IFS=',' read -ra PORTS <<< "$DATASTORE_PORTS"
+            for port_range in "${PORTS[@]}"; do
+              if [[ "$port_range" == *"-"* ]]; then
+                firewall-cmd --permanent --add-port="$port_range/tcp" || echo "WARNING: Failed to add port range $port_range"
+              else
+                firewall-cmd --permanent --add-port="$port_range/tcp" || echo "WARNING: Failed to add port $port_range"
+              fi
+            done
+            
+            firewall-cmd --reload
+            echo "SUCCESS: Firewall configuration completed"
+          else
+            echo "INFO: firewalld not active, skipping firewall configuration"
+          fi
+
+  - name: CreateArcGISUser
+    action: 'aws:runShellScript'  
+    description: 'Create ArcGIS user and group if they do not exist'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+
+          echo "========================================" 
+          echo "CREATE ARCGIS USER AND GROUP" 
+          echo "========================================" 
+          
+          RUN_AS_USER="arcgis"
+          RUN_AS_GROUP="arcgis"
+          ARCGIS_UID="1100"
+          ARCGIS_GID="1100"
+          
+          echo "Creating ArcGIS user and group..."
+          
+          # Create group if it doesn't exist
+          if ! getent group "$RUN_AS_GROUP" > /dev/null 2>&1; then
+            groupadd -g "$ARCGIS_GID" "$RUN_AS_GROUP"
+            echo "SUCCESS: Created group: $RUN_AS_GROUP"
+          else
+            echo "INFO: Group $RUN_AS_GROUP already exists"
+          fi
+          
+          # Create user if it doesn't exist
+          if ! getent passwd "$RUN_AS_USER" > /dev/null 2>&1; then
+            useradd -m -d "/home/$RUN_AS_USER" -s /bin/bash -u "$ARCGIS_UID" -g "$ARCGIS_GID" -c "ArcGIS user account" "$RUN_AS_USER"
+            echo "SUCCESS: Created user: $RUN_AS_USER"
+          else
+            echo "INFO: User $RUN_AS_USER already exists"
+          fi
+          
+          # Ensure home directory permissions
+          home_dir="/home/${RUN_AS_USER}"
+          if [[ -d "$home_dir" ]]; then
+            chown -R "${RUN_AS_USER}:${RUN_AS_GROUP}" "$home_dir"
+            chmod 755 "$home_dir"
+            echo "SUCCESS: Updated permissions for home directory: ${home_dir}"
+          fi
+
+  - name: CreateDataStoreDirectories
+    action: 'aws:runShellScript'
+    description: 'Create required DataStore directories with proper permissions'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+
+          echo "========================================" 
+          echo "CREATE ARCGIS DATASTORE DIRECTORIES" 
+          echo "========================================" 
+          
+          RUN_AS_USER="arcgis"
+          DATA_STORE_INSTALL_PATH="/opt/arcgis/datastore"
+          DATASTORE_DATA_DIR="/opt/arcgis/datastore/data"
+          SETUP_PATH="/opt/software/setups"
+          INSTALLER_PATH="/opt/software"
+          
+          echo "Creating ArcGIS DataStore directories..."
+          
+          directories=(
+            "$DATA_STORE_INSTALL_PATH"
+            "$DATASTORE_DATA_DIR"
+            "$INSTALLER_PATH"
+            "$SETUP_PATH"
+          )
+          
+          for dir in "${directories[@]}"; do
+            if [[ ! -d "$dir" ]]; then
+              mkdir -p "$dir"
+              chown -R "${RUN_AS_USER}:${RUN_AS_USER}" "$dir"
+              chmod 700 "$dir"
+              echo "SUCCESS: Created directory: $dir"
+            else
+              chown -R "${RUN_AS_USER}:${RUN_AS_USER}" "$dir"
+              chmod 700 "$dir"
+              echo "INFO: Directory already exists: $dir"
+            fi
+          done
+
+  - name: DataStoreInstallation
+    action: 'aws:runShellScript'
+    description: 'Install ArcGIS DataStore if not already installed'
+    timeoutSeconds: 3600
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "========================================" 
+          echo "INSTALL ARCGIS DATASTORE" 
+          echo "========================================" 
+          
+          RUN_AS_USER="arcgis"
+          RUN_AS_GROUP="arcgis"
+          ARCGIS_VERSION="11.5"
+          DATA_STORE_INSTALL_PATH="/opt/arcgis/datastore"
+          DATASTORE_DATA_DIR="/opt/arcgis/datastore/data"
+          SETUP_PATH="/opt/software/setups"
+          INSTALLER_PATH="/opt/software"
+          DATA_STORE_TARBALL_PATH="/opt/software/ArcGIS_DataStore_Linux.tar.gz"
+          DATA_STORE_S3_URI="{{ DataStoreS3URI }}"
+          
+          echo "Checking if ArcGIS DataStore is already installed..."
+          
+          esri_properties_file="/home/${RUN_AS_USER}/.ESRI.properties.$(hostname).${ARCGIS_VERSION}"
+          
+          # Check if already installed
+          if [[ -f "$esri_properties_file" ]] && grep -q "ArcGISDataStore" "$esri_properties_file" 2>/dev/null; then
+            echo "SUCCESS: DataStore ${ARCGIS_VERSION} appears to be already installed"
+            exit 0
+          fi
+          
+          if [[ -d "${DATA_STORE_INSTALL_PATH}" ]] && [[ -f "${DATA_STORE_INSTALL_PATH}/startdatastore.sh" ]]; then
+            echo "SUCCESS: DataStore installation directory found - already installed"
+            exit 0
+          fi
+          
+          echo "INFO: DataStore not detected - proceeding with installation..."
+          
+
+          # Download DataStore setup if not present
+          if [ ! -s "$DATA_STORE_TARBALL_PATH" ]; then
+            echo "Downloading ArcGIS DataStore from S3..."
+            aws s3 cp "$DATA_STORE_S3_URI" "$DATA_STORE_TARBALL_PATH" || {
+              echo "ERROR: Failed to download DataStore from S3"
+              exit 1
+            }
+            echo "SUCCESS: Downloaded DataStore tarball"
+          else
+            echo "INFO: DataStore tarball already present: $DATA_STORE_TARBALL_PATH"
+          fi
+          
+          
+          
+          # Extract setup if not already done
+          if [ ! -d "$SETUP_PATH/ArcGISDataStore_Linux" ]; then
+            echo "Extracting DataStore setup..."
+            tar -xzf "$DATA_STORE_TARBALL_PATH" -C "$SETUP_PATH" || {
+              echo "ERROR: Failed to extract DataStore tarball"
+              exit 1
+            }
+            chown -R "${RUN_AS_USER}:${RUN_AS_GROUP}" "$SETUP_PATH"
+            echo "SUCCESS: Extracted DataStore setup"
+          else
+            echo "INFO: DataStore setup already extracted"
+          fi
+          
+          # Verify setup exists
+          if [[ ! -f "$SETUP_PATH/ArcGISDataStore_Linux/Setup" ]]; then
+            echo "ERROR: DataStore Setup executable not found"
+            exit 1
+          fi
+          
+          echo "Installing ArcGIS DataStore..."
+          
+          # Prepare installation command
+          install_cmd="${SETUP_PATH}/ArcGISDataStore_Linux/Setup -m silent -d '${DATA_STORE_INSTALL_PATH}' -l yes -f Relational"
+          
+          echo "Running installation command: ${install_cmd}"
+          
+          # Run installation as arcgis user
+          if ! su - "$RUN_AS_USER" -c "$install_cmd"; then
+            echo "ERROR: DataStore installation failed"
+            exit 1
+          fi
+          
+          # Verify installation
+          start_script="${DATA_STORE_INSTALL_PATH}/startdatastore.sh"
+          if [[ ! -f "$start_script" ]]; then
+            echo "ERROR: Installation verification failed - startdatastore.sh not found: ${start_script}"
+            exit 1
+          fi
+          
+          echo "SUCCESS: ArcGIS DataStore installation completed"
+          
+          # Cleanup setup files
+          if [[ -d "$SETUP_PATH" ]]; then
+            rm -rf "$SETUP_PATH"
+            echo "INFO: Cleaned up setup files"
+          fi
+          
+          if [[ -f "$DATA_STORE_TARBALL_PATH" ]]; then
+            rm -f "$DATA_STORE_TARBALL_PATH"
+            echo "INFO: Cleaned up tarball"
+          fi
+
+  - name: ConfigureHostIdentifiers
+    action: 'aws:runShellScript'
+    description: 'Configure DataStore host identifiers'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          RUN_AS_USER="arcgis"
+          RUN_AS_GROUP="arcgis" 
+          DATA_STORE_INSTALL_PATH="/opt/arcgis/datastore"
+          DATASTORE_PREFERRED_IDENTIFIER="hostname"
+          
+          echo "Configuring host identifiers..."  
+          # Configure host identifier with IP address before starting
+          hostidentifier_properties="${DATA_STORE_INSTALL_PATH}/framework/etc/hostidentifier.properties"
+          if [[ -f "$hostidentifier_properties" ]]; then
+            # Backup original file
+            cp "$hostidentifier_properties" "${hostidentifier_properties}.backup"
+            
+            # Get IP address
+            ip_address="{{ InstanceIp }}"
+            
+            # Update hostidentifier.properties
+            cat > "$hostidentifier_properties" << EOF
+          # ArcGIS DataStore Host Identifier Configuration
+          # Generated by installation script
+          hostidentifier=${ip_address}
+          EOF
+            
+            chown "${RUN_AS_USER}:${RUN_AS_GROUP}" "$hostidentifier_properties"
+            echo "SUCCESS: Configured host identifier with IP: ${ip_address}"
+          else
+            echo "WARNING: hostidentifier.properties file not found: ${hostidentifier_properties}"
+          fi
+
+          # Start DataStore as arcgis user
+          start_script="${DATA_STORE_INSTALL_PATH}/startdatastore.sh"
+          if [[ ! -f "$start_script" ]]; then
+              echo "ERROR: Start script not found: ${start_script}"
+              exit 1
+          fi
+          # Start DataStore as arcgis user
+          if su - "$RUN_AS_USER" -c "$start_script"; then
+              echo "INFO: ArcGIS DataStore started successfully"
+              
+              # Wait for DataStore to be fully ready
+              sleep 60
+              
+              # Verify DataStore is running
+              if pgrep -f "java.*datastore" > /dev/null; then
+                  echo "INFO: ArcGIS DataStore processes are running"
+              else
+                  echo "WARNING: ArcGIS DataStore processes not detected"
+              fi
+          else
+              echo "ERROR: Failed to start ArcGIS DataStore"
+              exit 1
+          fi
+      
+  - name: WaitForArcGISServer
+    action: 'aws:runShellScript'
+    description: 'Wait for ArcGIS Server to be accessible'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          ARCGIS_SERVER_URL="https://{{ HostedArcGISServerDNSName }}:6443/arcgis"
+          
+          echo "Waiting for ArcGIS Server to be accessible at $ARCGIS_SERVER_URL..." 
+          
+          max_attempts=60
+          attempt=0
+          
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -k -s -f "$ARCGIS_SERVER_URL/rest/info?f=json" > /dev/null 2>&1; then
+              echo "SUCCESS: ArcGIS Server is ready" 
+              exit 0
+            fi
+            echo "Attempt $((attempt + 1))/$max_attempts: ArcGIS Server not ready yet..." 
+            sleep 10
+            attempt=$((attempt + 1))
+          done
+          
+          echo "ERROR: ArcGIS Server did not become ready in time" 
+          exit 1
+
+  - name: SetupPrimaryDatastore
+    action: 'aws:runShellScript'
+    description: 'Configure primary ArcGIS DataStore (Primary only)'
+    timeoutSeconds: 10800
+    precondition:
+      StringEquals:
+        - "{{ DatastoreRole }}"
+        - "Primary"
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+        
+          
+          echo "========================================" 
+          echo "PRIMARY DATASTORE SETUP" 
+          echo "========================================" 
+          
+          ARCGIS_HOME="/opt/arcgis/datastore"
+          ARCGIS_SERVER_URL="https://{{ HostedArcGISServerDNSName }}:6443/arcgis"
+          SERVER_ADMIN_USER="{{ ServerAdminUser }}"
+          SERVER_ADMIN_PASSWORD="{{ ServerAdminPassword }}"
+          STORES="{{ Stores }}"
+
+          DATA_STORE_INSTALL_PATH="/opt/arcgis/datastore"
+          RUN_AS_USER="arcgis"
+          start_script="${DATA_STORE_INSTALL_PATH}/startdatastore.sh"
+          if [[ ! -f "$start_script" ]]; then
+              echo "ERROR: Start script not found: ${start_script}"
+              exit 1
+          fi
+          # Start DataStore as arcgis user
+          if su - "$RUN_AS_USER" -c "$start_script"; then
+              echo "INFO: ArcGIS DataStore started successfully"
+              
+              # Wait for DataStore to be fully ready
+              sleep 60
+              
+              # Verify DataStore is running
+              if pgrep -f "java.*datastore" > /dev/null; then
+                  echo "INFO: ArcGIS DataStore processes are running"
+              else
+                  echo "WARNING: ArcGIS DataStore processes not detected"
+              fi
+          else
+              echo "ERROR: Failed to start ArcGIS DataStore"
+              exit 1
+          fi
+    
+          echo "Configuring ArcGIS DataStore..." 
+          echo "Server URL: $ARCGIS_SERVER_URL" 
+          
+          # Configure DataStore using configuredatastore utility
+          su - arcgis -c "$ARCGIS_HOME/tools/configuredatastore.sh \
+          '$ARCGIS_SERVER_URL' \
+          '$SERVER_ADMIN_USER' \
+          '$SERVER_ADMIN_PASSWORD' \
+          /opt/arcgis/datastore/usr/data \
+          --stores $STORES" || {
+          echo "ERROR: Failed to configure primary DataStore" 
+          exit 1
+          }
+          echo "SUCCESS: Primary DataStore configured"
+
+  - name: VerifyPrimaryDatastore
+    action: 'aws:runShellScript'
+    description: 'Verify primary DataStore configuration (Primary only)'
+    precondition:
+      StringEquals:
+        - "{{ DatastoreRole }}"
+        - "Primary"
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "Verifying DataStore configuration..." 
+          
+          ARCGIS_HOME="/opt/arcgis/datastore"
+          
+          # Verify DataStore status
+          sudo -u arcgis $ARCGIS_HOME/tools/describedatastore.sh \
+            /opt/arcgis/datastore/data \  || {
+            echo "ERROR: DataStore verification failed" 
+            exit 1
+          }
+          echo "SUCCESS: Primary DataStore verification complete" 
+
+  - name: ConfigureDataStoreService
+    action: 'aws:runShellScript'
+    description: 'Configure DataStore service for autostart'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          RUN_AS_USER="arcgis"
+          RUN_AS_GROUP="arcgis"
+          DATA_STORE_INSTALL_PATH="/opt/arcgis/datastore"
+          
+          echo "Configuring ArcGIS DataStore service for autostart..."
+          
+          # Create systemd service file
+          cat > /etc/systemd/system/arcgisdatastore.service << EOF
+          [Unit]
+          Description=ArcGIS DataStore
+          After=network.target
+          
+          [Service]
+          Type=forking
+          User=${RUN_AS_USER}
+          Group=${RUN_AS_GROUP}
+          ExecStart=${DATA_STORE_INSTALL_PATH}/startdatastore.sh
+          ExecStop=${DATA_STORE_INSTALL_PATH}/stopdatastore.sh
+          TimeoutStartSec=600
+          TimeoutStopSec=60
+          
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          
+          # Enable service
+          systemctl daemon-reload
+          systemctl enable arcgisdatastore
+          echo "SUCCESS: Configured arcgisdatastore service for autostart"
+
+  - name: StartDataStoreService
+    action: 'aws:runShellScript'
+    description: 'Start DataStore service'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          RUN_AS_USER="arcgis"
+          DATA_STORE_INSTALL_PATH="/opt/arcgis/datastore"
+          
+          echo "Starting ArcGIS DataStore service..."
+          
+          if systemctl --version >/dev/null 2>&1 && [[ -f /etc/systemd/system/arcgisdatastore.service ]]; then
+            systemctl start arcgisdatastore.service
+            echo "SUCCESS: Started DataStore via systemd"
+          else
+            start_script="${DATA_STORE_INSTALL_PATH}/startdatastore.sh"
+            
+            if [[ ! -f "$start_script" ]]; then
+              echo "ERROR: Start script not found: ${start_script}"
+              exit 1
+            fi
+            
+            # Start DataStore as arcgis user
+            if su - "$RUN_AS_USER" -c "$start_script"; then
+              echo "SUCCESS: DataStore started successfully"
+              
+              # Wait for DataStore to be ready
+              sleep 60
+              
+              # Verify DataStore is running
+              if pgrep -f "java.*datastore" > /dev/null; then
+                echo "SUCCESS: DataStore processes are running"
+              else
+                echo "WARNING: DataStore processes not detected"
+              fi
+            else
+              echo "ERROR: Failed to start DataStore"
+              exit 1
+            fi
+          fi
+
+  - name: WaitForPrimaryDatastore
+    action: 'aws:runShellScript'
+    description: 'Wait for primary DataStore to be configured (Standby only)'
+    precondition:
+      StringEquals:
+        - "{{ DatastoreRole }}"
+        - "Standby"
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          PRIMARY_DATASTORE_IP="{{ PrimaryDataStoreDNSName }}"
+          
+          echo "Waiting for primary DataStore to be configured..." 
+          
+          max_attempts=120
+          attempt=0
+          
+          while [ $attempt -lt $max_attempts ]; do
+            # Check if primary DataStore is configured by trying to connect to it
+            if curl -k -s -f "https://$PRIMARY_DATASTORE_IP:2443/arcgis/datastoreadmin/machines?f=json" > /dev/null 2>&1; then
+              echo "SUCCESS: Primary DataStore is configured" 
+              exit 0
+            fi
+            echo "Attempt $((attempt + 1))/$max_attempts: Primary DataStore not configured yet..." 
+            sleep 10
+            attempt=$((attempt + 1))
+          done
+          
+          echo "ERROR: Primary DataStore did not become configured in time" 
+          exit 1
+
+  - name: SetupStandbyDatastore
+    action: 'aws:runShellScript'
+    description: 'Configure standby ArcGIS DataStore (Standby only)'
+    precondition:
+      StringEquals:
+        - "{{ DatastoreRole }}"
+        - "Standby"
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          echo "========================================" 
+          echo "STANDBY DATASTORE SETUP" 
+          echo "========================================" 
+          
+          ARCGIS_HOME="/opt/arcgis/datastore"
+          ARCGIS_SERVER_URL="https://{{ HostedArcGISServerDNSName }}:6443/arcgis"
+          PRIMARY_DATASTORE_IP="{{ PrimaryDataStoreDNSName }}"
+          SERVER_ADMIN_USER="{{ ServerAdminUser }}"
+          SERVER_ADMIN_PASSWORD="{{ ServerAdminPassword }}"
+  
+          
+          echo "Configuring standby DataStore to join primary at $PRIMARY_DATASTORE_IP..." 
+          echo "Server URL: $ARCGIS_SERVER_URL" 
+
+          
+          # Configure standby DataStore
+          sudo -u arcgis $ARCGIS_HOME/tools/configuredatastore.sh \
+            "$ARCGIS_SERVER_URL" \
+            "$SERVER_ADMIN_USER" \
+            "$SERVER_ADMIN_PASSWORD" \
+            /opt/arcgis/datastore/data \ || {
+             {
+            echo "ERROR: Failed to configure standby DataStore" 
+            exit 1
+          }
+          
+          echo "SUCCESS: Standby DataStore configured" 
+
+  - name: VerifyStandbyDatastore
+    action: 'aws:runShellScript'
+    description: 'Verify standby DataStore configuration (Standby only)'
+    precondition:
+      StringEquals:
+        - "{{ DatastoreRole }}"
+        - "Standby"
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+      
+          echo "Verifying standby DataStore configuration..." 
+          
+          ARCGIS_HOME="/opt/arcgis/datastore"
+          
+          # Verify standby DataStore status
+          sudo -u arcgis $ARCGIS_HOME/tools/describedatastore.sh \
+            /opt/arcgis/datastore/data \ || {
+            echo "ERROR: Standby DataStore verification failed" 
+            exit 1
+          }
+          
+          # List all machines in the DataStore
+          echo "Listing all DataStore machines..." 
+          sudo -u arcgis $ARCGIS_HOME/tools/listmanagedatabase.sh \
+            /opt/arcgis/datastore/data \ || true
+          
+          echo "SUCCESS: Standby DataStore verification complete" 
+
+  - name: ValidateDataStoreInstallation
+    action: 'aws:runShellScript'
+    description: 'Validate DataStore installation and configuration'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          set -e
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          
+          RUN_AS_USER="arcgis"
+          DATA_STORE_INSTALL_PATH="/opt/arcgis/datastore"
+          DATASTORE_DATA_DIR="/opt/arcgis/datastore/data"
+          ARCGIS_VERSION="11.5"
+          
+          echo "Validating ArcGIS DataStore installation..."
+          
+          validation_errors=0
+          
+          # Check installation directory
+          if [[ ! -d "${DATA_STORE_INSTALL_PATH}" ]]; then
+            echo "ERROR: Installation directory not found: ${DATA_STORE_INSTALL_PATH}"
+            ((validation_errors++))
+          else
+            echo "✓ Installation directory exists"
+          fi
+          
+          # Check start/stop scripts
+          start_script="${DATA_STORE_INSTALL_PATH}/startdatastore.sh"
+          stop_script="${DATA_STORE_INSTALL_PATH}/stopdatastore.sh"
+          
+          if [[ ! -f "$start_script" ]]; then
+            echo "ERROR: Start script not found: ${start_script}"
+            ((validation_errors++))
+          else
+            echo "✓ Start script exists"
+          fi
+          
+          if [[ ! -f "$stop_script" ]]; then
+            echo "ERROR: Stop script not found: ${stop_script}"
+            ((validation_errors++))
+          else
+            echo "✓ Stop script exists"
+          fi
+          
+          # Check data directories
+          directories=(
+            "$DATASTORE_DATA_DIR"
+          )
+          
+          for dir in "${directories[@]}"; do
+            if [[ ! -d "$dir" ]]; then
+              echo "ERROR: Required directory not found: $dir"
+              ((validation_errors++))
+            else
+              echo "✓ Directory exists: $dir"
+            fi
+          done
+          
+          # Check if DataStore processes are running
+          if pgrep -f "java.*datastore" > /dev/null; then
+            echo "✓ ArcGIS DataStore processes are running"
+          else
+            echo "WARNING: DataStore processes not detected (may be normal if just installed)"
+          fi
+          
+          # Check service configuration
+          if systemctl is-enabled arcgisdatastore > /dev/null 2>&1; then
+            echo "✓ DataStore service is enabled for autostart"
+          else
+            echo "WARNING: DataStore service is not enabled for autostart"
+          fi
+          
+          if [[ $validation_errors -gt 0 ]]; then
+            echo "ERROR: Installation validation failed with ${validation_errors} error(s)"
+            exit 1
+          else
+            echo "SUCCESS: Installation validation passed"
+          fi
+          
+          echo "=== DATASTORE INSTALLATION SUMMARY ==="
+          echo "ArcGIS DataStore ${ARCGIS_VERSION} installation completed"
+          echo "Installation Directory: ${DATA_STORE_INSTALL_PATH}"
+          echo "Data Directory: ${DATASTORE_DATA_DIR}"
+          echo "User: ${RUN_AS_USER}"
+          echo "Service Management: systemctl {start|stop|status} arcgisdatastore"
+
+  - name: FinalizeConfiguration
+    action: 'aws:runShellScript'
+    description: 'Finalize configuration and log completion'
+    inputs:
+      runCommand:
+        - |
+          #!/bin/bash
+          
+          LOG_FILE="/var/log/arcgis-datastore-setup.log"
+          exec > >(tee -a "$LOG_FILE")
+          exec 2>&1
+          DATASTORE_ROLE={{ DatastoreRole }}
+          INSTANCE_ID={{ InstanceId }}
+          PRIVATE_IP={{ InstanceIp }}
+          
+          echo "========================================" 
+          echo "ArcGIS DataStore initialization completed" 
+          echo "DataStore Role: $DATASTORE_ROLE" 
+          echo "Instance ID: $INSTANCE_ID" 
+          echo "Private IP: $PRIVATE_IP" 
+          echo "Time: $(date)" 
+          echo "========================================" 
+          
+          echo "" 
+          echo "Configuration logs:" 
+          echo "  Main: $LOG_FILE" 
+          
+          if [ "$DATASTORE_ROLE" = "Primary" ]; then
+            echo "  Primary setup: /var/log/arcgis-primary-datastore-setup.log" 
+          else
+            echo "  Standby setup: /var/log/arcgis-standby-datastore-setup.log" 
+          fi
+          
+          echo "" 
+          echo "DataStore Admin URL: https://$PRIVATE_IP:2443/arcgis/datastoreadmin" 
+          echo "SUCCESS: Configuration complete" 

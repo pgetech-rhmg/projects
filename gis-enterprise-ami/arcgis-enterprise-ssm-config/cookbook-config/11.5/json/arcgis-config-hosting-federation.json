@@ -1,0 +1,22 @@
+﻿{
+    "arcgis": {
+        "version": "11.5",
+        "server": {
+            "private_url": "https://__SERVER_PRIVATE_URL__:6443/arcgis",
+            "web_context_url": "https://__SERVER_DOMAIN__/server",
+            "admin_username": "__SERVER_ADMIN_USERNAME__",
+            "admin_password": "__SERVER_ADMIN_PASSWORD__",
+            "is_hosting": true
+        },
+        "portal": {
+            "private_url": "https://__PORTAL_PRIVATE_URL__:7443/arcgis",
+            "admin_username": "__PORTAL_ADMIN_USERNAME__",
+            "admin_password": "__PORTAL_ADMIN_PASSWORD__",
+            "root_cert": "/opt/arcgis/certificate/__ROOT_CERT_NAME__",
+            "root_cert_alias": "root"
+        }
+    },
+    "run_list": [
+        "recipe[arcgis-enterprise::federation]"
+    ]
+}

@@ -1,0 +1,199 @@
+﻿schemaVersion: "2.2"
+description: "Configure Hosting Server site using cinc-client (multi-step, per-step logging + waits)"
+parameters:
+  S3Bucket:
+    type: String
+    description: "S3 bucket containing cookbook artifacts and deployment assets"
+  S3Region:
+    type: String
+    description: "AWS region for the S3 bucket"
+    default: "us-west-2"
+  HostingCertsDir:
+    type: String
+    description: "Local directory for hosting server certificates"
+    default: "/opt/arcgis/certificate"
+  HostingRootCertName:
+    type: String
+    description: "Filename of the root certificate in S3"
+  HostingPfxCertName:
+    type: String
+    description: "Filename of the PFX certificate in S3"
+  EsriVersion:
+    type: String
+    description: "Esri software version (e.g., 11.5)"
+  HostingLicenseDir:
+    type: String
+    description: "Local directory for hosting server license files"
+    default: "/opt/arcgis/license"
+  HostingLicenseName:
+    type: String
+    description: "Filename of the hosting server license in S3"
+  HostingAuthorizationFile:
+    type: String
+    description: "Full path to the hosting server authorization file"
+  ServerAdminUsername:
+    type: String
+    description: "Hosting Server administrator username"
+    default: "siteadmin"
+  ServerAdminPassword:
+    type: String
+    description: "Hosting Server administrator password"
+  HostingHostname:
+    type: String
+    description: "Hosting Server machine hostname"
+  HostingWebContextUrl:
+    type: String
+    description: "Hosting Server web context URL"
+  EfsId:
+    type: String
+    description: "EFS file system ID for shared hosting server store"
+mainSteps:
+  - action: aws:runShellScript
+    name: prepSystem
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/hosting-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/prepSystem.log") 2>&1'
+        - 'echo "=== prepSystem: starting at $(date) ==="'
+        - ""
+        - 'echo "=== prepSystem: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: downloadAssets
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/hosting-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/downloadAssets.log") 2>&1'
+        - 'echo "=== downloadAssets: starting at $(date) ==="'
+        - ""
+        - 'mkdir -p "/opt/arcgis/certificate"'
+        - 'aws s3 cp "s3://{{ S3Bucket }}/{{ HostingRootCertName }}" "/opt/arcgis/certificate/{{ HostingRootCertName }}" --region {{ S3Region }} || (echo ''Failed to download root cert'' >&2; exit 1)'
+        - 'aws s3 cp "s3://{{ S3Bucket }}/{{ HostingPfxCertName }}" "/opt/arcgis/certificate/{{ HostingPfxCertName }}" --region {{ S3Region }} || (echo ''Failed to download pfx cert'' >&2; exit 1)'
+        - ""
+        - 'mkdir -p "/opt/arcgis/license/{{ EsriVersion }}"'
+        - 'aws s3 cp "s3://{{ S3Bucket }}/{{ HostingLicenseName }}" "/opt/arcgis/license/{{ EsriVersion }}/{{ HostingLicenseName }}" --region {{ S3Region }} || (echo ''Failed to download license'' >&2; exit 1)'
+        - ""
+        - 'echo "=== downloadAssets: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: runFileServerConfig
+    description: "Run Hosting FileServer cinc-client config"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/hosting-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/hosting-server-fileserver.log") 2>&1'
+        - 'echo "=== runFileServerConfig: starting at $(date) ==="'
+        - ""
+        - "if [ ! -f /opt/cinc/attributes/hosting-server-fileserver.json ]; then"
+        - '  echo "ERROR: /opt/cinc/attributes/hosting-server-fileserver.json not found" >&2'
+        - "  exit 1"
+        - "fi"
+        - ""
+        - 'cinc-client -z -c /etc/cinc/client.rb -j /opt/cinc/attributes/hosting-server-fileserver.json 2>&1 | tee -a "$LOG_DIR/hosting-server-fileserver.log"'
+        - "RC=${PIPESTATUS[0]}"
+        - 'if [ $RC -ne 0 ]; then echo "FileServer cinc-client failed with exit $RC" >&2; exit $RC; fi'
+        - "touch /var/run/hosting_fileserver_done"
+        - 'echo "=== runFileServerConfig: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: waitForFileServer
+    description: "Wait for FileServer config to complete"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/hosting-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/waitForFileServer.log") 2>&1'
+        - 'echo "Waiting for hosting_fileserver_done marker..."'
+        - "COUNT=0"
+        - "while [ ! -f /var/run/hosting_fileserver_done ]; do"
+        - "  sleep 5"
+        - "  COUNT=$((COUNT+1))"
+        - "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for hosting_fileserver_done' >&2; exit 1; fi"
+        - "done"
+        - 'echo "hosting_fileserver_done found, continuing."'
+
+  - action: aws:runShellScript
+    name: runHostingServerConfig
+    description: "Run Hosting Server cinc-client config"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/hosting-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/hosting-server.log") 2>&1'
+        - 'echo "=== runHostingServerConfig: starting at $(date) ==="'
+        - ""
+        - "if [ ! -f /opt/cinc/attributes/hosting-server.json ]; then"
+        - '  echo "ERROR: /opt/cinc/attributes/hosting-server.json not found" >&2'
+        - "  exit 1"
+        - "fi"
+        - ""
+        - 'echo "Replacing runtime tokens in hosting-server.json..."'
+        - 'sed -i "s|__SERVER_ADMIN_USERNAME__|{{ ServerAdminUsername }}|g" /opt/cinc/attributes/hosting-server.json'
+        - 'sed -i "s|__SERVER_ADMIN_PASSWORD__|{{ ServerAdminPassword }}|g" /opt/cinc/attributes/hosting-server.json'
+        - 'sed -i "s|__HOSTING_HOSTNAME__|{{ HostingHostname }}|g" /opt/cinc/attributes/hosting-server.json'
+        - 'sed -i "s|__HOSTING_WEB_CONTEXT_URL__|{{ HostingWebContextUrl }}|g" /opt/cinc/attributes/hosting-server.json'
+        - ""
+        - 'cinc-client -z -c /etc/cinc/client.rb -j /opt/cinc/attributes/hosting-server.json 2>&1 | tee -a "$LOG_DIR/hosting-server.log"'
+        - "RC=${PIPESTATUS[0]}"
+        - 'if [ $RC -ne 0 ]; then echo "Hosting Server cinc-client failed with exit $RC" >&2; exit $RC; fi'
+        - "touch /var/run/hosting_server_done"
+        - 'echo "=== runHostingServerConfig: finished at $(date) ==="'
+
+  - action: aws:runShellScript
+    name: waitForHostingServer
+    description: "Wait for Hosting Server config to complete"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euxo pipefail"
+        - ""
+        - "LOG_DIR=/var/log/hosting-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/waitForHostingServer.log") 2>&1'
+        - 'echo "Waiting for hosting_server_done marker..."'
+        - "COUNT=0"
+        - "while [ ! -f /var/run/hosting_server_done ]; do"
+        - "  sleep 5"
+        - "  COUNT=$((COUNT+1))"
+        - "  if [ $COUNT -ge 720 ]; then echo 'Timed out waiting for hosting_server_done' >&2; exit 1; fi"
+        - "done"
+        - 'echo "hosting_server_done found, continuing."'
+
+  - action: aws:runShellScript
+    name: FinalizeConfiguration
+    description: "Finalize configuration and log completion"
+    inputs:
+      runCommand:
+        - "#!/bin/bash"
+        - ""
+        - "LOG_DIR=/var/log/hosting-config"
+        - 'mkdir -p "$LOG_DIR"'
+        - 'exec > >(tee -a "$LOG_DIR/FinalizeConfiguration.log") 2>&1'
+        - 'echo "=== FinalizeConfiguration: starting at $(date) ==="'
+        - ""
+        - 'HOSTING_HOSTNAME="{{ HostingHostname }}"'
+        - ""
+        - 'echo "========================================"'
+        - 'echo "ArcGIS Hosting Server configuration completed"'
+        - 'echo "Hosting Hostname: $HOSTING_HOSTNAME"'
+        - 'echo "Time: $(date)"'
+        - 'echo "========================================"'
+        - 'echo "=== FinalizeConfiguration: finished at $(date) ==="'
