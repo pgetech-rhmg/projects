@@ -45,7 +45,8 @@ export class AppService {
         lastPipelineRun: null,
         branch: null,
         runStatus: null,
-        triggeredBy: null
+        triggeredBy: null,
+        successRate: null
       }))
     );
   }

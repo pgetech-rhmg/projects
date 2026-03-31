@@ -103,6 +103,7 @@
             <th>Branch</th>
             <th>Environment</th>
             <th>Run Status</th>
+            <th>Success Rate</th>
             <th>Triggered By</th>
           </tr>
         </thead>
@@ -130,6 +131,9 @@
                   {{ app.runStatus }}
                 </span>
               </td>
+              <td class="success-rate">
+                {{ app.successRate !== null ? app.successRate.toFixed(2) + '%' : '—' }}
+              </td>
               <td>
                 <div class="user-chip" [class.user-chip--you]="app.triggeredBy === currentUser" [class.user-chip--system]="app.triggeredBy === 'System'">
                   <span class="user-chip__avatar">{{ initialsFor(app.triggeredBy) }}</span>
@@ -139,7 +143,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="8" class="no-results">
+              <td colspan="9" class="no-results">
                 {{ apps().length === 0 ? 'No records found.' : 'No apps match your search or filters.' }}
               </td>
             </tr>
@@ -218,6 +222,10 @@
             <div class="detail-item">
               <span class="detail-label">Cloud</span>
               <span class="detail-value">{{ appDetail()!.cloud }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Success Rate</span>
+              <span class="detail-value">{{ calcSuccessRate(appDetail()!.runs) }}</span>
             </div>
           </div>
 

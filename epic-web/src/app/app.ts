@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { LowerCasePipe } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 
-import { AppDetail, AppLookup, ManagedApp } from './models/app.model';
+import { AppDetail, AppLookup, ManagedApp, PipelineRun } from './models/app.model';
 import { AppService } from './services/app.service';
 
 @Component({
@@ -193,6 +193,12 @@ export class App implements OnInit, OnDestroy {
     if (isNaN(d.getTime())) return iso;
     const pad = (n: number) => n.toString().padStart(2, '0');
     return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  protected calcSuccessRate(runs: PipelineRun[]): string {
+    if (runs.length === 0) return '—';
+    const successful = runs.filter(r => r.status === 'Success').length;
+    return (successful / runs.length * 100).toFixed(2) + '%';
   }
 
   // ── User ──────────────────────────────────────────────────────────────────
@@ -543,7 +549,7 @@ export class App implements OnInit, OnDestroy {
         const triggeredAt = new Date().toISOString();
         const currentApp = this.apps().find(a => a.name === appName);
         this.pendingApps.set(appName, {
-          ...(currentApp ?? { name: appName, technology: '', cloud: '', environment: env }),
+          ...(currentApp ?? { name: appName, technology: '', cloud: '', environment: env, successRate: null }),
           lastPipelineRun: triggeredAt,
           branch,
           environment: env,

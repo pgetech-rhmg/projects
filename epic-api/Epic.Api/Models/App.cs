@@ -21,6 +21,7 @@ public sealed class ManagedApp
     public string? TriggeredBy { get; set; }
     public required string Cloud { get; set; }
     public required string Environment { get; set; }
+    public double? SuccessRate { get; set; }
 }
 
 public sealed class AppLookup

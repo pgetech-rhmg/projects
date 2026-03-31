@@ -15,7 +15,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         var userApps = await db.UserApps
             .Where(ua => ua.UserId == CurrentUserId)
             .Include(ua => ua.App)
-                .ThenInclude(a => a.Runs.OrderByDescending(r => r.StartedAt).Take(1))
+                .ThenInclude(a => a.Runs.OrderByDescending(r => r.StartedAt))
             .ToListAsync(ct);
 
         // Lightweight refresh — fetch latest run per app from ADO (no timeline/stage detail)
@@ -419,6 +419,8 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
     private static ManagedApp ToManagedApp(AppEntity entity)
     {
         var lastRun = entity.Runs.MaxBy(r => r.StartedAt);
+        var totalRuns = entity.Runs.Count;
+        var successfulRuns = entity.Runs.Count(r => r.Status.Equals("Success", StringComparison.OrdinalIgnoreCase));
 
         return new ManagedApp
         {
@@ -429,7 +431,8 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             LastPipelineRun = lastRun?.StartedAt.ToString("o"),
             Branch = lastRun?.Branch,
             RunStatus = lastRun is not null ? Enum.Parse<RunStatus>(lastRun.Status, true) : null,
-            TriggeredBy = lastRun?.TriggeredBy
+            TriggeredBy = lastRun?.TriggeredBy,
+            SuccessRate = totalRuns > 0 ? Math.Round((double)successfulRuns / totalRuns * 100, 2) : null
         };
     }
 

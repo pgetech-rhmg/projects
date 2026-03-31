@@ -495,7 +495,7 @@ tbody {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -627,7 +627,7 @@ tbody {
 
   &--success   { background: #48bb78; }
   &--failed    { background: #fc8181; }
-  &--running   { background: #63b3ed; }
+  &--running   { background: #3182ce; }
   &--cancelled { background: #cbd5e0; }
   &--skipped   { background: #e2e8f0; }
   &--pending   { background: #fff; border: 1.5px solid #cbd5e0; }

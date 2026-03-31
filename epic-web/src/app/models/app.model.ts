@@ -23,6 +23,7 @@ export interface ManagedApp {
   triggeredBy: string | null;
   cloud: string;
   environment: string;
+  successRate: number | null;
 }
 
 export interface PipelineRun {
