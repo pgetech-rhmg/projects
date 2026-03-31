@@ -651,11 +651,16 @@ tbody {
 
   &--success   { background: #48bb78; }
   &--failed    { background: #fc8181; }
-  &--running   { background: #3182ce; }
+  &--running   { background: #3182ce; animation: pulse 1.5s ease-in-out infinite; }
   &--cancelled { background: #cbd5e0; }
   &--skipped   { background: #e2e8f0; }
   &--pending   { background: #fff; border: 1.5px solid #cbd5e0; }
   &--external  { background: #9f7aea; }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(0.6); }
+  50%      { transform: scale(1); }
 }
 
 .modal-close {
