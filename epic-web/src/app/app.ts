@@ -196,9 +196,10 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected calcSuccessRate(runs: PipelineRun[]): string {
-    if (runs.length === 0) return '—';
-    const successful = runs.filter(r => r.status === 'Success').length;
-    return (successful / runs.length * 100).toFixed(2) + '%';
+    const completed = runs.filter(r => r.status !== 'Running' && r.status !== 'Pending');
+    if (completed.length === 0) return '—';
+    const successful = completed.filter(r => r.status === 'Success').length;
+    return (successful / completed.length * 100).toFixed(2) + '%';
   }
 
   // ── User ──────────────────────────────────────────────────────────────────

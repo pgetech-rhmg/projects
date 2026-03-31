@@ -436,8 +436,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
     private static ManagedApp ToManagedApp(AppEntity entity)
     {
         var lastRun = entity.Runs.MaxBy(r => r.StartedAt);
-        var totalRuns = entity.Runs.Count;
-        var successfulRuns = entity.Runs.Count(r => r.Status.Equals("Success", StringComparison.OrdinalIgnoreCase));
+        var completedRuns = entity.Runs.Where(r => !r.Status.Equals("Running", StringComparison.OrdinalIgnoreCase) && !r.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)).ToList();
+        var totalRuns = completedRuns.Count;
+        var successfulRuns = completedRuns.Count(r => r.Status.Equals("Success", StringComparison.OrdinalIgnoreCase));
 
         return new ManagedApp
         {
