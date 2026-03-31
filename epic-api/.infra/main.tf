@@ -291,6 +291,26 @@ resource "aws_rds_cluster_instance" "epic" {
 
 
 ###############################################################################
+# IAM — RDS secret read access
+###############################################################################
+
+resource "aws_iam_policy" "rds_secret_read" {
+  name = "pge-epic-${var.app_name}-api-${var.environment}-rds-secret-read"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = aws_rds_cluster.epic.master_user_secret[0].secret_arn
+    }]
+  })
+
+  tags = module.tags.tags
+}
+
+
+###############################################################################
 # EC2
 ###############################################################################
 
@@ -311,7 +331,8 @@ module "ec2" {
     create_instance_profile = true
     policy_arns = [
       "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
-      module.secretmanager.secret_read_arn
+      module.secretmanager.secret_read_arn,
+      aws_iam_policy.rds_secret_read.arn
     ]
   }
 
@@ -342,6 +363,8 @@ RestartSec=5
 User=ec2-user
 Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
 Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=AWS_RDS_SECRET_ARN=${aws_rds_cluster.epic.master_user_secret[0].secret_arn}
+Environment=AWS_RDS_ENDPOINT=${aws_rds_cluster.epic.endpoint}
 
 [Install]
 WantedBy=multi-user.target

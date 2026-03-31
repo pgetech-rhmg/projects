@@ -61,6 +61,34 @@ if (!builder.Environment.IsDevelopment())
     );
 
     builder.Configuration.AddInMemoryCollection(normalizedSecrets);
+
+    // -----------------------------------------------------------------------
+    // Build DB connection string from RDS-managed secret
+    // -----------------------------------------------------------------------
+    var rdsSecretArn = builder.Configuration["AWS_RDS_SECRET_ARN"];
+    var dbHost       = builder.Configuration["AWS_RDS_ENDPOINT"];
+
+    if (!string.IsNullOrEmpty(rdsSecretArn) && !string.IsNullOrEmpty(dbHost))
+    {
+        var rdsResponse = await client.GetSecretValueAsync(new GetSecretValueRequest
+        {
+            SecretId = rdsSecretArn
+        });
+
+        var rdsSecret = JsonSerializer.Deserialize<Dictionary<string, string?>>(
+            rdsResponse.SecretString!,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        ) ?? throw new InvalidOperationException("Failed to deserialize RDS secret.");
+
+        var username = rdsSecret.GetValueOrDefault("username") ?? "epic";
+        var password = rdsSecret.GetValueOrDefault("password")
+            ?? throw new InvalidOperationException("RDS secret missing password.");
+
+        var connectionString = $"Host={dbHost};Port=5432;Database=epicdb;Username={username};Password={password}";
+
+        builder.Configuration.AddInMemoryCollection(
+            new Dictionary<string, string?> { ["ConnectionStrings:EpicDb"] = connectionString });
+    }
 }
 
 // ---------------------------------------------------------------------------
