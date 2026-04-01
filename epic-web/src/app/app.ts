@@ -238,7 +238,7 @@ export class App implements OnInit, OnDestroy {
     "appName": "my-angular-app",
     "appType": "angular",
     "codePath": "/",
-    "nodeVersion": "20",
+    "runtimeVersion": "20",
     "scanTool": "sonarqube",
     "unitTestTool": "jest"
   },
@@ -252,7 +252,7 @@ export class App implements OnInit, OnDestroy {
     "appName": "my-dotnet-app",
     "appType": "dotnet",
     "codePath": "/src/MyApp",
-    "dotnetVersion": "10.x",
+    "runtimeVersion": "10.x",
     "scanTool": "sonarqube",
     "unitTestTool": "xunit"
   },
@@ -267,13 +267,14 @@ export class App implements OnInit, OnDestroy {
     "appName": "my-python-app",
     "appType": "python",
     "codePath": "/",
-    "pythonVersion": "3.11",
+    "runtimeVersion": "3.11",
     "scanTool": "sonarqube",
     "unitTestTool": "pytest"
   },
   "cloud": {
     "awsAccountId": "123456789012",
-    "awsRegion": "us-west-2"
+    "awsRegion": "us-west-2",
+    "appExecutable": "my_app"
   }
 }`,
     java: `{
@@ -281,7 +282,7 @@ export class App implements OnInit, OnDestroy {
     "appName": "my-java-app",
     "appType": "java",
     "codePath": "/",
-    "javaVersion": "17",
+    "runtimeVersion": "17",
     "scanTool": "sonarqube",
     "unitTestTool": "junit"
   },
@@ -295,6 +296,20 @@ export class App implements OnInit, OnDestroy {
     "appName": "my-static-site",
     "appType": "html",
     "codePath": "/"
+  },
+  "cloud": {
+    "awsAccountId": "123456789012",
+    "awsRegion": "us-west-2"
+  }
+}`,
+    php: `{
+  "app": {
+    "appName": "my-php-app",
+    "appType": "php",
+    "codePath": "/",
+    "runtimeVersion": "8.3",
+    "scanTool": "sonarqube",
+    "unitTestTool": "phpunit"
   },
   "cloud": {
     "awsAccountId": "123456789012",

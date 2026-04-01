@@ -577,10 +577,11 @@
             </thead>
             <tbody>
               <tr><td><code>app.appName</code></td><td>Yes</td><td>Unique name for your application in EPIC</td></tr>
-              <tr><td><code>app.appType</code></td><td>Yes</td><td>angular, dotnet, python, java, html, or ami</td></tr>
+              <tr><td><code>app.appType</code></td><td>Yes</td><td>angular, dotnet, python, java, html, php, or ami</td></tr>
               <tr><td><code>app.codePath</code></td><td>No</td><td>Path to source code relative to repo root (default: <code>/</code>)</td></tr>
+              <tr><td><code>app.runtimeVersion</code></td><td>No</td><td>Runtime version override — defaults per appType: angular/html <code>18</code>, dotnet <code>9.x</code>, python <code>3.11</code>, java <code>17</code>, php <code>8.3</code></td></tr>
               <tr><td><code>app.scanTool</code></td><td>No</td><td>Code scan tool (e.g., <code>sonarqube</code>)</td></tr>
-              <tr><td><code>app.unitTestTool</code></td><td>No</td><td>Test runner: jest, pytest, junit, xunit</td></tr>
+              <tr><td><code>app.unitTestTool</code></td><td>No</td><td>Test runner: jest, pytest, junit, xunit, phpunit</td></tr>
               <tr><td><code>cloud.awsAccountId</code></td><td>Yes</td><td>Target AWS account ID</td></tr>
               <tr><td><code>cloud.awsRegion</code></td><td>Yes</td><td>Target AWS region (e.g., <code>us-west-2</code>)</td></tr>
             </tbody>
@@ -597,6 +598,7 @@
               <option value="python">Python</option>
               <option value="java">Java</option>
               <option value="html">HTML / Static</option>
+              <option value="php">PHP</option>
               <option value="ami">AMI</option>
             </select>
             <button class="btn-secondary" (click)="copySample()">
