@@ -3,12 +3,12 @@
 ###############################################################################
 
 variable "principal_orgid" {
-  description = "Organiztion id."
+  description = "Organization ID."
   type        = string
 }
 
 variable "aws_account_id" {
-  description = "AWS Account used for this resource."
+  description = "AWS account used for this resource."
   type        = string
 }
 
@@ -23,7 +23,7 @@ variable "aws_region" {
 ###############################################################################
 
 variable "app_name" {
-  description = "Application name used for naming CloudFront resources."
+  description = "Application name used for naming resources."
   type        = string
 }
 
@@ -32,8 +32,14 @@ variable "environment" {
   type        = string
 }
 
-variable "app_path" {
-  description = "Relative path under the app folder containing static site files"
+variable "instance_type" {
+  description = "EC2 instance type."
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "health_check_path" {
+  description = "ALB target group health check path."
   type        = string
   default     = "/"
 }
@@ -44,7 +50,7 @@ variable "app_path" {
 ###############################################################################
 
 variable "appid" {
-  description = "Identify the application this asset belongs to by its AMPS APP ID. Format = APP-####"
+  description = "AMPS application ID. Format = APP-####"
   type        = number
 }
 
@@ -54,64 +60,64 @@ variable "notify" {
 
   validation {
     condition = alltrue([
-      for aliases in var.notify : can(regex("^\\w+([\\.!-/:[-`{-~]?\\w+)*@([\\.-]?\\w+)*(\\.\\w{2,3})+$", aliases))
+      for alias in var.notify : can(regex("^\\w+([\\.!-/:[-`{-~]?\\w+)*@([\\.-]?\\w+)*(\\.\\w{2,3})+$", alias))
     ])
-    error_message = "Invalid Email Address for Notify tag."
+    error_message = "Invalid email address in notify tag."
   }
 }
 
 variable "owner" {
   type        = list(string)
-  description = "List three owners of the system, as defined by AMPS Director, Client Owner and IT Leadeg LANID1_LANID2_LANID3"
+  description = "List of three owners (AMPS Director, Client Owner, IT Lead) as LANID values."
 
   validation {
     condition     = length(var.owner) == 3
-    error_message = "List three owners of the system, as defined by AMPS Director, Client Owner and IT Leadeg."
+    error_message = "Exactly three owners must be provided."
   }
 }
 
 variable "order" {
   type        = number
-  description = "Order as a tag to be associated with an AWS resource"
+  description = "Order number tag associated with this AWS resource."
 
   validation {
     condition     = var.order >= 1000000 && var.order <= 999999999
-    error_message = "Order must be a number between 7 and 9 digits"
+    error_message = "Order must be between 7 and 9 digits."
   }
 }
 
 variable "dataclassification" {
   type        = string
-  description = "Classification of data - can be made conditionally required based on Compliance. One of the following: Public, Internal, Confidential, Restricted, Privileged, Confidential-BCSI, Restricted-BCSI (only one)"
+  description = "Data classification level for this resource."
   default     = "Internal"
 
   validation {
     condition     = contains(["Public", "Internal", "Confidential", "Restricted", "Privileged", "Confidential-BCSI", "Restricted-BCSI"], var.dataclassification)
-    error_message = "Valid values for DataClassification are (Public, Internal, Confidential, Restricted, Privileged, Confidential-BCSI, Restricted-BCSI). Please select on these as DataClassification parameter."
+    error_message = "Valid values: Public, Internal, Confidential, Restricted, Privileged, Confidential-BCSI, Restricted-BCSI."
   }
 }
 
 variable "compliance" {
   type        = list(string)
-  description = "Compliance Identify assets with compliance requirements (SOX, HIPAA, CCPA, BCSI or None) Note: BCSI Workloads require specific considerations"
+  description = "Compliance requirements for this resource (SOX, HIPAA, CCPA, BCSI, or None)."
   default     = ["None"]
 
   validation {
     condition = alltrue([
       for alias in var.compliance : contains(["SOX", "HIPAA", "CCPA", "BCSI", "None"], alias)
     ])
-    error_message = "Valid values for DataClassification are SOX, HIPAA, CCPA, BCSI or None. Please select on these as Compliance parameter."
+    error_message = "Valid values: SOX, HIPAA, CCPA, BCSI, None."
   }
 }
 
 variable "cris" {
   type        = string
-  description = "Cyber Risk Impact Score High, Medium, Low (only one)"
+  description = "Cyber Risk Impact Score (High, Medium, or Low)."
   default     = "Low"
 
   validation {
     condition     = contains(["High", "Medium", "Low"], var.cris)
-    error_message = "Valid values for Cyber Risk Impact Score are High, Medium, Low (only one). Please select one these CRIS values."
+    error_message = "Valid values: High, Medium, Low."
   }
 }
 
@@ -120,18 +126,27 @@ variable "cris" {
 # Networking
 ###############################################################################
 
+variable "network" {
+  description = "VPC, subnets, and route table for the internal ALB and EC2."
+  type = object({
+    vpc_id              = string
+    subnet_ids          = list(string)
+    main_route_table_id = string
+  })
+}
+
 variable "domain_name" {
-  description = "Domain name for the ACM certificate and Route53 record"
+  description = "Domain name for the ACM certificate and Route53 record."
   type        = string
 }
 
 variable "private_hosted_zone_id" {
-  description = "Route53 hosted zone ID"
+  description = "Route53 private hosted zone ID."
   type        = string
 }
 
 variable "public_hosted_zone_id" {
-  description = "Route53 hosted zone ID"
+  description = "Route53 public hosted zone ID (used by ACM DNS validation only)."
   type        = string
 }
 
@@ -154,18 +169,18 @@ variable "force_s3_destroy" {
 }
 
 variable "object_ownership" {
-  description = "S3 object ownership setting. Recommended: BucketOwnerEnforced."
+  description = "S3 object ownership setting."
   type        = string
   default     = "BucketOwnerEnforced"
 
   validation {
     condition     = contains(["BucketOwnerEnforced", "BucketOwnerPreferred", "ObjectWriter"], var.object_ownership)
-    error_message = "object_ownership must be one of: BucketOwnerEnforced, BucketOwnerPreferred, ObjectWriter."
+    error_message = "Valid values: BucketOwnerEnforced, BucketOwnerPreferred, ObjectWriter."
   }
 }
 
 variable "enable_public_access_block" {
-  description = "If true, blocks all public access settings at the bucket level (recommended)."
+  description = "If true, blocks all public access at the bucket level (recommended)."
   type        = bool
   default     = true
 }
@@ -177,13 +192,13 @@ variable "enable_versioning" {
 }
 
 variable "sse_algorithm" {
-  description = "Server-side encryption algorithm. Use AES256 (SSE-S3) or aws:kms (SSE-KMS)."
+  description = "Server-side encryption algorithm (AES256 or aws:kms)."
   type        = string
   default     = "AES256"
 
   validation {
     condition     = contains(["AES256", "aws:kms"], var.sse_algorithm)
-    error_message = "sse_algorithm must be 'AES256' or 'aws:kms'."
+    error_message = "Valid values: AES256, aws:kms."
   }
 }
 
@@ -206,27 +221,15 @@ variable "access_log_bucket" {
 }
 
 variable "access_log_prefix" {
-  description = "Prefix for access logs (optional)."
+  description = "Prefix for access logs."
   type        = string
   default     = null
 }
 
 variable "lifecycle_rules" {
-  description = <<EOT
-Lifecycle rules for the bucket.
-
-Each rule object supports:
-- id (string, required)
-- enabled (bool, required)
-- prefix (string, optional) [deprecated by AWS, but still accepted]
-- filter (object, optional) - passed through to aws_s3_bucket_lifecycle_configuration
-- transitions (list(object), optional): [{ days = number, storage_class = string }]
-- expiration (object, optional): { days = number }
-- noncurrent_version_expiration (object, optional): { noncurrent_days = number }
-EOT
-
-  type    = any
-  default = []
+  description = "Lifecycle rules for the S3 bucket."
+  type        = any
+  default     = []
 }
 
 variable "bucket_policy_json" {
@@ -234,39 +237,4 @@ variable "bucket_policy_json" {
   type        = string
   default     = null
   nullable    = true
-}
-
-variable "cache_control" {
-  description = "Optional Cache-Control header for uploaded objects"
-  type        = string
-  default     = null
-  nullable    = true
-}
-
-variable "content_type_overrides" {
-  description = "Optional override map for file extensions to MIME types"
-  type        = map(string)
-  default     = {}
-}
-
-
-###############################################################################
-# CloudFront
-###############################################################################
-
-variable "price_class" {
-  description = "CloudFront price class."
-  type        = string
-  default     = "PriceClass_100"
-
-  validation {
-    condition     = contains(["PriceClass_All", "PriceClass_100", "PriceClass_200"], var.price_class)
-    error_message = "Valid values for type are PriceClass_All, PriceClass_100, PriceClass_200."
-  }
-}
-
-variable "custom_domain_aliases" {
-  description = "Optional list of custom domain aliases for CloudFront."
-  type        = list(string)
-  default     = []
 }
