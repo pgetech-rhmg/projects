@@ -109,6 +109,15 @@ module "aws_security_group_web" {
       from              = 443,
       to                = 443,
       protocol          = "tcp",
+      cidr_blocks       = ["131.89.0.0/16"],
+      ipv6_cidr_blocks  = [],
+      prefix_list_ids   = []
+    },
+    {
+      description       = "CCOE Ingress rules 6",
+      from              = 443,
+      to                = 443,
+      protocol          = "tcp",
       cidr_blocks       = ["131.90.0.0/16"],
       ipv6_cidr_blocks  = [],
       prefix_list_ids   = []

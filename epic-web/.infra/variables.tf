@@ -143,6 +143,7 @@ by the WAF at the edge with a 403.
 EOT
   type        = list(string)
   default = [
+    "131.89.0.0/16",   # PG&E corporate egress
     "131.90.0.0/16",   # PG&E corporate egress
     "192.80.218.0/24", # Opsera tunnel
   ]

@@ -18,10 +18,34 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                 .ThenInclude(a => a.Runs.OrderByDescending(r => r.StartedAt))
             .ToListAsync(ct);
 
-        // Lightweight refresh — fetch latest run per app from ADO (no timeline/stage detail)
-        await RefreshLatestRunsFromAdoAsync(userApps.Select(ua => ua.App).ToList(), ct);
+        // Lightweight refresh — fetch recent runs per app from ADO (no timeline/stage detail)
+        var apps = userApps.Select(ua => ua.App).ToList();
+        await RefreshRecentRunsFromAdoAsync(apps, ct);
 
-        return userApps.Select(ua => ToManagedApp(ua.App)).ToList();
+        // Authoritative success-rate counts — paginates through ALL completed runs in ADO
+        var counts = await GetSuccessRateCountsAsync(apps, ct);
+
+        return apps.Select(a => ToManagedApp(a, counts.GetValueOrDefault(a.Name))).ToList();
+    }
+
+    private async Task<Dictionary<string, (int Total, int Successful)>> GetSuccessRateCountsAsync(
+        List<AppEntity> apps, CancellationToken ct)
+    {
+        try
+        {
+            var tasks = apps.Select(async app =>
+            {
+                var counts = await ado.GetCompletedRunCountsAsync(app.Name, ct);
+                return (app.Name, counts);
+            });
+            var results = await Task.WhenAll(tasks);
+            return results.ToDictionary(r => r.Name, r => r.counts);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "ADO unavailable during success-rate counts — serving stale data");
+            return [];
+        }
     }
 
     public async Task<AppDetail?> GetAppAsync(string name, CancellationToken ct = default)
@@ -39,41 +63,54 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         return ToAppDetail(entity);
     }
 
-    private async Task RefreshLatestRunsFromAdoAsync(List<AppEntity> apps, CancellationToken ct)
+    private async Task RefreshRecentRunsFromAdoAsync(List<AppEntity> apps, CancellationToken ct)
     {
         try
         {
-            // Fetch latest run for each app in parallel
+            // Fetch recent runs for each app in parallel (up to 20, no stage timelines)
             var tasks = apps.Select(async app =>
             {
-                var latest = await ado.GetLatestRunForAppAsync(app.Name, ct);
-                return (app, latest);
+                var recent = await ado.GetRecentRunsForAppAsync(app.Name, 20, ct);
+                return (app, recent);
             });
 
             var results = await Task.WhenAll(tasks);
             var hasChanges = false;
 
-            foreach (var (app, latest) in results)
+            foreach (var (app, recent) in results)
             {
-                if (latest is null) continue;
+                if (recent.Count == 0) continue;
 
-                var existingRun = app.Runs.FirstOrDefault();
+                var existingById = app.Runs.ToDictionary(r => r.Id);
 
-                if (existingRun is null || existingRun.Id != latest.Id)
+                foreach (var run in recent)
                 {
-                    // New run we haven't seen — add a lightweight record
-                    if (!app.Runs.Any(r => r.Id == latest.Id))
+                    if (existingById.TryGetValue(run.Id, out var existing))
                     {
+                        // Update status / duration / triggeredBy if changed
+                        if (existing.Status != run.Status
+                            || existing.Duration != run.Duration
+                            || existing.TriggeredBy != run.TriggeredBy)
+                        {
+                            existing.Status = run.Status;
+                            existing.Duration = run.Duration;
+                            existing.TriggeredBy = run.TriggeredBy;
+                            hasChanges = true;
+                        }
+                    }
+                    else
+                    {
+                        // New run we haven't seen — add a lightweight record (no stage detail)
                         app.Runs.Add(new PipelineRunEntity
                         {
-                            Id = latest.Id,
+                            Id = run.Id,
                             AppId = app.Id,
-                            Status = latest.Status,
-                            TriggeredBy = latest.TriggeredBy,
-                            Branch = latest.Branch,
-                            Environment = latest.Environment,
-                            StartedAt = latest.StartedAt,
-                            Duration = latest.Duration,
+                            Status = run.Status,
+                            TriggeredBy = run.TriggeredBy,
+                            Branch = run.Branch,
+                            Environment = run.Environment,
+                            StartedAt = run.StartedAt,
+                            Duration = run.Duration,
                             StageBuild = "Skipped",
                             StageTest = "Skipped",
                             StageScan = "Skipped",
@@ -84,14 +121,6 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                         hasChanges = true;
                     }
                 }
-                else if (existingRun.Status != latest.Status)
-                {
-                    // Existing run changed status (e.g., Running → Success)
-                    existingRun.Status = latest.Status;
-                    existingRun.Duration = latest.Duration;
-                    existingRun.TriggeredBy = latest.TriggeredBy;
-                    hasChanges = true;
-                }
             }
 
             if (hasChanges)
@@ -99,7 +128,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "ADO unavailable during latest run refresh — serving stale data");
+            logger.LogWarning(ex, "ADO unavailable during recent runs refresh — serving stale data");
         }
     }
 
@@ -257,10 +286,11 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
 
         await db.SaveChangesAsync(ct);
 
-        // Refresh latest run from ADO
-        await RefreshLatestRunsFromAdoAsync([app], ct);
+        // Refresh latest run from ADO and pull authoritative success-rate counts
+        await RefreshRecentRunsFromAdoAsync([app], ct);
+        var counts = (await GetSuccessRateCountsAsync([app], ct)).GetValueOrDefault(app.Name);
 
-        return ToManagedApp(app);
+        return ToManagedApp(app, counts);
     }
 
     public async Task<AppDetail> OnboardAppAsync(string repo, string branch, CancellationToken ct = default)
@@ -331,7 +361,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         await db.SaveChangesAsync(ct);
 
         // Fetch latest run from ADO so the main table shows run data immediately
-        await RefreshLatestRunsFromAdoAsync([entity], ct);
+        await RefreshRecentRunsFromAdoAsync([entity], ct);
 
         return ToAppDetail(entity);
     }
@@ -433,12 +463,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
 
     // ----- Mapping helpers -----
 
-    private static ManagedApp ToManagedApp(AppEntity entity)
+    private static ManagedApp ToManagedApp(AppEntity entity, (int Total, int Successful) counts)
     {
         var lastRun = entity.Runs.MaxBy(r => r.StartedAt);
-        var completedRuns = entity.Runs.Where(r => !r.Status.Equals("Running", StringComparison.OrdinalIgnoreCase) && !r.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)).ToList();
-        var totalRuns = completedRuns.Count;
-        var successfulRuns = completedRuns.Count(r => r.Status.Equals("Success", StringComparison.OrdinalIgnoreCase));
 
         return new ManagedApp
         {
@@ -451,7 +478,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             RunId = lastRun?.Id,
             RunStatus = lastRun is not null ? Enum.Parse<RunStatus>(lastRun.Status, true) : null,
             TriggeredBy = lastRun?.TriggeredBy,
-            SuccessRate = totalRuns > 0 ? Math.Round((double)successfulRuns / totalRuns * 100, 2) : null
+            SuccessRate = counts.Total > 0 ? Math.Round((double)counts.Successful / counts.Total * 100, 2) : null
         };
     }
 

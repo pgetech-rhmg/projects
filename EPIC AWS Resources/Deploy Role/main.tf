@@ -115,6 +115,17 @@ data "aws_iam_policy_document" "epic_infrastructure" {
 		resources = ["*"]
 	}
 
+	# WAFv2 — required for CloudFront WebACLs and IPSets that restrict
+	# distributions to PG&E source IPs (CLOUDFRONT scope, us-east-1)
+	statement {
+		sid    = "WAFv2Management"
+		effect = "Allow"
+		actions = [
+			"wafv2:*"
+		]
+		resources = ["*"]
+	}
+
 	# ACM
 	statement {
 		sid    = "CertificateManagement"

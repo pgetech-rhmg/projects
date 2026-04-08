@@ -102,81 +102,144 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         return results;
     }
 
-    public async Task<AdoLatestRun?> GetLatestRunForAppAsync(string appName, CancellationToken ct = default)
+    /// <summary>
+    /// Lightweight bulk fetch of recent runs for an app — same shape as GetRunsForAppAsync
+    /// but without per-run timeline calls (no stage-level data). Used by the main page
+    /// refresh, which only needs Status to compute the success rate and the latest run's
+    /// triggeredBy/branch/environment for the row display.
+    /// Cost: 2 ADO calls per app (1 builds list + 1 orchestrator triggeredBy resolve),
+    /// regardless of how many runs are returned.
+    /// </summary>
+    public async Task<List<AdoLatestRun>> GetRecentRunsForAppAsync(string appName, int top = 20, CancellationToken ct = default)
     {
-        var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top=1&queryOrder=queueTimeDescending&api-version=7.1";
+        var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={top}&queryOrder=queueTimeDescending&api-version=7.1";
         var buildsJson = await CallApiAsync(url, ct);
 
-        if (buildsJson is null) return null;
+        if (buildsJson is null) return [];
 
-        var builds = buildsJson.Value.GetProperty("value");
-        if (builds.GetArrayLength() == 0) return null;
+        var results = new List<AdoLatestRun>();
 
-        var build = builds[0];
-
-        var adoStatus = build.TryGetProperty("status", out var st) ? st.GetString() : "unknown";
-        var adoResult = build.TryGetProperty("result", out var res) ? res.GetString() : null;
-
-        var triggeredBy = build.TryGetProperty("requestedFor", out var rf)
-            && rf.TryGetProperty("displayName", out var dn)
-            ? dn.GetString() ?? "Unknown" : "Unknown";
-
-        // Extract branch and environment from the build's parameters
-        var branch = "";
-        var environment = "dev";
-        var paramsString = build.TryGetProperty("parameters", out var p) && p.ValueKind == JsonValueKind.String
-            ? p.GetString() : null;
-        if (paramsString is not null)
+        foreach (var build in buildsJson.Value.GetProperty("value").EnumerateArray())
         {
-            try
+            var adoStatus = build.TryGetProperty("status", out var st) ? st.GetString() : "unknown";
+            var adoResult = build.TryGetProperty("result", out var res) ? res.GetString() : null;
+
+            var triggeredBy = build.TryGetProperty("requestedFor", out var rf)
+                && rf.TryGetProperty("displayName", out var dn)
+                ? dn.GetString() ?? "Unknown" : "Unknown";
+
+            // Extract branch and environment from the build's parameters
+            var branch = "";
+            var environment = "dev";
+            var paramsString = build.TryGetProperty("parameters", out var p) && p.ValueKind == JsonValueKind.String
+                ? p.GetString() : null;
+            if (paramsString is not null)
             {
-                var paramObj = JsonDocument.Parse(paramsString).RootElement;
-                branch = paramObj.TryGetProperty("branch", out var br) ? br.GetString() ?? "" : "";
-                environment = paramObj.TryGetProperty("environment", out var env) ? env.GetString() ?? "dev" : "dev";
+                try
+                {
+                    var paramObj = JsonDocument.Parse(paramsString).RootElement;
+                    branch = paramObj.TryGetProperty("branch", out var br) ? br.GetString() ?? "" : "";
+                    environment = paramObj.TryGetProperty("environment", out var env) ? env.GetString() ?? "dev" : "dev";
+                }
+                catch (Exception ex) { logger.LogDebug(ex, "ADO build parameters not parseable — using defaults"); }
             }
-            catch { /* parameters not parseable — use defaults */ }
+
+            if (string.IsNullOrEmpty(branch))
+            {
+                branch = build.TryGetProperty("sourceBranch", out var sb)
+                    ? sb.GetString()?.Replace("refs/heads/", "") ?? "" : "";
+            }
+
+            var startedAt = build.TryGetProperty("startTime", out var st2)
+                && st2.ValueKind != JsonValueKind.Null
+                ? st2.GetDateTime()
+                : build.TryGetProperty("queueTime", out var qt)
+                    ? qt.GetDateTime() : DateTime.UtcNow;
+
+            var finishedAt = build.TryGetProperty("finishTime", out var ft)
+                && ft.ValueKind != JsonValueKind.Null
+                ? ft.GetDateTime() : (DateTime?)null;
+
+            results.Add(new AdoLatestRun
+            {
+                Id = build.GetProperty("id").GetInt32(),
+                Status = MapRunStatus(adoStatus, adoResult),
+                TriggeredBy = triggeredBy,
+                Branch = branch,
+                Environment = environment,
+                StartedAt = startedAt,
+                Duration = finishedAt.HasValue ? FormatDuration(finishedAt.Value - startedAt) : null
+            });
         }
 
-        if (string.IsNullOrEmpty(branch))
+        // Resolve real triggeredBy from orchestrator pipeline (single bulk call)
+        await ResolveTriggeredByFromOrchestratorAsync(appName, results, ct);
+
+        return results;
+    }
+
+    /// <summary>
+    /// Counts ALL completed runs for an app — total and successful — by paginating
+    /// through every build with the appName tag. In-progress runs are excluded by
+    /// the server-side statusFilter, so the totals reflect lifetime success rate.
+    /// Cost: 1 ADO call per 1000 runs (typically just 1).
+    /// </summary>
+    public async Task<(int Total, int Successful)> GetCompletedRunCountsAsync(string appName, CancellationToken ct = default)
+    {
+        var total = 0;
+        var successful = 0;
+        string? continuationToken = null;
+        const int pageSize = 1000;
+
+        do
         {
-            branch = build.TryGetProperty("sourceBranch", out var sb)
-                ? sb.GetString()?.Replace("refs/heads/", "") ?? "" : "";
-        }
+            var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&statusFilter=completed&$top={pageSize}&queryOrder=queueTimeDescending&api-version=7.1";
+            if (continuationToken is not null)
+                url += $"&continuationToken={Uri.EscapeDataString(continuationToken)}";
 
-        var startedAt = build.TryGetProperty("startTime", out var st2)
-            && st2.ValueKind != JsonValueKind.Null
-            ? st2.GetDateTime()
-            : build.TryGetProperty("queueTime", out var qt)
-                ? qt.GetDateTime() : DateTime.UtcNow;
+            var (json, nextToken) = await CallApiWithContinuationAsync(url, ct);
+            if (json is null) break;
 
-        var finishedAt = build.TryGetProperty("finishTime", out var ft)
-            && ft.ValueKind != JsonValueKind.Null
-            ? ft.GetDateTime() : (DateTime?)null;
+            foreach (var build in json.Value.GetProperty("value").EnumerateArray())
+            {
+                total++;
+                var result = build.TryGetProperty("result", out var r) ? r.GetString() : null;
+                if (result == "succeeded") successful++;
+            }
 
-        // Resolve real triggeredBy from orchestrator pipeline
-        var orchestratorTriggeredBy = await GetOrchestratorTriggeredByAsync(appName, startedAt, ct);
+            continuationToken = nextToken;
+        } while (!string.IsNullOrEmpty(continuationToken));
 
-        return new AdoLatestRun
-        {
-            Id = build.GetProperty("id").GetInt32(),
-            Status = MapRunStatus(adoStatus, adoResult),
-            TriggeredBy = orchestratorTriggeredBy ?? triggeredBy,
-            Branch = branch,
-            Environment = environment,
-            StartedAt = startedAt,
-            Duration = finishedAt.HasValue ? FormatDuration(finishedAt.Value - startedAt) : null
-        };
+        return (total, successful);
     }
 
     /// <summary>
     /// Queries orchestrator builds (tagged with appName) and matches each engine run
     /// to its orchestrator run by time proximity, overriding TriggeredBy with the real user.
     /// </summary>
-    private async Task ResolveTriggeredByFromOrchestratorAsync(string appName, List<AdoPipelineRun> engineRuns, CancellationToken ct)
-    {
-        if (engineRuns.Count == 0) return;
+    private Task ResolveTriggeredByFromOrchestratorAsync(string appName, List<AdoPipelineRun> engineRuns, CancellationToken ct) =>
+        ResolveTriggeredByFromOrchestratorCoreAsync(
+            appName,
+            engineRuns.Count,
+            engineRuns.Select(r => (r.StartedAt, (Action<string>)(s => r.TriggeredBy = s))).ToList(),
+            ct);
 
-        var url = $"{BaseUrl}/build/builds?definitions={OrchestratorPipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={engineRuns.Count + 5}&queryOrder=finishTimeDescending&api-version=7.1";
+    private Task ResolveTriggeredByFromOrchestratorAsync(string appName, List<AdoLatestRun> engineRuns, CancellationToken ct) =>
+        ResolveTriggeredByFromOrchestratorCoreAsync(
+            appName,
+            engineRuns.Count,
+            engineRuns.Select(r => (r.StartedAt, (Action<string>)(s => r.TriggeredBy = s))).ToList(),
+            ct);
+
+    private async Task ResolveTriggeredByFromOrchestratorCoreAsync(
+        string appName,
+        int totalRuns,
+        List<(DateTime StartedAt, Action<string> SetTriggeredBy)> engineRuns,
+        CancellationToken ct)
+    {
+        if (totalRuns == 0) return;
+
+        var url = $"{BaseUrl}/build/builds?definitions={OrchestratorPipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={totalRuns + 5}&queryOrder=finishTimeDescending&api-version=7.1";
         var json = await CallApiAsync(url, ct);
         if (json is null) return;
 
@@ -204,26 +267,8 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
                 .MinBy(o => run.StartedAt - o.FinishTime!.Value);
 
             if (match?.RequestedFor is not null)
-                run.TriggeredBy = match.RequestedFor;
+                run.SetTriggeredBy(match.RequestedFor);
         }
-    }
-
-    /// <summary>
-    /// Gets the triggeredBy for a single engine run from the orchestrator (used by GetLatestRunForAppAsync).
-    /// </summary>
-    private async Task<string?> GetOrchestratorTriggeredByAsync(string appName, DateTime engineStartedAt, CancellationToken ct)
-    {
-        var url = $"{BaseUrl}/build/builds?definitions={OrchestratorPipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top=1&queryOrder=finishTimeDescending&api-version=7.1";
-        var json = await CallApiAsync(url, ct);
-        if (json is null) return null;
-
-        var builds = json.Value.GetProperty("value");
-        if (builds.GetArrayLength() == 0) return null;
-
-        var build = builds[0];
-        return build.TryGetProperty("requestedFor", out var rf)
-            && rf.TryGetProperty("displayName", out var dn)
-            ? dn.GetString() : null;
     }
 
     private async Task<PipelineStages> GetStageResultsAsync(int buildId, CancellationToken ct)
@@ -389,6 +434,16 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
 
     private async Task<JsonElement?> CallApiAsync(string url, CancellationToken ct)
     {
+        var (json, _) = await CallApiWithContinuationAsync(url, ct);
+        return json;
+    }
+
+    /// <summary>
+    /// Same as CallApiAsync but also returns the x-ms-continuationtoken response header
+    /// for paginated ADO endpoints (e.g. /build/builds).
+    /// </summary>
+    private async Task<(JsonElement? Json, string? ContinuationToken)> CallApiWithContinuationAsync(string url, CancellationToken ct)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{Pat}"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
@@ -398,10 +453,16 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         if (!response.IsSuccessStatusCode)
         {
             logger.LogWarning("ADO API returned {StatusCode} for {Url}", (int)response.StatusCode, url);
-            return null;
+            return (null, null);
         }
 
         var body = await response.Content.ReadAsStringAsync(ct);
-        return JsonDocument.Parse(body).RootElement;
+        var json = JsonDocument.Parse(body).RootElement;
+
+        string? continuationToken = null;
+        if (response.Headers.TryGetValues("x-ms-continuationtoken", out var values))
+            continuationToken = values.FirstOrDefault();
+
+        return (json, continuationToken);
     }
 }

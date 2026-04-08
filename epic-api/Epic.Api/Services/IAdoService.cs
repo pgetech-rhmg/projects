@@ -34,7 +34,8 @@ public sealed class AdoTriggerResult
 public interface IAdoService
 {
     Task<List<AdoPipelineRun>> GetRunsForAppAsync(string appName, int? afterBuildId = null, int top = 20, CancellationToken ct = default);
-    Task<AdoLatestRun?> GetLatestRunForAppAsync(string appName, CancellationToken ct = default);
+    Task<List<AdoLatestRun>> GetRecentRunsForAppAsync(string appName, int top = 20, CancellationToken ct = default);
+    Task<(int Total, int Successful)> GetCompletedRunCountsAsync(string appName, CancellationToken ct = default);
     Task<AdoTriggerResult> TriggerOrchestratorAsync(string repo, string branch, string environment, bool build, bool tests, bool scan, bool deploy, bool integrations, string deployInfra, CancellationToken ct = default);
     Task CancelBuildAsync(int buildId, CancellationToken ct = default);
 }
