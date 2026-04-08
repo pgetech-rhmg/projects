@@ -18,14 +18,14 @@ module "tags" {
 
 
 ###############################################################################
-# Certs — regional ACM cert for the internal ALB
+# Certs — public ACM cert in us-east-1 for CloudFront
 ###############################################################################
 
 module "acm_web" {
   source                = "git::https://github.com/pgetech/epic-pipeline-module-aws-certificate.git?ref=main"
   domain_name           = var.domain_name
   public_hosted_zone_id = var.public_hosted_zone_id
-  certificate_type      = "default"
+  certificate_type      = "public"
   tags                  = module.tags.tags
 
   providers = {
@@ -36,137 +36,65 @@ module "acm_web" {
 
 
 ###############################################################################
-# Security Groups
+# WAF — restricts CloudFront to PG&E source IPs only
+#
+# CloudFront WAFv2 must live in us-east-1 with scope = CLOUDFRONT.
+# IMPORTANT: addresses must be PG&E's PUBLIC egress IP ranges, not RFC1918 —
+# CloudFront's edge sees the corporate NAT egress IP, not the user's internal IP.
 ###############################################################################
 
-module "aws_security_group_web" {
-  source      = "git::https://github.com/pgetech/epic-pipeline-module-aws-security-group.git?ref=main"
-  app_name    = "${var.app_name}-web"
-  environment = var.environment
-  label       = "web"
-  tags        = module.tags.tags
-  description = "Allow HTTPS for internal ALB from PG&E network"
-  vpc_id      = var.network.vpc_id
-  cidr_ingress_rules = [
-    {
-      description      = "CCOE Ingress rules 1"
-      from             = 443
-      to               = 443
-      protocol         = "tcp"
-      cidr_blocks      = ["10.0.0.0/8"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
-    },
-    {
-      description      = "CCOE Ingress rules 2"
-      from             = 443
-      to               = 443
-      protocol         = "tcp"
-      cidr_blocks      = ["172.16.0.0/12"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
-    },
-    {
-      description      = "CCOE Ingress rules 3"
-      from             = 443
-      to               = 443
-      protocol         = "tcp"
-      cidr_blocks      = ["192.168.0.0/16"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
-    },
-    {
-      description      = "CCOE Ingress rules 4"
-      from             = 443
-      to               = 443
-      protocol         = "tcp"
-      cidr_blocks      = ["172.30.0.0/16"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
-    },
-    {
-      description      = "CCOE Ingress rules 5"
-      from             = 443
-      to               = 443
-      protocol         = "tcp"
-      cidr_blocks      = ["131.90.0.0/16"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
-    },
-    {
-      description      = "Opsera tunnel ingress rules"
-      from             = 443
-      to               = 443
-      protocol         = "tcp"
-      cidr_blocks      = ["192.80.218.0/24"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
-    },
-    {
-      description      = "CCOE additional"
-      from             = 443
-      to               = 443
-      protocol         = "tcp"
-      cidr_blocks      = ["10.90.0.0/21"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
-    }
-  ]
-  cidr_egress_rules = [
-    {
-      description      = "CCOE egress rules"
-      from             = 0
-      to               = 65535
-      protocol         = "tcp"
-      cidr_blocks      = ["10.90.108.0/23"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
-    }
-  ]
-  security_group_egress_rules = [
-    {
-      description              = "Allow ALB to reach nginx"
-      from                     = 80
-      to                       = 80
-      protocol                 = "tcp"
-      source_security_group_id = module.aws_security_group_ec2.aws_security_group_id
-    }
-  ]
+resource "aws_wafv2_ip_set" "pge" {
+  provider           = aws.us_east_1
+  name               = "pge-epic-${var.app_name}-web-${var.environment}-pge-allowlist"
+  description        = "PG&E source IPs allowed to reach the CloudFront distribution"
+  scope              = "CLOUDFRONT"
+  ip_address_version = "IPV4"
+  addresses          = var.allowed_cidrs
+  tags               = module.tags.tags
 }
 
-module "aws_security_group_ec2" {
-  source      = "git::https://github.com/pgetech/epic-pipeline-module-aws-security-group.git?ref=main"
-  app_name    = "${var.app_name}-web"
-  environment = var.environment
-  label       = "ec2"
-  tags        = module.tags.tags
-  description = "Allow HTTP from internal ALB only"
-  vpc_id      = var.network.vpc_id
-  cidr_egress_rules = [
-    {
-      description      = "Allow outbound (S3, package repos, SSM)"
-      from             = 0
-      to               = 0
-      protocol         = "-1"
-      cidr_blocks      = ["0.0.0.0/0"]
-      ipv6_cidr_blocks = []
-      prefix_list_ids  = []
+resource "aws_wafv2_web_acl" "web" {
+  provider = aws.us_east_1
+  name     = "pge-epic-${var.app_name}-web-${var.environment}"
+  scope    = "CLOUDFRONT"
+
+  default_action {
+    block {}
+  }
+
+  rule {
+    name     = "AllowPGE"
+    priority = 1
+
+    action {
+      allow {}
     }
-  ]
-  security_group_ingress_rules = [
-    {
-      description              = "Allow ALB to reach nginx"
-      from                     = 80
-      to                       = 80
-      protocol                 = "tcp"
-      source_security_group_id = module.aws_security_group_web.aws_security_group_id
+
+    statement {
+      ip_set_reference_statement {
+        arn = aws_wafv2_ip_set.pge.arn
+      }
     }
-  ]
+
+    visibility_config {
+      sampled_requests_enabled   = true
+      cloudwatch_metrics_enabled = true
+      metric_name                = "AllowPGE"
+    }
+  }
+
+  visibility_config {
+    sampled_requests_enabled   = true
+    cloudwatch_metrics_enabled = true
+    metric_name                = "pge-epic-${var.app_name}-web-${var.environment}"
+  }
+
+  tags = module.tags.tags
 }
 
 
 ###############################################################################
-# S3 — deployment artifact bucket (kept; pipeline still does aws s3 sync)
+# S3
 ###############################################################################
 
 module "s3_web" {
@@ -191,101 +119,29 @@ module "s3_web" {
 
 
 ###############################################################################
-# EC2 — nginx serving the SPA, sync'd from S3 every minute via cron
+# CloudFront
 ###############################################################################
 
-module "ec2" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-ec2.git?ref=main"
+module "cloudfront" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-cloudfront.git?ref=main"
 
-  app_name      = "${var.app_name}-web"
-  environment   = var.environment
-  ami           = data.aws_ami.amazon_linux.id
-  instance_type = var.instance_type
+  app_name                    = "${var.app_name}-web"
+  environment                 = var.environment
+  bucket_name                 = module.s3_web.bucket_name
+  bucket_arn                  = module.s3_web.bucket_arn
+  bucket_regional_domain_name = module.s3_web.bucket_regional_domain_name
+  price_class                 = var.price_class
+  custom_domain_aliases       = var.custom_domain_aliases
+  custom_acm_certificate_arn  = module.acm_web.certificate_arn
+  cors_allowed_origins        = var.cors_allowed_origins
+  web_acl_id                  = aws_wafv2_web_acl.web.arn
 
-  network = {
-    subnet_id          = var.network.subnet_ids[0]
-    security_group_ids = [module.aws_security_group_ec2.aws_security_group_id]
-  }
-
-  iam = {
-    create_instance_profile = true
-    policy_arns = [
-      "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
-      "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-    ]
-  }
-
-  root_volume = {
-    size = 20
-    type = "gp3"
-  }
-
-  user_data = <<-EOF
-#!/bin/bash
-set -e
-
-dnf update -y
-dnf install -y nginx awscli cronie
-systemctl enable --now crond
-
-# nginx config — SPA fallback so client-side routing works
-cat > /etc/nginx/conf.d/${var.app_name}-web.conf <<-NGINX
-server {
-    listen 80 default_server;
-    server_name _;
-    root /usr/share/nginx/html;
-    index index.html;
-
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
-}
-NGINX
-
-# remove default server block
-sed -i '/server {/,/^}/d' /etc/nginx/nginx.conf || true
-
-mkdir -p /usr/share/nginx/html
-
-# initial sync so the instance is functional immediately after boot
-aws s3 sync s3://${module.s3_web.bucket_name}/ /usr/share/nginx/html/ --delete || true
-
-# 1-minute cron to pick up new deploys from the pipeline's aws s3 sync
-cat > /etc/cron.d/${var.app_name}-web-sync <<-CRON
-* * * * * root /usr/bin/aws s3 sync s3://${module.s3_web.bucket_name}/ /usr/share/nginx/html/ --delete >/var/log/${var.app_name}-web-sync.log 2>&1
-CRON
-chmod 644 /etc/cron.d/${var.app_name}-web-sync
-
-systemctl enable --now nginx
-EOF
-
-  tags = module.tags.tags
+  tags = merge(module.tags.tags, { Name = "pge-epic-${var.app_name}-web-${var.environment}-cloudfront" })
 }
 
 
 ###############################################################################
-# Load Balancer — internal ALB
-###############################################################################
-
-module "load_balancer_web" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-load-balancer.git?ref=main"
-
-  app_name          = "${var.app_name}-web"
-  environment       = var.environment
-  tags              = module.tags.tags
-  vpc_id            = var.network.vpc_id
-  subnet_ids        = var.network.subnet_ids
-  security_group_id = module.aws_security_group_web.aws_security_group_id
-  certificate_arn   = module.acm_web.certificate_arn
-  instance_id       = module.ec2.instance_id
-  target_port       = 80
-  health_check_path = var.health_check_path
-  health_check_port = 80
-}
-
-
-###############################################################################
-# Route53 — private zone only (no public record)
+# Route53 — private zone only (no public A record)
 ###############################################################################
 
 module "aws_route53_record_web_private" {
@@ -294,7 +150,7 @@ module "aws_route53_record_web_private" {
   zone_id                = var.private_hosted_zone_id
   domain_name            = var.domain_name
   record_type            = "A"
-  target_domain_name     = module.load_balancer_web.alb_dns_name
-  target_zone_id         = module.load_balancer_web.alb_dns_zone_id
-  evaluate_target_health = true
+  target_domain_name     = module.cloudfront.distribution_domain_name
+  target_zone_id         = "Z2FDTNDATAQYW2"
+  evaluate_target_health = false
 }

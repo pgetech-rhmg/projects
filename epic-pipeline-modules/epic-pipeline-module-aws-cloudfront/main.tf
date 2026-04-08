@@ -23,7 +23,7 @@ resource "aws_cloudfront_origin_request_policy" "spa_origin_policy" {
 }
 
 resource "aws_cloudfront_response_headers_policy" "cors" {
-  name    = "pge-epic-${var.app_name}-${var.environment}-cors-policy"
+  name = "pge-epic-${var.app_name}-${var.environment}-cors-policy"
 
   cors_config {
     access_control_allow_credentials = false
@@ -60,13 +60,13 @@ resource "aws_cloudfront_distribution" "cdn" {
   default_root_object = "index.html"
 
   default_cache_behavior {
-    target_origin_id         = "${var.bucket_name}-origin"
-    viewer_protocol_policy   = "redirect-to-https"
-    compress                 = true
-    allowed_methods          = ["GET", "HEAD", "OPTIONS"]
-    cached_methods           = ["GET", "HEAD"]
-    cache_policy_id          = "658327ea-f89d-4fab-a63d-7e88639e58f6"
-    origin_request_policy_id = aws_cloudfront_origin_request_policy.spa_origin_policy.id
+    target_origin_id           = "${var.bucket_name}-origin"
+    viewer_protocol_policy     = "redirect-to-https"
+    compress                   = true
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    origin_request_policy_id   = aws_cloudfront_origin_request_policy.spa_origin_policy.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.cors.id
   }
 
@@ -78,6 +78,7 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   price_class = var.price_class
   aliases     = length(var.custom_domain_aliases) > 0 ? var.custom_domain_aliases : null
+  web_acl_id  = var.web_acl_id
 
   dynamic "viewer_certificate" {
     for_each = local.use_custom_cert ? [1] : []

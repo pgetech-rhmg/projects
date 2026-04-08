@@ -32,18 +32,6 @@ variable "environment" {
   type        = string
 }
 
-variable "instance_type" {
-  description = "EC2 instance type."
-  type        = string
-  default     = "t3.micro"
-}
-
-variable "health_check_path" {
-  description = "ALB target group health check path."
-  type        = string
-  default     = "/"
-}
-
 
 ###############################################################################
 # Tagging & Compliance
@@ -126,15 +114,6 @@ variable "cris" {
 # Networking
 ###############################################################################
 
-variable "network" {
-  description = "VPC, subnets, and route table for the internal ALB and EC2."
-  type = object({
-    vpc_id              = string
-    subnet_ids          = list(string)
-    main_route_table_id = string
-  })
-}
-
 variable "domain_name" {
   description = "Domain name for the ACM certificate and Route53 record."
   type        = string
@@ -148,6 +127,25 @@ variable "private_hosted_zone_id" {
 variable "public_hosted_zone_id" {
   description = "Route53 public hosted zone ID (used by ACM DNS validation only)."
   type        = string
+}
+
+
+###############################################################################
+# WAF
+###############################################################################
+
+variable "allowed_cidrs" {
+  description = <<EOT
+Source IP CIDRs allowed to reach the CloudFront distribution. Must be PG&E's
+PUBLIC egress IP ranges — CloudFront sees the corporate NAT egress IP, not
+the user's RFC1918 internal address. Anything not in this list is blocked
+by the WAF at the edge with a 403.
+EOT
+  type        = list(string)
+  default = [
+    "131.90.0.0/16",   # PG&E corporate egress
+    "192.80.218.0/24", # Opsera tunnel
+  ]
 }
 
 
@@ -237,4 +235,32 @@ variable "bucket_policy_json" {
   type        = string
   default     = null
   nullable    = true
+}
+
+
+###############################################################################
+# CloudFront
+###############################################################################
+
+variable "price_class" {
+  description = "CloudFront price class."
+  type        = string
+  default     = "PriceClass_100"
+
+  validation {
+    condition     = contains(["PriceClass_All", "PriceClass_100", "PriceClass_200"], var.price_class)
+    error_message = "Valid values: PriceClass_All, PriceClass_100, PriceClass_200."
+  }
+}
+
+variable "custom_domain_aliases" {
+  description = "Optional list of custom domain aliases for CloudFront."
+  type        = list(string)
+  default     = []
+}
+
+variable "cors_allowed_origins" {
+  description = "List of allowed CORS origins for the CloudFront response headers policy."
+  type        = list(string)
+  default     = ["https://paige-dev.nonprod.pge.com"]
 }

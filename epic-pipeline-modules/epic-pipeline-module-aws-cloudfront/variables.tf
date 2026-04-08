@@ -55,5 +55,12 @@ variable "custom_acm_certificate_arn" {
 variable "cors_allowed_origins" {
   description = "List of allowed CORS origins"
   type        = list(string)
-  default     = [ "*" ]
+  default     = ["*"]
+}
+
+variable "web_acl_id" {
+  description = "Optional WAFv2 WebACL ARN (must be in us-east-1) to associate with the distribution."
+  type        = string
+  default     = null
+  nullable    = true
 }
