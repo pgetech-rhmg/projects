@@ -46,7 +46,7 @@ module "acm_web" {
 resource "aws_wafv2_ip_set" "pge" {
   provider           = aws.us_east_1
   name               = "pge-epic-${var.app_name}-web-${var.environment}-pge-allowlist"
-  description        = "PG&E source IPs allowed to reach the CloudFront distribution"
+  description        = "PGE source IPs allowed to reach the CloudFront distribution"
   scope              = "CLOUDFRONT"
   ip_address_version = "IPV4"
   addresses          = var.allowed_cidrs
