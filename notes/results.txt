@@ -1,0 +1,1 @@
+MCP is the standard but it's not production-ready for enterprise governance. the smart move is direct API integration for anything real, and watch MCP mature. not "move away" so much as "don't over-invest yet."
