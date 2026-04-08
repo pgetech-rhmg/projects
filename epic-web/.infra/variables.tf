@@ -32,8 +32,14 @@ variable "environment" {
   type        = string
 }
 
-variable "app_path" {
-  description = "Relative path under the app folder containing static site files."
+variable "instance_type" {
+  description = "EC2 instance type."
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "health_check_path" {
+  description = "ALB target group health check path."
   type        = string
   default     = "/"
 }
@@ -120,6 +126,15 @@ variable "cris" {
 # Networking
 ###############################################################################
 
+variable "network" {
+  description = "VPC, subnets, and route table for the internal ALB and EC2."
+  type = object({
+    vpc_id              = string
+    subnet_ids          = list(string)
+    main_route_table_id = string
+  })
+}
+
 variable "domain_name" {
   description = "Domain name for the ACM certificate and Route53 record."
   type        = string
@@ -131,7 +146,7 @@ variable "private_hosted_zone_id" {
 }
 
 variable "public_hosted_zone_id" {
-  description = "Route53 public hosted zone ID."
+  description = "Route53 public hosted zone ID (used by ACM DNS validation only)."
   type        = string
 }
 
@@ -222,26 +237,4 @@ variable "bucket_policy_json" {
   type        = string
   default     = null
   nullable    = true
-}
-
-
-###############################################################################
-# CloudFront
-###############################################################################
-
-variable "price_class" {
-  description = "CloudFront price class."
-  type        = string
-  default     = "PriceClass_100"
-
-  validation {
-    condition     = contains(["PriceClass_All", "PriceClass_100", "PriceClass_200"], var.price_class)
-    error_message = "Valid values: PriceClass_All, PriceClass_100, PriceClass_200."
-  }
-}
-
-variable "custom_domain_aliases" {
-  description = "Optional list of custom domain aliases for CloudFront."
-  type        = list(string)
-  default     = []
 }

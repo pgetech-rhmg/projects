@@ -59,28 +59,15 @@ module "acm_api" {
 # Security Groups
 ###############################################################################
 
-data "aws_ec2_managed_prefix_list" "cloudfront" {
-  name = "com.amazonaws.global.cloudfront.origin-facing"
-}
-
 module "aws_security_group_web" {
   source              = "git::https://github.com/pgetech/epic-pipeline-module-aws-security-group.git?ref=main"
   app_name            = var.app_name
   environment         = var.environment
   label               = "web"
   tags                = module.tags.tags
-  description         = "Allow HTTPS for ALB"
+  description         = "Allow HTTPS for internal ALB from PG&E network"
   vpc_id              = var.network.vpc_id
   cidr_ingress_rules  = [
-    {
-      description       = "HTTPS from CloudFront",
-      from              = 443,
-      to                = 443,
-      protocol          = "tcp",
-      cidr_blocks       = [],
-      ipv6_cidr_blocks  = [],
-      prefix_list_ids   = [data.aws_ec2_managed_prefix_list.cloudfront.id]
-    },
     {
       description       = "CCOE Ingress rules 1",
       from              = 443,

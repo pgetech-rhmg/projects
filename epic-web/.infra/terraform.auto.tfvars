@@ -19,6 +19,8 @@ aws_region      = "us-west-2"
 app_name    = "epic"
 environment = "dev"
 
+health_check_path = "/"
+
 
 ###############################################################################
 # Tagging & Compliance
@@ -28,7 +30,7 @@ appid              = 2102
 notify             = ["rhmg@pge.com", "def2@pge.com", "ghi3@pge.com"]
 owner              = ["rhmg", "def2", "ghi3"]
 order              = 70056008
-dataclassification = "Public"
+dataclassification = "Internal"
 compliance         = ["None"]
 cris               = "Low"
 
@@ -36,6 +38,12 @@ cris               = "Low"
 ###############################################################################
 # Networking
 ###############################################################################
+
+network = {
+  vpc_id              = "vpc-8c57a5f4"
+  subnet_ids          = ["subnet-f9206980", "subnet-639df628", "subnet-1b085341"]
+  main_route_table_id = "rtb-0772a07c"
+}
 
 domain_name            = "epic-dev.nonprod.pge.com"
 private_hosted_zone_id = "Z1PO7XO596QKJW"
@@ -46,5 +54,4 @@ public_hosted_zone_id  = "Z184J8PCMR81S"
 # S3
 ###############################################################################
 
-force_s3_destroy      = true
-custom_domain_aliases = ["epic-dev.nonprod.pge.com"]
+force_s3_destroy = true

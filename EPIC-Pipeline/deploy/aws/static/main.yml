@@ -57,9 +57,13 @@ steps:
         echo "Syncing to S3..."
         aws s3 sync "$BUILD_PATH" "s3://$BUCKET_NAME" --delete
 
-        echo "Invalidating CloudFront..."
-        aws cloudfront create-invalidation \
-          --distribution-id "$DISTRIBUTION_ID" \
-          --paths "/*"
+        if [ -n "$DISTRIBUTION_ID" ]; then
+          echo "Invalidating CloudFront..."
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*"
+        else
+          echo "No CloudFront distribution — skipping invalidation (private deploy pattern)."
+        fi
 
         echo "Deployment complete."
