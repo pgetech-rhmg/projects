@@ -1,8 +1,0 @@
-#
-#  Filename    : module.info
-#  Date        : 29 Jan 2024
-#  Author      : Eric Barnard @e6bo
-#  Description : module meta data (version) for registry
-#
-[info]
-version = 0.1.2

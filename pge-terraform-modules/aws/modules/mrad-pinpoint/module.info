@@ -1,8 +1,0 @@
-#
-#  Filename    : module.info
-#  Date        : 20 Feb 2025
-#  Author      : PGE
-#  Description : module meta data (version) for registry
-#
-[info]
-version = 2.0.2

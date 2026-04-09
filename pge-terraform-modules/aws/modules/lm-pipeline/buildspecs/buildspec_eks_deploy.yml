@@ -1,8 +1,0 @@
-version: 0.2
-
-phases:
-  build:
-    commands:
-      - echo Updating EKS with ECR image $ECR_REGISTRY:$GIT_HASH
-      - echo kubectl apply ....
-      - echo EKS deployment complete

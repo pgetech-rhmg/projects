@@ -1,8 +1,0 @@
-#
-#  Filename    : module.info
-#  Date        : 2025-05-05
-#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
-#  Description : AWM Webcore Lambdas Pipeline
-#
-[info]
-version = 0.1.9

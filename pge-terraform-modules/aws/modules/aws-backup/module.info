@@ -1,8 +1,0 @@
-#
-#  Filename    : module.info
-#  Date        : 15 Jun 2023
-#  Author      : PGE
-#  Description : module meta data (version) for registry
-#
-[info]
-version = 0.1.3

@@ -1,8 +1,0 @@
-#
-#  Filename    : module.info
-#  Date        : 11 Mar 2026
-#  Author      : PGE Cloud Center of Excellence
-#  Description : AWS Bedrock Knowledge Base module 
-#
-[info]
-version = 0.1.0

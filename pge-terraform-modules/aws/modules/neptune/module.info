@@ -1,8 +1,0 @@
-#
-#  Filename    : aws/module/neptune/module.info
-#  Date        : 11 July 2022
-#  Author      : TCS
-#  Description : Terraform module for creation of neptune
-#
-[info]
-version = 0.1.2

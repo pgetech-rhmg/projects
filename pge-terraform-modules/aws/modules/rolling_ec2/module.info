@@ -1,9 +1,0 @@
-#
-# Module: aws/modules/rolling_ec2
-# Author: PG&E
-# Created: Jan 20, 2026
-#  Description : module rolling ec2 non bluegreen EC2 ami automation
-#
-
-[info]
-version = 0.1.5

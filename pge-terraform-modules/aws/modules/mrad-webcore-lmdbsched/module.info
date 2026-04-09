@@ -1,8 +1,0 @@
-#
-#  Filename    : module.info
-#  Date        : 2025-07-23
-#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
-#  Description : AWM Webcore Database Scheduling Lambda Module
-#
-[info]
-version = 0.0.17

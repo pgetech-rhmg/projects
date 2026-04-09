@@ -1,5 +1,0 @@
-{
-    "AllowDBUserOverride" : "${AllowDBUserOverride}",
-    "Client_ID"          : "${Client_ID}",
-    "App_ID"             : "${App_ID}"
-    }

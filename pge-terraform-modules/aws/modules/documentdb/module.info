@@ -1,8 +1,0 @@
-#
-#  Filename    : aws/module/documentdb/module.info
-#  Date        : 24 Aug 2022
-#  Author      : TCS
-#  Description : Terraform module for creation of documentdb
-#
-[info]
-version = 0.1.1

@@ -1,9 +1,0 @@
-version: 0.2
-
-phases:
-  build:
-      commands:
-      - echo Updating ECS service
-      - aws ecs update-service --cluster $PROJECT_NAME-Cluster-$BRANCH --service $PROJECT_NAME-ECS-$BRANCH --force-new-deployment
-      - echo ECS service deployment complete
-

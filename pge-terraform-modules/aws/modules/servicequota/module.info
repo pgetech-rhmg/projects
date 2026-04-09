@@ -1,9 +1,0 @@
-#
-#  Filename    : module.info
-#  Date        : 11 Feb 2024
-#  Author      : Shiv Konduru (sukx@pge.com)
-#  Description : module meta data (version) for registry
-#
-[info]
-version = 0.1.0
-

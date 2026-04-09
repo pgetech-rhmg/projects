@@ -1,8 +1,0 @@
-#
-#  Filename    : module.info
-#  Date        : 2025-07-17
-#  Author      : ENGAGE (engageteam@pge.onmicrosoft.com)
-#  Description : AWM Webcore NLB Module
-#
-[info]
-version = 0.0.15

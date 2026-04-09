@@ -1,9 +1,0 @@
-#
-# Module: aws/modules/blue-green
-# Author: PG&E
-# Created: Jan 02, 2026
-#  Description : module bluegreen EC2 ami automation
-#
-
-[info]
-version = 0.1.3

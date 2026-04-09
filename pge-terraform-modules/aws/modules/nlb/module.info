@@ -1,8 +1,0 @@
-#
-#  Filename    : aws/modules/nlb/module.info
-#  Date        : 11 April 2024
-#  Author      : PGE
-#  Description : Terraform module for creation of internal nlb
-#
-[info]
-version = 0.1.2

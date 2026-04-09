@@ -1,8 +1,0 @@
-#
-#  Filename    : aws/module/alb/module.info
-#  Date        : 22 March 2022
-#  Author      : TCS
-#  Description : Terraform module for creation of alb
-#
-[info]
-version = 0.1.4
