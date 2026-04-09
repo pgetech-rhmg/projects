@@ -75,5 +75,12 @@ export interface AppDetail {
     subscription: string;
     resourceGroup: string;
   };
+  successRate: number | null;
+}
+
+export interface PipelineRunPage {
+  total: number;
+  page: number;
+  pageSize: number;
   runs: PipelineRun[];
 }

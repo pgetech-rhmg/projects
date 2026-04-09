@@ -103,5 +103,13 @@ public sealed class AppDetail
     public bool HasInfra { get; set; }
     public AwsConfig? Aws { get; set; }
     public AzureConfig? Azure { get; set; }
+    public double? SuccessRate { get; set; }
+}
+
+public sealed class PipelineRunPage
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
     public required List<PipelineRun> Runs { get; set; }
 }

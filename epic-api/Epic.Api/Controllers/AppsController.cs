@@ -29,6 +29,19 @@ public sealed class AppsController : ControllerBase
     }
 
     /// <summary>
+    /// Get a paged slice of pipeline runs for an app, with the total run count.
+    /// </summary>
+    [HttpGet("{name}/runs")]
+    [ProducesResponseType(typeof(PipelineRunPage), 200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> GetRuns(string name, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var result = await _appService.GetRunsPageAsync(name, page, pageSize, ct);
+        if (result is null) return NotFound();
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Check if a GitHub repo can be onboarded into EPIC.
     /// </summary>
     [HttpGet("check")]

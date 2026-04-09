@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { LowerCasePipe } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 
-import { AppDetail, AppLookup, ManagedApp, PipelineRun } from './models/app.model';
+import { AppDetail, AppLookup, ManagedApp, PipelineRun, PipelineRunPage } from './models/app.model';
 import { AppService } from './services/app.service';
 
 @Component({
@@ -71,10 +71,18 @@ export class App implements OnInit, OnDestroy {
         error: () => { /* API unavailable — keep showing last known data */ }
       });
 
-      // Refresh modal detail if open
+      // Refresh modal detail + current runs page if open
       if (this.showManageModal() && this.selectedApp()) {
-        this.appService.getApp(this.selectedApp()!.name).subscribe({
+        const name = this.selectedApp()!.name;
+        this.appService.getApp(name).subscribe({
           next: detail => this.appDetail.set(detail),
+          error: () => { /* API unavailable — keep showing last known data */ }
+        });
+        this.appService.getRuns(name, this.runsCurrentPage(), this.runsPageSize).subscribe({
+          next: result => {
+            this.runsTotal.set(result.total);
+            this.pagedRuns.set(result.runs);
+          },
           error: () => { /* API unavailable — keep showing last known data */ }
         });
       }
@@ -193,13 +201,6 @@ export class App implements OnInit, OnDestroy {
     if (isNaN(d.getTime())) return iso;
     const pad = (n: number) => n.toString().padStart(2, '0');
     return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  }
-
-  protected calcSuccessRate(runs: PipelineRun[]): string {
-    const completed = runs.filter(r => r.status !== 'Running' && r.status !== 'Pending');
-    if (completed.length === 0) return '—';
-    const successful = completed.filter(r => r.status === 'Success').length;
-    return (successful / completed.length * 100).toFixed(2) + '%';
   }
 
   // ── User ──────────────────────────────────────────────────────────────────
@@ -357,33 +358,46 @@ export class App implements OnInit, OnDestroy {
   protected selectedApp = signal<ManagedApp | null>(null);
   protected appDetail = signal<AppDetail | null>(null);
 
-  // Runs pagination
-  protected readonly runsPageSize = 26;
+  // Server-side paged runs (one ADO page at a time)
+  protected readonly runsPageSize = 20;
   protected runsCurrentPage = signal(1);
+  protected runsTotal = signal(0);
+  protected pagedRuns = signal<PipelineRun[]>([]);
+  protected runsLoading = signal(false);
 
-  protected readonly runsTotalPages = computed(() => {
-    const runs = this.appDetail()?.runs ?? [];
-    return Math.max(1, Math.ceil(runs.length / this.runsPageSize));
-  });
-
-  protected readonly pagedRuns = computed(() => {
-    const runs = this.appDetail()?.runs ?? [];
-    const page = this.runsCurrentPage();
-    const start = (page - 1) * this.runsPageSize;
-    return runs.slice(start, start + this.runsPageSize);
-  });
+  protected readonly runsTotalPages = computed(() =>
+    Math.max(1, Math.ceil(this.runsTotal() / this.runsPageSize))
+  );
 
   protected readonly runsPageNumbers = computed(() =>
     Array.from({ length: this.runsTotalPages() }, (_, i) => i + 1)
   );
 
-  protected readonly runsPageRangeEnd = computed(() => {
-    const runs = this.appDetail()?.runs ?? [];
-    return Math.min(this.runsCurrentPage() * this.runsPageSize, runs.length);
-  });
+  protected readonly runsPageRangeEnd = computed(() =>
+    Math.min(this.runsCurrentPage() * this.runsPageSize, this.runsTotal())
+  );
 
   protected goToRunsPage(page: number): void {
+    if (page < 1 || page > this.runsTotalPages()) return;
     this.runsCurrentPage.set(page);
+    this.loadRunsPage();
+  }
+
+  private loadRunsPage(): void {
+    const app = this.selectedApp();
+    if (!app) return;
+    this.runsLoading.set(true);
+    this.appService.getRuns(app.name, this.runsCurrentPage(), this.runsPageSize).subscribe({
+      next: result => {
+        this.runsLoading.set(false);
+        this.runsTotal.set(result.total);
+        this.pagedRuns.set(result.runs);
+      },
+      error: () => {
+        this.runsLoading.set(false);
+        this.showToast(`Failed to load pipeline runs for "${app.name}".`);
+      }
+    });
   }
 
   // New Run modal
@@ -483,6 +497,8 @@ export class App implements OnInit, OnDestroy {
     this.selectedApp.set(app);
     this.appDetail.set(null);
     this.runsCurrentPage.set(1);
+    this.runsTotal.set(0);
+    this.pagedRuns.set([]);
     this.showManageModal.set(true);
     this.appService.getApp(app.name).subscribe({
       next: detail => this.appDetail.set(detail),
@@ -491,6 +507,7 @@ export class App implements OnInit, OnDestroy {
         this.closeManageModal();
       }
     });
+    this.loadRunsPage();
   }
 
   protected onNewRun(): void {
@@ -592,14 +609,10 @@ export class App implements OnInit, OnDestroy {
     if (!appName) return;
     this.appService.cancelRun(appName, runId).subscribe({
       next: () => {
-        // Update the run in the modal's detail
-        this.appDetail.update(detail => {
-          if (!detail) return detail;
-          return {
-            ...detail,
-            runs: detail.runs.map(r => r.id === runId ? { ...r, status: 'Cancelled' as const } : r)
-          };
-        });
+        // Optimistically update the run in the current page
+        this.pagedRuns.update(runs =>
+          runs.map(r => r.id === runId ? { ...r, status: 'Cancelled' as const } : r)
+        );
         // Update main table if this was the latest run
         this.apps.update(list => list.map(a =>
           a.name === appName && a.runId === runId ? { ...a, runStatus: 'Cancelled' as const } : a

@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 
-import { AppDetail, AppLookup, ManagedApp, PipelineRun, RepoCheckResult } from '../models/app.model';
+import { AppDetail, AppLookup, ManagedApp, PipelineRun, PipelineRunPage, RepoCheckResult } from '../models/app.model';
 import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
@@ -15,9 +15,16 @@ export class AppService {
     return this.http.get<ManagedApp[]>(`${this.api}/api/users/me/apps`);
   }
 
-  /** Get full app detail + pipeline run history. */
+  /** Get full app detail (metadata only — runs are paged separately). */
   getApp(name: string): Observable<AppDetail> {
     return this.http.get<AppDetail>(`${this.api}/api/apps/${name}`);
+  }
+
+  /** Get a paged slice of pipeline runs for an app, plus the total count. */
+  getRuns(name: string, page: number, pageSize: number): Observable<PipelineRunPage> {
+    return this.http.get<PipelineRunPage>(`${this.api}/api/apps/${name}/runs`, {
+      params: { page: page.toString(), pageSize: pageSize.toString() }
+    });
   }
 
   /** Check if a repo can be onboarded (GitHub + EPIC DB check). */

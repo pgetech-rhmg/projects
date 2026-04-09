@@ -1,11 +1,17 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Epic.Api.Models;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Epic.Api.Services;
 
-public sealed class AdoService(HttpClient httpClient, IConfiguration configuration, ILogger<AdoService> logger) : IAdoService
+public sealed class AdoService(HttpClient httpClient, IConfiguration configuration, ILogger<AdoService> logger, IMemoryCache cache) : IAdoService
 {
+    // Timelines for completed builds are immutable — cache for 24h.
+    private static readonly TimeSpan TimelineCacheTtl = TimeSpan.FromHours(24);
+    // Total run counts can lag briefly — page 1 still surfaces new runs immediately.
+    private static readonly TimeSpan TotalCountCacheTtl = TimeSpan.FromSeconds(30);
+
     private const string Org = "pgetech";
     private const string Project = "EPIC-Pipeline";
     private const int EnginePipelineId = 194;
@@ -81,7 +87,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
                 : null;
 
             // Get stage-level results from the timeline
-            var stages = await GetStageResultsAsync(buildId, ct);
+            var stages = await GetStageResultsAsync(buildId, isTerminal: status != "Running", ct);
 
             results.Add(new AdoPipelineRun
             {
@@ -214,6 +220,167 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
     }
 
     /// <summary>
+    /// Counts ALL runs for an app (any status, including in-progress) by paginating
+    /// through every build with the appName tag. Used to compute the pagination total
+    /// for the manage modal's runs table.
+    /// </summary>
+    public async Task<int> GetTotalRunCountAsync(string appName, CancellationToken ct = default)
+    {
+        var cacheKey = $"runcount:{appName}";
+        if (cache.TryGetValue(cacheKey, out int cached))
+            return cached;
+
+        var total = 0;
+        string? continuationToken = null;
+        const int pageSize = 1000;
+
+        do
+        {
+            var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={pageSize}&queryOrder=queueTimeDescending&api-version=7.1";
+            if (continuationToken is not null)
+                url += $"&continuationToken={Uri.EscapeDataString(continuationToken)}";
+
+            var (json, nextToken) = await CallApiWithContinuationAsync(url, ct);
+            if (json is null) break;
+
+            total += json.Value.GetProperty("value").GetArrayLength();
+            continuationToken = nextToken;
+        } while (!string.IsNullOrEmpty(continuationToken));
+
+        cache.Set(cacheKey, total, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TotalCountCacheTtl,
+            Size = 1
+        });
+
+        return total;
+    }
+
+    /// <summary>
+    /// Server-side paged fetch of runs for an app. Walks ADO continuation tokens to
+    /// reach the requested page, then fetches per-build timelines and orchestrator
+    /// triggeredBy only for that page. Total count comes from a parallel
+    /// GetTotalRunCountAsync call.
+    /// </summary>
+    public async Task<AdoRunsPage> GetRunsPageAsync(string appName, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+
+        // Kick off the total count in parallel — it's an independent set of calls.
+        var totalTask = GetTotalRunCountAsync(appName, ct);
+
+        // Walk continuation tokens until we reach the target page.
+        JsonElement? pageJson = null;
+        string? continuationToken = null;
+        for (var i = 1; i <= page; i++)
+        {
+            var url = $"{BaseUrl}/build/builds?definitions={EnginePipelineId}&tagFilters={Uri.EscapeDataString(appName)}&$top={pageSize}&queryOrder=queueTimeDescending&api-version=7.1";
+            if (continuationToken is not null)
+                url += $"&continuationToken={Uri.EscapeDataString(continuationToken)}";
+
+            var (json, nextToken) = await CallApiWithContinuationAsync(url, ct);
+            if (json is null) break;
+
+            if (i == page)
+            {
+                pageJson = json;
+                break;
+            }
+
+            // No more pages available — we asked for a page beyond the end.
+            if (string.IsNullOrEmpty(nextToken)) break;
+            continuationToken = nextToken;
+        }
+
+        var results = new List<AdoPipelineRun>();
+        if (pageJson is not null)
+        {
+            foreach (var build in pageJson.Value.GetProperty("value").EnumerateArray())
+            {
+                var run = await MapBuildToRunAsync(build, includeStages: true, ct);
+                results.Add(run);
+            }
+
+            await ResolveTriggeredByFromOrchestratorAsync(appName, results, ct);
+        }
+
+        var total = await totalTask;
+
+        return new AdoRunsPage { Total = total, Runs = results };
+    }
+
+    private async Task<AdoPipelineRun> MapBuildToRunAsync(JsonElement build, bool includeStages, CancellationToken ct)
+    {
+        var buildId = build.GetProperty("id").GetInt32();
+
+        var adoStatus = build.TryGetProperty("status", out var st) ? st.GetString() : "unknown";
+        var adoResult = build.TryGetProperty("result", out var res) ? res.GetString() : null;
+        var status = MapRunStatus(adoStatus, adoResult);
+
+        var triggeredBy = build.TryGetProperty("requestedFor", out var rf)
+            && rf.TryGetProperty("displayName", out var dn)
+            ? dn.GetString() ?? "Unknown" : "Unknown";
+
+        var branch = "";
+        var environment = "dev";
+        var paramsString = build.TryGetProperty("parameters", out var p) && p.ValueKind == JsonValueKind.String
+            ? p.GetString() : null;
+        if (paramsString is not null)
+        {
+            try
+            {
+                var paramObj = JsonDocument.Parse(paramsString).RootElement;
+                branch = paramObj.TryGetProperty("branch", out var br) ? br.GetString() ?? "" : "";
+                environment = paramObj.TryGetProperty("environment", out var env) ? env.GetString() ?? "dev" : "dev";
+            }
+            catch (Exception ex) { logger.LogDebug(ex, "ADO build parameters not parseable — using defaults"); }
+        }
+
+        if (string.IsNullOrEmpty(branch))
+        {
+            branch = build.TryGetProperty("sourceBranch", out var sb)
+                ? sb.GetString()?.Replace("refs/heads/", "") ?? "" : "";
+        }
+
+        var startedAt = build.TryGetProperty("startTime", out var st2)
+            && st2.ValueKind != JsonValueKind.Null
+            ? st2.GetDateTime()
+            : build.TryGetProperty("queueTime", out var qt)
+                ? qt.GetDateTime() : DateTime.UtcNow;
+
+        var finishedAt = build.TryGetProperty("finishTime", out var ft)
+            && ft.ValueKind != JsonValueKind.Null
+            ? ft.GetDateTime() : (DateTime?)null;
+
+        var duration = finishedAt.HasValue ? FormatDuration(finishedAt.Value - startedAt) : null;
+
+        var stages = includeStages
+            ? await GetStageResultsAsync(buildId, isTerminal: status != "Running", ct)
+            : new PipelineStages
+            {
+                Build = RunStatus.Skipped,
+                Test = RunStatus.Skipped,
+                Scan = RunStatus.Skipped,
+                InfraDeploy = RunStatus.Skipped,
+                AppDeploy = RunStatus.Skipped,
+                IntegrationTest = RunStatus.Skipped
+            };
+
+        return new AdoPipelineRun
+        {
+            Id = buildId,
+            Status = status,
+            TriggeredBy = triggeredBy,
+            Branch = branch,
+            Environment = environment,
+            StartedAt = startedAt,
+            Duration = duration,
+            Stages = stages
+        };
+    }
+
+    /// <summary>
     /// Queries orchestrator builds (tagged with appName) and matches each engine run
     /// to its orchestrator run by time proximity, overriding TriggeredBy with the real user.
     /// </summary>
@@ -271,8 +438,13 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         }
     }
 
-    private async Task<PipelineStages> GetStageResultsAsync(int buildId, CancellationToken ct)
+    private async Task<PipelineStages> GetStageResultsAsync(int buildId, bool isTerminal, CancellationToken ct)
     {
+        var cacheKey = $"timeline:{buildId}";
+        // Only completed builds are safe to cache — running builds' stages still change.
+        if (isTerminal && cache.TryGetValue(cacheKey, out PipelineStages? cached) && cached is not null)
+            return cached;
+
         var url = $"{BaseUrl}/build/builds/{buildId}/timeline?api-version=7.1";
         var timelineJson = await CallApiAsync(url, ct);
 
@@ -319,6 +491,15 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
                     stages.IntegrationTest = stageStatus;
                     break;
             }
+        }
+
+        if (isTerminal)
+        {
+            cache.Set(cacheKey, stages, new MemoryCacheEntryOptions
+            {
+                SlidingExpiration = TimelineCacheTtl,
+                Size = 1
+            });
         }
 
         return stages;

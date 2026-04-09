@@ -50,17 +50,53 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
 
     public async Task<AppDetail?> GetAppAsync(string name, CancellationToken ct = default)
     {
-        var entity = await db.Apps
-            .Include(a => a.Runs.OrderByDescending(r => r.StartedAt))
-            .FirstOrDefaultAsync(a => a.Name == name, ct);
-
+        var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == name, ct);
         if (entity is null) return null;
 
-        // Refresh metadata from GitHub and runs from ADO
+        // Refresh metadata from GitHub. Runs are now loaded separately via the
+        // paged /runs endpoint, so the modal can fetch only the active page.
         await RefreshFromGitHubAsync(entity, ct);
-        await RefreshRunsFromAdoAsync(entity, ct);
 
-        return ToAppDetail(entity);
+        var counts = (await GetSuccessRateCountsAsync([entity], ct)).GetValueOrDefault(entity.Name);
+        var successRate = counts.Total > 0
+            ? Math.Round((double)counts.Successful / counts.Total * 100, 2)
+            : (double?)null;
+
+        return ToAppDetail(entity, successRate);
+    }
+
+    public async Task<PipelineRunPage?> GetRunsPageAsync(string name, int page, int pageSize, CancellationToken ct = default)
+    {
+        var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == name, ct);
+        if (entity is null) return null;
+
+        try
+        {
+            var adoPage = await ado.GetRunsPageAsync(entity.Name, page, pageSize, ct);
+
+            return new PipelineRunPage
+            {
+                Total = adoPage.Total,
+                Page = page,
+                PageSize = pageSize,
+                Runs = adoPage.Runs.Select(r => new PipelineRun
+                {
+                    Id = r.Id,
+                    Status = Enum.Parse<RunStatus>(r.Status, true),
+                    TriggeredBy = r.TriggeredBy,
+                    Branch = r.Branch,
+                    Environment = r.Environment,
+                    StartedAt = r.StartedAt.ToString("o"),
+                    Duration = r.Duration,
+                    Stages = r.Stages
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "ADO unavailable during paged runs fetch for {AppName}", entity.Name);
+            return new PipelineRunPage { Total = 0, Page = page, PageSize = pageSize, Runs = [] };
+        }
     }
 
     private async Task RefreshRecentRunsFromAdoAsync(List<AppEntity> apps, CancellationToken ct)
@@ -164,78 +200,6 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         catch (Exception ex)
         {
             logger.LogWarning(ex, "GitHub unavailable during refresh for {Repo} — serving stale data", entity.GithubRepo);
-        }
-    }
-
-    private async Task RefreshRunsFromAdoAsync(AppEntity entity, CancellationToken ct)
-    {
-        try
-        {
-            // Find the latest completed run ID we have — only fetch newer ones
-            // But also re-check any "Running" runs we have in case they've finished
-            var latestCompletedId = entity.Runs
-                .Where(r => r.Status != "Running")
-                .Select(r => r.Id)
-                .DefaultIfEmpty(0)
-                .Max();
-
-            var adoRuns = await ado.GetRunsForAppAsync(entity.Name, latestCompletedId > 0 ? latestCompletedId : null, 20, ct);
-            if (adoRuns.Count == 0) return;
-
-            var existingRunIds = entity.Runs.Select(r => r.Id).ToHashSet();
-            var hasChanges = false;
-
-            foreach (var run in adoRuns)
-            {
-                if (existingRunIds.Contains(run.Id))
-                {
-                    var existing = entity.Runs.First(r => r.Id == run.Id);
-                    if (existing.Status != run.Status)
-                    {
-                        existing.Status = run.Status;
-                        existing.Duration = run.Duration;
-                        existing.StageBuild = run.Stages.Build.ToString();
-                        existing.StageTest = run.Stages.Test.ToString();
-                        existing.StageScan = run.Stages.Scan.ToString();
-                        existing.StageInfraDeploy = run.Stages.InfraDeploy.ToString();
-                        existing.StageAppDeploy = run.Stages.AppDeploy.ToString();
-                        existing.StageIntegrationTest = run.Stages.IntegrationTest.ToString();
-                        hasChanges = true;
-                    }
-                }
-                else
-                {
-                    entity.Runs.Add(new PipelineRunEntity
-                    {
-                        Id = run.Id,
-                        AppId = entity.Id,
-                        Status = run.Status,
-                        TriggeredBy = run.TriggeredBy,
-                        Branch = run.Branch,
-                        Environment = run.Environment,
-                        StartedAt = run.StartedAt,
-                        Duration = run.Duration,
-                        StageBuild = run.Stages.Build.ToString(),
-                        StageTest = run.Stages.Test.ToString(),
-                        StageScan = run.Stages.Scan.ToString(),
-                        StageInfraDeploy = run.Stages.InfraDeploy.ToString(),
-                        StageAppDeploy = run.Stages.AppDeploy.ToString(),
-                        StageIntegrationTest = run.Stages.IntegrationTest.ToString()
-                    });
-                    hasChanges = true;
-                }
-            }
-
-            if (hasChanges)
-            {
-                await db.SaveChangesAsync(ct);
-                // Reload runs sorted after save
-                entity.Runs = entity.Runs.OrderByDescending(r => r.StartedAt).ToList();
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "ADO unavailable during run refresh for {AppName} — serving stale data", entity.Name);
         }
     }
 
@@ -492,8 +456,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         Github = new GitHubInfo { Repo = entity.GithubRepo }
     };
 
-    private static AppDetail ToAppDetail(AppEntity entity) => new()
+    private static AppDetail ToAppDetail(AppEntity entity, double? successRate = null) => new()
     {
+        SuccessRate = successRate,
         Name = entity.Name,
         DisplayName = entity.DisplayName,
         Description = entity.Description,
@@ -529,25 +494,6 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                 Subscription = entity.AzureSubscription,
                 ResourceGroup = entity.AzureResourceGroup!
             }
-            : null,
-        Runs = entity.Runs.Select(r => new PipelineRun
-        {
-            Id = r.Id,
-            Status = Enum.Parse<RunStatus>(r.Status, true),
-            TriggeredBy = r.TriggeredBy,
-            Branch = r.Branch,
-            Environment = r.Environment,
-            StartedAt = r.StartedAt.ToString("o"),
-            Duration = r.Duration,
-            Stages = new PipelineStages
-            {
-                Build = Enum.Parse<RunStatus>(r.StageBuild, true),
-                Test = Enum.Parse<RunStatus>(r.StageTest, true),
-                Scan = Enum.Parse<RunStatus>(r.StageScan, true),
-                InfraDeploy = Enum.Parse<RunStatus>(r.StageInfraDeploy, true),
-                AppDeploy = Enum.Parse<RunStatus>(r.StageAppDeploy, true),
-                IntegrationTest = Enum.Parse<RunStatus>(r.StageIntegrationTest, true)
-            }
-        }).ToList()
+            : null
     };
 }

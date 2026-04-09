@@ -225,7 +225,7 @@
             </div>
             <div class="detail-item">
               <span class="detail-label">Success Rate</span>
-              <span class="detail-value">{{ calcSuccessRate(appDetail()!.runs) }}</span>
+              <span class="detail-value">{{ appDetail()!.successRate !== null ? appDetail()!.successRate + '%' : '—' }}</span>
             </div>
           </div>
 
@@ -288,10 +288,10 @@
             </table>
           </div>
 
-          @if (appDetail()!.runs.length > 0) {
+          @if (runsTotal() > 0) {
             <div class="runs-pagination">
               <span class="pagination__info">
-                {{ (runsCurrentPage() - 1) * runsPageSize + 1 }}–{{ runsPageRangeEnd() }} of {{ appDetail()!.runs.length }} runs
+                {{ (runsCurrentPage() - 1) * runsPageSize + 1 }}–{{ runsPageRangeEnd() }} of {{ runsTotal() }} runs
               </span>
               <div class="pagination__controls">
                 <button class="page-btn" (click)="goToRunsPage(runsCurrentPage() - 1)" [disabled]="runsCurrentPage() === 1">

@@ -133,6 +133,10 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// In-memory cache for ADO timeline + run-count results.
+// Sized to ~50k entries — a 50-byte PipelineStages * 50k ≈ 2.5 MB worst case.
+builder.Services.AddMemoryCache(options => options.SizeLimit = 50_000);
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Epic.Api.Auth.ICurrentUser, Epic.Api.Auth.HeaderCurrentUser>();
 builder.Services.AddHttpClient<IGitHubService, GitHubService>();
