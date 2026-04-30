@@ -1,11 +1,2 @@
-Terraform Stacks:
-https://developer.hashicorp.com/terraform/cloud-docs/stacks
-https://developer.hashicorp.com/terraform/language/stacks
-
-CloudFormation StackSets for comparison:
-https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/what-is-cfnstacksets.html
-
-StackSets limits/quotas:
-https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cloudformation-limits.html
-
-Key structural difference to call out if you're writing this up: StackSets deploy one template across accounts and regions via AWS Organizations integration. Stacks organize modules into components and deploy them across environments within an HCP org. Different primitives, not feature-for-feature alternatives.
+f082badc-dfb8-4768-9bc0-7105bcee1d2f
+7368c58b-56d6-4f71-a56a-87ff447b4352
