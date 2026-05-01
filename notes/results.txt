@@ -1,1 +1,28 @@
-if the scope includes governance, standards, tool selection, responsible AI policy, enablement, and adoption patterns - that's a CoE. calling it "AI-DLC" misnames the function and creates downstream confusion. people will think it's just a dev methodology and miss the governance weight behind it. or worse, governance decisions get made under the AI-DLC banner without the structure or accountability a CoE implies.
+{
+	"$schema": "https://json.schemastore.org/claude-code-settings.json",
+	"alwaysThinkingEnabled": true,
+	"autoUpdatesChannel": "stable",
+	"spinnerTipsEnabled": false,
+	"cleanupPeriodDays": 30,
+	"permissions": {
+		"defaultMode": "acceptEdits",
+		"allow": [
+			"Bash",
+			"Read",
+			"Write",
+			"Edit",
+			"Glob",
+			"Grep",
+			"WebSearch",
+			"WebFetch",
+			"Skill"
+		],
+		"deny": [
+			"Read(./**/.env)",
+			"Read(./**/.env.*)",
+			"Read(./secrets/**)",
+			"Read(~/.aws/credentials)",
+			"Read(~/.ssh/id_*)"
+		]
+	}
+}
