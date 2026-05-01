@@ -1,2 +1,1 @@
-f082badc-dfb8-4768-9bc0-7105bcee1d2f
-7368c58b-56d6-4f71-a56a-87ff447b4352
+if the scope includes governance, standards, tool selection, responsible AI policy, enablement, and adoption patterns - that's a CoE. calling it "AI-DLC" misnames the function and creates downstream confusion. people will think it's just a dev methodology and miss the governance weight behind it. or worse, governance decisions get made under the AI-DLC banner without the structure or accountability a CoE implies.
