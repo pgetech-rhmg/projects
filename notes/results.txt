@@ -1,14 +1,116 @@
-the entra tenant isn't a "prod" environment in the deployment sense, it's PG&E's identity provider. there's one directory of real PG&E users and it lives in that tenant. if i want employees to sign in with their PG&E credentials, the app registration has to live in the same tenant as those accounts. MSAL authenticates against the tenant that holds the users, and there's no other tenant with our users in it.
-
-the "nonprod" in my urls describes where the app is deployed (aws dev), not which directory authenticates the user. those are two separate things. a dev app authenticating real employees against the corporate directory is the normal pattern, you can't test the real login experience against fake users.
-
-to address the governance concern about a loose app reg in the tenant:
-
-- redirect uris are pinned to my specific nonprod aws urls and nothing else, so the registration only works for my dev app
-- least-privilege delegated graph scopes only (openid, profile, user.read, plus the groups claim), all consented and auditable
-- i'll prefix the name with "nonprod-" so it's clear what it is and what environment it serves
-- happy to do separate app registrations per environment, both in the same tenant, so each is governed independently
-
-the alternative, a separate nonprod tenant, means either a tenant with no real users (can't test sso) or duplicating identities into a second directory, which is a bigger security problem than one scoped app reg. the standard microsoft pattern is one tenant with multiple environment-scoped app registrations.
-
-let me know if you need anything else from me to move this forward.
+{
+	"$schema": "https://json.schemastore.org/claude-code-settings.json",
+	"model": "opus[1m]",
+	"alwaysThinkingEnabled": true,
+	"autoUpdatesChannel": "stable",
+	"spinnerTipsEnabled": false,
+	"cleanupPeriodDays": 30,
+	"includeCoAuthoredBy": false,
+	"outputStyle": "default",
+	"enableAllProjectMcpServers": false,
+	"env": {
+		"DISABLE_TELEMETRY": "1",
+		"DISABLE_ERROR_REPORTING": "1",
+		"NODE_OPTIONS": "--max-old-space-size=8192"
+	},
+	"permissions": {
+		"defaultMode": "acceptEdits",
+		"additionalDirectories": [],
+		"allow": [
+			"Read",
+			"Write",
+			"Edit",
+			"Glob",
+			"Grep",
+			"WebSearch",
+			"WebFetch",
+			"Bash(npm:*)",
+			"Bash(npx:*)",
+			"Bash(pnpm:*)",
+			"Bash(yarn:*)",
+			"Bash(node:*)",
+			"Bash(tsc:*)",
+			"Bash(eslint:*)",
+			"Bash(prettier:*)",
+			"Bash(jest:*)",
+			"Bash(vitest:*)",
+			"Bash(dotnet:*)",
+			"Bash(nuget:*)",
+			"Bash(python:*)",
+			"Bash(python3:*)",
+			"Bash(pip:*)",
+			"Bash(pip3:*)",
+			"Bash(uv:*)",
+			"Bash(pytest:*)",
+			"Bash(ruff:*)",
+			"Bash(black:*)",
+			"Bash(mypy:*)",
+			"Bash(poetry:*)",
+			"Bash(git status)",
+			"Bash(git diff:*)",
+			"Bash(git log:*)",
+			"Bash(git show:*)",
+			"Bash(git branch:*)",
+			"Bash(git switch:*)",
+			"Bash(git checkout:*)",
+			"Bash(git fetch:*)",
+			"Bash(git pull:*)",
+			"Bash(git stash:*)",
+			"Bash(git restore:*)",
+			"Bash(git add:*)",
+			"Bash(terraform fmt:*)",
+			"Bash(terraform validate:*)",
+			"Bash(terraform plan:*)",
+			"Bash(terraform init:*)",
+			"Bash(ls:*)",
+			"Bash(cat:*)",
+			"Bash(grep:*)",
+			"Bash(rg:*)",
+			"Bash(find:*)",
+			"Bash(mkdir:*)",
+			"Bash(cp:*)",
+			"Bash(mv:*)"
+		],
+		"ask": [
+			"Bash(terraform apply:*)",
+			"Bash(terraform destroy:*)",
+			"Bash(dotnet nuget push:*)",
+			"Bash(npm publish:*)",
+			"Bash(pnpm publish:*)",
+			"Bash(yarn publish:*)"
+		],
+		"deny": [
+			"Read(**/.env)",
+			"Read(**/.env.*)",
+			"Read(**/secrets/**)",
+			"Read(**/*.pem)",
+			"Read(**/*.key)",
+			"Read(**/id_rsa*)",
+			"Read(~/.aws/credentials)",
+			"Read(~/.aws/config)",
+			"Read(~/.ssh/**)",
+			"Read(~/.kube/config)",
+			"Read(~/.azure/**)",
+			"Read(~/.config/gh/hosts.yml)",
+			"Write(**/.env)",
+			"Write(**/.env.*)",
+			"Write(**/secrets/**)",
+			"Bash(git commit:*)",
+			"Bash(git push:*)",
+			"Bash(git reset:*)",
+			"Bash(git rebase:*)",
+			"Bash(git merge:*)",
+			"Bash(git cherry-pick:*)",
+			"Bash(git revert:*)",
+			"Bash(git tag:*)",
+			"Bash(gh pr create:*)",
+			"Bash(gh pr merge:*)",
+			"Bash(gh release:*)",
+			"Bash(rm -rf:*)",
+			"Bash(sudo:*)",
+			"Bash(curl * | sh)",
+			"Bash(curl * | bash)",
+			"Bash(wget * | sh)"
+		]
+	}
+}
