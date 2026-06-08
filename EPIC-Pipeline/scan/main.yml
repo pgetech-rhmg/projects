@@ -2,9 +2,9 @@ jobs:
 - job: ScanJob
   displayName: "Scan App"
   pool:
-    ${{ if eq(parameters.scanTool, 'sonarqube') }}:
+    ${{ if or(eq(parameters.scanTool, 'sonarqube'), eq(parameters.scanTool, 'wiz')) }}:
       name: EPIC - Self-hosted
-    ${{ if ne(parameters.scanTool, 'sonarqube') }}:
+    ${{ if and(ne(parameters.scanTool, 'sonarqube'), ne(parameters.scanTool, 'wiz')) }}:
       vmImage: ubuntu-latest
 
   workspace:
@@ -31,7 +31,7 @@ jobs:
     - task: DownloadPipelineArtifact@2
       displayName: "Download test artifact"
       inputs:
-        artifactName: epic-unit-tests
+        artifactName: epic-build-tests
         targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports
 
 
@@ -72,3 +72,13 @@ jobs:
       # Scan
       #########################################################################
       - template: sonarqube/scan.yml
+
+
+    ###########################################################################
+    # Wiz
+    ###########################################################################
+    - ${{ if eq(parameters.scanTool, 'wiz') }}:
+
+      - template: wiz/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}

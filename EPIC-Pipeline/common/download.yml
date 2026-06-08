@@ -40,6 +40,19 @@ jobs:
 
 
     ###########################################################################
+    # Remove Symlinks
+    ###########################################################################
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/app"
+
+        find . -type l -delete
+
+      displayName: "Remove symlinks"
+
+
+    ###########################################################################
     # Publish App Artifact
     ###########################################################################
     - task: PublishPipelineArtifact@1

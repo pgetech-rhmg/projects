@@ -1,0 +1,59 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Install Wiz CLI
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      curl -o wizcli https://wizcli.app.wiz.io/latest/wizcli-linux-amd64
+      chmod +x wizcli
+      sudo mv wizcli /usr/local/bin/wizcli
+
+    displayName: "Install Wiz CLI"
+
+
+  #############################################################################
+  # Authenticate
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      wizcli auth \
+        --id "$(WIZ_CLIENT_ID)" \
+        --secret "$(WIZ_CLIENT_SECRET)"
+
+    displayName: "Authenticate with Wiz"
+    env:
+      WIZ_CLIENT_ID: $(WIZ_CLIENT_ID)
+      WIZ_CLIENT_SECRET: $(WIZ_CLIENT_SECRET)
+
+
+  #############################################################################
+  # Directory Scan (IaC + Secrets + Vulnerabilities)
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      wizcli dir scan \
+        --path "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}" \
+        --name "${{ parameters.repo }}" \
+        --tag "pipeline=epic,repo=${{ parameters.repo }},branch=${{ parameters.branch }}" \
+        --policy "${{ parameters.scanPolicy }}" \
+        --output "$(System.DefaultWorkingDirectory)/wiz-results.json,sarif"
+
+    displayName: "Scan directory"
+
+
+  #############################################################################
+  # Publish Results
+  #############################################################################
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish scan results"
+    inputs:
+      pathToPublish: $(System.DefaultWorkingDirectory)/wiz-results.json
+      artifactName: epic-wiz-scan
+    condition: succeededOrFailed()

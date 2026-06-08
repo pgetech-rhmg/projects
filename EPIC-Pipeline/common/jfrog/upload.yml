@@ -1,0 +1,41 @@
+parameters:
+  appName: ""
+  version: ""
+  sourcePath: ""
+  targetRepo: ""
+
+steps:
+
+  ###########################################################################
+  # Upload Artifact to JFrog
+  ###########################################################################
+  - task: JFrogGenericArtifacts@1
+    displayName: "Upload artifact to JFrog"
+    inputs:
+      command: "Upload"
+      connection: "JFrog ADO"
+      specSource: "taskConfiguration"
+      fileSpec: |
+        {
+          "files": [
+            {
+              "pattern": "${{ parameters.sourcePath }}",
+              "target": "${{ parameters.targetRepo }}/${{ parameters.appName }}/${{ parameters.version }}/"
+            }
+          ]
+        }
+      collectBuildInfo: true
+      buildName: "$(Build.DefinitionName)"
+      buildNumber: "$(Build.BuildNumber)"
+      projectKey: ""
+
+  ###########################################################################
+  # Publish Build Info
+  ###########################################################################
+  - task: JFrogPublishBuildInfo@1
+    displayName: "Publish build info to JFrog"
+    inputs:
+      connection: "JFrog ADO"
+      buildName: "$(Build.DefinitionName)"
+      buildNumber: "$(Build.BuildNumber)"
+      projectKey: ""

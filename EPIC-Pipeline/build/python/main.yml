@@ -22,7 +22,10 @@ steps:
       rm -f .gitignore
       rm -f requirements-dev.txt
       rm -rf tests
-      rm -rf .pipeline
+
+      CONFIG_DIR="${{ parameters.configPath }}"
+
+      rm -rf "./${CONFIG_DIR#/}"
     displayName: "Pre-load .build"
 
 
@@ -30,9 +33,9 @@ steps:
   # Set Python Version
   #############################################################################
   - task: UsePythonVersion@0
-    displayName: "Use Python ${{ parameters.pythonVersion }}"
+    displayName: "Use Python ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
     inputs:
-      versionSpec: "${{ parameters.pythonVersion }}"
+      versionSpec: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
       addToPath: true
 
 

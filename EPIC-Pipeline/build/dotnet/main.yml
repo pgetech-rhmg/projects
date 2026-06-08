@@ -14,17 +14,17 @@ steps:
         appName: ${{ parameters.appName }}
         appType: ${{ parameters.appType }}
         codePath: ${{ parameters.codePath }}
-        unitTestTool: ${{ parameters.unitTestTool }}
+        buildTestTool: ${{ parameters.buildTestTool }}
 
 
   #############################################################################
   # Use .NET SDK Version
   #############################################################################
   - task: UseDotNet@2
-    displayName: "Use .NET SDK ${{ parameters.dotnetVersion }}"
+    displayName: "Use .NET SDK ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
     inputs:
       packageType: "sdk"
-      version: "${{ parameters.dotnetVersion }}"
+      version: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
       installationPath: $(Agent.ToolsDirectory)/dotnet
 
 
@@ -136,6 +136,8 @@ steps:
 
       echo ">> Output written to .build"
     displayName: "Publish or Pack"
+
+
 
 
   ###########################################################################

@@ -48,6 +48,11 @@ parameters:
     type: string
     default: ""
 
+  - name: config
+    displayName: "EPIC Config"
+    type: string
+    default: ".pipeline/epic.json"
+
   - name: environment
     displayName: "Deployment Environment"
     type: string
@@ -64,7 +69,7 @@ parameters:
     default: true
 
   - name: tests
-    displayName: "Run Unit Tests"
+    displayName: "Run Build Tests"
     type: boolean
     default: false
 
@@ -132,10 +137,11 @@ stages:
 
               REPO="${{ parameters.repo }}"
               BRANCH="${{ parameters.branch }}"
+              CONFIG="${{ parameters.config }}"
               ENVIRONMENT="${{ parameters.environment }}"
 
-              if [[ -z "$REPO" || -z "$BRANCH" || -z "$ENVIRONMENT" ]]; then
-                echo "!! repo, branch, and environment parameters are required"
+              if [[ -z "$REPO" || -z "$BRANCH" || -z "$CONFIG" || -z "$ENVIRONMENT" ]]; then
+                echo "!! repo, branch, config, and environment parameters are required"
                 exit 1
               fi
 
@@ -150,21 +156,28 @@ stages:
               # Clone repo to temp dir
               git clone --depth 1 --branch "${{ parameters.branch }}" "https://${GITHUB_PAT}@github.com/${ORG}/${{ parameters.repo }}.git" /tmp/repo
 
-              CONFIG_FILE="/tmp/repo/.pipeline/epic.json"
-
               REPO="${{ parameters.repo }}"
               BRANCH="${{ parameters.branch }}"
+              CONFIG_FILE="/tmp/repo/${{ parameters.config }}"
               ENVIRONMENT="${{ parameters.environment }}"
               BUILD="${{ parameters.build }}"
               TESTS="${{ parameters.tests }}"
               SCAN="${{ parameters.scan }}"
               DEPLOY="${{ parameters.deploy }}"
               INTEGRATIONS="${{ parameters.integrations }}"
-              TERRAFORM="${{ parameters.deployInfra }}"
 
-              if [ ! -d "/tmp/repo/.infra" ]; then
-                TERRAFORM="none"
+              HAS_INFRA="true"
+              APP_TYPE=$(jq -r '.app.appType' "$CONFIG_FILE")
+              INFRA_PATH=$(jq -r '.app.infraPath // ".infra"' "$CONFIG_FILE")
+
+              if [ ! -d "/tmp/repo/$INFRA_PATH" ] && [ "$APP_TYPE" != "btp" ]; then
+                HAS_INFRA="false"
               fi
+
+              TERRAFORM=$(jq -r --arg hasInfra "$HAS_INFRA" --arg deployInfra "${{ parameters.deployInfra }}" \
+                'if $hasInfra == "false" then "none"
+                else $deployInfra
+                end' "$CONFIG_FILE")
 
               # Normalize ADO boolean strings -> JSON booleans
               BUILD=$(echo "$BUILD" | tr '[:upper:]' '[:lower:]')
@@ -173,33 +186,56 @@ stages:
               DEPLOY=$(echo "$DEPLOY" | tr '[:upper:]' '[:lower:]')
               INTEGRATIONS=$(echo "$INTEGRATIONS" | tr '[:upper:]' '[:lower:]')
 
+              # Resolve approval gate: check if current environment is in approvalEnvironments array
+              REQUIRE_APPROVAL=$(jq -r \
+                --arg env "$ENVIRONMENT" \
+                'if .app.approvalEnvironments then
+                  (.app.approvalEnvironments | map(ascii_downcase) | index($env | ascii_downcase) != null)
+                else
+                  false
+                end' "$CONFIG_FILE")
+
+              # Detect cloud provider from epic.json cloud section
+              CLOUD_PROVIDER=$(jq -r \
+                'if .app.appType == "btp" then "btp"
+                elif .cloud.awsAccountId then "aws"
+                elif .cloud.azureSubscriptionId then "azure"
+                else "aws"
+                end' "$CONFIG_FILE")
+
+              echo ">> Cloud provider: $CLOUD_PROVIDER"
+
               PAYLOAD=$(jq -n \
                 --arg repo "$REPO" \
                 --arg branch "$BRANCH" \
                 --arg environment "$ENVIRONMENT" \
                 --arg terraformAction "$TERRAFORM" \
+                --arg cloudProvider "$CLOUD_PROVIDER" \
                 --argjson build "$BUILD" \
                 --argjson tests "$TESTS" \
                 --argjson scan "$SCAN" \
                 --argjson deploy "$DEPLOY" \
                 --argjson integrations "$INTEGRATIONS" \
+                --argjson requireApproval "$REQUIRE_APPROVAL" \
                 --slurpfile config "$CONFIG_FILE" \
                 '{
                   templateParameters: (
                     (
-                      $config[0]
+                      $config[0].app
                       | with_entries(select(.value != null and (.value | type != "string" or length > 0)))
                     )
                     + {
                         repo: $repo,
                         branch: $branch,
                         environment: $environment,
+                        cloudProvider: $cloudProvider,
                         terraformAction: $terraformAction,
                         build: $build,
                         tests: $tests,
                         scan: $scan,
                         deploy: $deploy,
-                        integrations: $integrations
+                        integrations: $integrations,
+                        requireApproval: $requireApproval
                       }
                     | with_entries(
                         {
@@ -222,6 +258,38 @@ stages:
             displayName: "Generate payload"
             env:
               GITHUB_PAT: $(GITHUB_PAT)
+
+          - bash: |
+              set -euo pipefail
+
+              APP_NAME=$(jq -r '.templateParameters.appName' payload.json)
+              REPO_NAME=$(jq -r '.templateParameters.repo' payload.json)
+
+              if [[ -z "$REPO_NAME" || "$REPO_NAME" == "null" ]]; then
+                echo "!! WARNING: repo not found in payload — skipping tag"
+                exit 0
+              fi
+
+              echo ">> Tagging orchestrator build with: repo=$REPO_NAME, appName=$APP_NAME"
+
+              API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/tags"
+
+              curl -s -X PUT -d "" \
+                -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                -H "Content-Type: application/json" \
+                "$API_URL/epicRepo.${REPO_NAME}?api-version=7.1"
+
+              if [[ -n "$APP_NAME" && "$APP_NAME" != "null" ]]; then
+                curl -s -X PUT -d "" \
+                  -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                  -H "Content-Type: application/json" \
+                  "$API_URL/epicAppName.${APP_NAME}?api-version=7.1"
+              fi
+
+              echo ">> Orchestrator build tagged"
+            displayName: "Tag build with repo and appName"
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
           - task: PublishPipelineArtifact@1
             displayName: "Publish payload artifact"

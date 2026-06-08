@@ -3,13 +3,10 @@ jobs:
   displayName: "Deploy Infrastructure"
   pool:
     vmImage: ubuntu-latest
-    
+
   workspace:
     clean: all
 
-  #############################################################################
-  # Steps
-  #############################################################################
   steps:
 
     ###########################################################################
@@ -30,7 +27,7 @@ jobs:
       inputs:
         terraformVersion: 'latest'
 
-    
+
     ###########################################################################
     # Configure Git Credentials for Terraform
     ###########################################################################
@@ -42,154 +39,8 @@ jobs:
 
 
     ###########################################################################
-    # Assume Deployment Role in Target Account
+    # Cloud-specific Infrastructure
     ###########################################################################
-    - task: AWSShellScript@1
-      displayName: 'Assume Target Account Role'
-      inputs:
-        awsCredentials: 'AWS'
-        regionName: ${{ parameters.awsRegion }}
-        scriptType: 'inline'
-        inlineScript: |
-          set -euo pipefail
-        
-          aws sts assume-role \
-            --role-arn "arn:aws:iam::${{ parameters.awsAccountId }}:role/pge-epic-deployment-role" \
-            --role-session-name "epic-terraform-deploy" \
-            --duration-seconds 3600 \
-            --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
-            --output text \
-          | while read -r key secret token; do
-              echo "##vso[task.setvariable variable=AWS.AccessKeyID;issecret=true]$key"
-              echo "##vso[task.setvariable variable=AWS.SecretAccessKey;issecret=true]$secret"
-              echo "##vso[task.setvariable variable=AWS.SessionToken;issecret=true]$token"
-            done
-
-
-    ###########################################################################
-    # Deploy Infrastructure with Terraform
-    ###########################################################################
-    - task: AWSShellScript@1
-      displayName: 'Terraform Init'
-      inputs:
-        regionName: ${{ parameters.awsRegion }}
-        scriptType: 'inline'
-        inlineScript: |
-          set -euo pipefail
-        
-          cd ${{ parameters.appName }}/.infra
-
-          terraform init \
-            -backend-config="bucket=pge-epic-terraform-state" \
-            -backend-config="use_lockfile=true" \
-            -backend-config="key=${{ parameters.awsAccountId }}/${{ parameters.appName }}-${{ parameters.appType }}/${{ parameters.environment }}/terraform.tfstate" \
-            -backend-config="region=${{ parameters.awsRegion }}" \
-            -backend-config="encrypt=true"
-
-
-    ###########################################################################
-    # Validate the Terraform code
-    ###########################################################################
-    - task: AWSShellScript@1
-      displayName: 'Terraform Validate'
-      inputs:
-        regionName: ${{ parameters.awsRegion }}
-        scriptType: 'inline'
-        inlineScript: |
-          set -euo pipefail
-        
-          cd ${{ parameters.appName }}/.infra
-
-          terraform validate
-
-
-    ###########################################################################
-    # Create the AWS resources
-    ###########################################################################
-    - ${{ if eq(parameters.terraformAction, 'apply') }}:
-
-      #########################################################################
-      # Plan
-      #########################################################################
-      - task: AWSShellScript@1
-        displayName: 'Terraform Plan'
-        inputs:
-          regionName: ${{ parameters.awsRegion }}
-          scriptType: 'inline'
-          inlineScript: |
-            set -euo pipefail
-        
-            cd ${{ parameters.appName }}/.infra
-
-            terraform plan \
-              -var="aws_account_id=${{ parameters.awsAccountId }}" \
-              -var="environment=${{ parameters.environment }}" \
-              -var="aws_region=${{ parameters.awsRegion }}" \
-              -out=tfplan
-
-      #########################################################################
-      # Apply
-      #########################################################################
-      - task: AWSShellScript@1
-        displayName: 'Terraform Apply'
-        inputs:
-          regionName: ${{ parameters.awsRegion }}
-          scriptType: 'inline'
-          inlineScript: |
-            set -euo pipefail
-        
-            cd ${{ parameters.appName }}/.infra
-
-            terraform apply -auto-approve tfplan
-
-            terraform output -json > $(System.DefaultWorkingDirectory)/output.json
-
-      #########################################################################
-      # Upload Outputs
-      #########################################################################
-      - task: PublishPipelineArtifact@1
-        displayName: 'Publish Terraform Outputs'
-        inputs:
-          targetPath: $(System.DefaultWorkingDirectory)/output.json
-          artifact: terraform-outputs
-          publishLocation: pipeline
-
-
-    ###########################################################################
-    # Destory the AWS resources
-    ###########################################################################
-    - ${{ if eq(parameters.terraformAction, 'destroy') }}:
-
-      #########################################################################
-      # Plan
-      #########################################################################
-      - task: AWSShellScript@1
-        displayName: 'Terraform Plan Destroy'
-        inputs:
-          regionName: ${{ parameters.awsRegion }}
-          scriptType: 'inline'
-          inlineScript: |
-            set -euo pipefail
-        
-            cd ${{ parameters.appName }}/.infra
-
-            terraform plan -destroy \
-              -var="aws_account_id=${{ parameters.awsAccountId }}" \
-              -var="environment=${{ parameters.environment }}" \
-              -var="aws_region=${{ parameters.awsRegion }}" \
-              -out=tfplan-destroy
-
-      #########################################################################
-      # Apply
-      #########################################################################
-      - task: AWSShellScript@1
-        displayName: 'Terraform Destroy'
-        inputs:
-          regionName: ${{ parameters.awsRegion }}
-          scriptType: 'inline'
-          inlineScript: |
-            set -euo pipefail
-        
-            cd ${{ parameters.appName }}/.infra
-
-            terraform apply -auto-approve tfplan-destroy
+    - template: ${{ parameters.cloudProvider }}.yml
+      parameters:
+        ${{ insert }}: ${{ parameters }}

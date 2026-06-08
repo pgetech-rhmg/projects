@@ -14,7 +14,7 @@ steps:
         appName: ${{ parameters.appName }}
         appType: ${{ parameters.appType }}
         codePath: ${{ parameters.codePath }}
-        unitTestTool: ${{ parameters.unitTestTool }}
+        buildTestTool: ${{ parameters.buildTestTool }}
 
 
   #############################################################################

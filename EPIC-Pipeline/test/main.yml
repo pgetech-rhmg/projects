@@ -26,10 +26,70 @@ jobs:
 
 
     ###########################################################################
-    # Dynamic Unit Tests (unitTestTool)
+    # Dynamic BUild Tests (buildTestTool)
     ###########################################################################
-    - ${{ if eq(lower(parameters.testType), 'unit') }}:
-      - template: ${{ parameters.unitTestTool }}/main.yml
+    - ${{ if eq(lower(parameters.testType), 'build') }}:
+      - template: ${{ parameters.buildTestTool }}/main.yml
+        parameters:
+          ${{ insert }}: ${{ parameters }}
+
+
+    ###########################################################################
+    # Resolve BASE_URL (integration tests only)
+    ###########################################################################
+    - ${{ if eq(lower(parameters.testType), 'integration') }}:
+
+      - bash: |
+          set -euo pipefail
+
+          URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts?artifactName=terraform-outputs&api-version=7.0"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $(System.AccessToken)" "$URL")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "##vso[task.setvariable variable=HAS_TERRAFORM_ARTIFACT]true"
+          else
+            echo "##vso[task.setvariable variable=HAS_TERRAFORM_ARTIFACT]false"
+          fi
+        displayName: "Check for Terraform artifact"
+
+      - task: DownloadPipelineArtifact@2
+        displayName: "Download Terraform outputs"
+        condition: eq(variables.HAS_TERRAFORM_ARTIFACT, 'true')
+        inputs:
+          artifactName: terraform-outputs
+          targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform"
+
+      - bash: |
+          set -euo pipefail
+
+          TF_OUTPUT="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+          CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
+
+          BASE_URL=""
+
+          if [ -f "$TF_OUTPUT" ]; then
+            BASE_URL=$(jq -r '.app_url.value // empty' "$TF_OUTPUT")
+          fi
+
+          if [ -z "$BASE_URL" ] && [ -f "$CONFIG" ]; then
+            BASE_URL=$(jq -r '.cloud.appUrl // empty' "$CONFIG")
+          fi
+
+          if [ -z "$BASE_URL" ]; then
+            echo "##vso[task.logissue type=error]Could not resolve BASE_URL — set Terraform output 'app_url' or cloud.appUrl in epic.json"
+            exit 1
+          fi
+
+          echo ">> Resolved BASE_URL: $BASE_URL"
+          echo "##vso[task.setvariable variable=BASE_URL]$BASE_URL"
+        displayName: "Resolve BASE_URL"
+
+
+    ###########################################################################
+    # Dynamic Integration Tests (integrationTestTool)
+    ###########################################################################
+    - ${{ if eq(lower(parameters.testType), 'integration') }}:
+      - template: ${{ parameters.integrationTestTool }}/main.yml
         parameters:
           ${{ insert }}: ${{ parameters }}
 

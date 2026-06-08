@@ -43,8 +43,11 @@ jobs:
 
           cd .build
 
-          rm -rf .infra
-          rm -rf .pipeline
+          INFRA_DIR="${{ parameters.infraPath }}"
+          CONFIG_DIR="${{ parameters.configPath }}"
+
+          rm -rf "./${INFRA_DIR#/}"
+          rm -rf "./${CONFIG_DIR#/}"
           rm -f .gitignore
 
         displayName: "Build app"

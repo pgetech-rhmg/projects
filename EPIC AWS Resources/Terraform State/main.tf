@@ -69,12 +69,12 @@ resource "aws_kms_key" "terraform_state" {
   policy                  = data.aws_iam_policy_document.kms_key_policy.json
 
   tags = merge(module.tags.tags, {
-    Name = "pge-epic-terraform-state-key"
+    Name = "pge-epic-tfstate-key"
   })
 }
 
 resource "aws_kms_alias" "terraform_state" {
-  name          = "alias/pge-epic-terraform-state"
+  name          = "alias/pge-epic-tfstate"
   target_key_id = aws_kms_key.terraform_state.key_id
 }
 
@@ -88,10 +88,10 @@ module "s3_terraform_state" {
 
   app_name                   = "terraform-state"
   environment                = var.environment
-  custom_bucket_name         = "pge-epic-terraform-state"
+  custom_bucket_name         = "pge-epic-tfstate"
   tags                       = module.tags.tags
   access_log_bucket          = var.access_log_bucket
-  access_log_prefix          = "terraform-state/"
+  access_log_prefix          = "tfstate/"
   enable_access_logging      = var.enable_access_logging
   enable_public_access_block = true
   enable_versioning          = true
@@ -145,6 +145,43 @@ data "aws_iam_policy_document" "s3_state_bucket_policy" {
       test     = "ArnLike"
       variable = "aws:PrincipalArn"
       values   = ["arn:aws:iam::*:role/pge-epic-deployment-role"]
+    }
+  }
+
+  statement {
+    effect = "Deny"
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    actions   = ["s3:*"]
+    resources = ["${module.s3_terraform_state.bucket_arn}/*"]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  statement {
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      module.s3_terraform_state.bucket_arn,
+      "${module.s3_terraform_state.bucket_arn}/*"
+    ]
+    condition {
+      test     = "ArnNotLike"
+      variable = "aws:PrincipalArn"
+      values   = [
+        aws_iam_role.epic_service.arn,
+        "arn:aws:iam::*:role/pge-epic-deployment-role",
+        "arn:aws:iam::750713712981:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_CloudAdmin*"
+      ]
     }
   }
 }

@@ -28,7 +28,7 @@ appid              = 2102
 notify             = ["rhmg@pge.com", "def2@pge.com", "ghi3@pge.com"]
 owner              = ["rhmg", "def2", "ghi3"]
 order              = 70056008
-dataclassification = "Public"
+dataclassification = "Internal"
 compliance         = ["None"]
 cris               = "Low"
 
@@ -48,3 +48,4 @@ public_hosted_zone_id  = "Z184J8PCMR81S"
 
 force_s3_destroy      = true
 custom_domain_aliases = ["epic-dev.nonprod.pge.com"]
+cors_allowed_origins  = ["https://epic-dev.nonprod.pge.com"]

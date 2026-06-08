@@ -1,0 +1,52 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Use Node Version
+  #############################################################################
+  - task: NodeTool@0
+    displayName: "Use Node ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+    inputs:
+      versionSpec: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+
+
+  #############################################################################
+  # Verify Node
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      node --version
+      npm --version
+    displayName: "Verify Node"
+
+
+  #############################################################################
+  # Install Dependencies
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Installing dependencies"
+      npm install --legacy-peer-deps
+    displayName: "Install dependencies"
+
+
+  #############################################################################
+  # Test
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Executing tests"
+      npx vitest run --reporter=default --coverage.enabled --coverage.reporter=lcov --coverage.reportsDirectory=reports/coverage
+
+      rm -rf .reports/*
+      cp -R reports/. .reports/
+    displayName: "Execute tests"

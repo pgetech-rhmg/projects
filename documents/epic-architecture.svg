@@ -1,0 +1,245 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 700" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
+    </marker>
+    <marker id="arrow-teal" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#0d9488"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#16a34a"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ea580c"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#FF6900"/>
+    </marker>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="108%">
+      <feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1400" height="700" fill="#f8fafc" rx="8"/>
+
+  <!-- Title -->
+  <text x="700" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#1e293b">EPIC Pipeline Architecture</text>
+
+  <!-- Legend -->
+  <g transform="translate(30, 655)">
+    <rect x="0" y="0" width="14" height="14" rx="3" fill="#0072CE"/>
+    <text x="20" y="12" font-size="11" fill="#475569">User / UI</text>
+    <rect x="110" y="0" width="14" height="14" rx="3" fill="#0d9488"/>
+    <text x="130" y="12" font-size="11" fill="#475569">Orchestrator</text>
+    <rect x="250" y="0" width="14" height="14" rx="3" fill="#16a34a"/>
+    <text x="270" y="12" font-size="11" fill="#475569">Engine</text>
+    <rect x="340" y="0" width="14" height="14" rx="3" fill="#FF6900"/>
+    <text x="360" y="12" font-size="11" fill="#475569">Cloud Targets</text>
+  </g>
+
+  <!-- ============================================================ -->
+  <!-- COLUMN 1: User / Trigger                                      -->
+  <!-- ============================================================ -->
+
+  <!-- User icon -->
+  <g transform="translate(70, 70)" filter="url(#shadow)">
+    <circle cx="30" cy="18" r="14" fill="#0072CE"/>
+    <text x="30" y="23" text-anchor="middle" font-size="16" fill="#fff">&#x1F464;</text>
+    <rect x="-20" y="40" width="100" height="28" rx="6" fill="#0072CE"/>
+    <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Engineer / App Owner</text>
+  </g>
+
+  <!-- EPIC Web UI -->
+  <g transform="translate(50, 180)" filter="url(#shadow)">
+    <rect width="100" height="50" rx="8" fill="#0072CE"/>
+    <text x="50" y="24" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">EPIC</text>
+    <text x="50" y="40" text-anchor="middle" font-size="11" fill="#dbeafe">Web UI</text>
+  </g>
+
+  <!-- Arrow: User → Web UI -->
+  <line x1="100" y1="138" x2="100" y2="180" stroke="#0072CE" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- EPIC API -->
+  <g transform="translate(50, 280)" filter="url(#shadow)">
+    <rect width="100" height="50" rx="8" fill="#0072CE"/>
+    <text x="50" y="24" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">EPIC API</text>
+    <text x="50" y="40" text-anchor="middle" font-size="11" fill="#dbeafe">.NET REST</text>
+  </g>
+
+  <!-- Arrow: Web UI → API -->
+  <line x1="100" y1="230" x2="100" y2="280" stroke="#0072CE" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ============================================================ -->
+  <!-- COLUMN 2: Orchestrator                                        -->
+  <!-- ============================================================ -->
+
+  <!-- Orchestrator box (group boundary) -->
+  <rect x="200" y="56" width="230" height="580" rx="10" fill="none" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="6 3" opacity="0.4"/>
+  <text x="315" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#0d9488">ORCHESTRATOR</text>
+  <text x="315" y="93" text-anchor="middle" font-size="10" fill="#0d9488" opacity="0.7">Azure DevOps Pipeline</text>
+
+  <!-- Read epic.json -->
+  <g transform="translate(240, 130)" filter="url(#shadow)">
+    <rect width="150" height="44" rx="8" fill="#0d9488"/>
+    <text x="75" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Download &amp;</text>
+    <text x="75" y="34" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Read epic.json</text>
+  </g>
+
+  <!-- App Repo (epic.json source) -->
+  <g transform="translate(240, 240)" filter="url(#shadow)">
+    <rect width="150" height="45" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+    <text x="75" y="20" text-anchor="middle" font-size="11" font-weight="600" fill="#0d9488">App Repo</text>
+    <text x="75" y="35" text-anchor="middle" font-size="10" fill="#0d9488" font-family="monospace">.pipeline/epic.json</text>
+  </g>
+
+  <!-- Arrow: Read epic.json → App Repo -->
+  <line x1="315" y1="174" x2="315" y2="240" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#arrow-teal)"/>
+
+  <!-- Build Payload -->
+  <g transform="translate(240, 330)" filter="url(#shadow)">
+    <rect width="150" height="44" rx="8" fill="#0d9488"/>
+    <text x="75" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Build Payload</text>
+    <text x="75" y="34" text-anchor="middle" font-size="10" fill="#ccfbf1">Merge app config + params</text>
+  </g>
+
+  <!-- Arrow: App Repo → Build Payload -->
+  <line x1="315" y1="285" x2="315" y2="330" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow-teal)"/>
+
+  <!-- Invoke Engine -->
+  <g transform="translate(240, 440)" filter="url(#shadow)">
+    <rect width="150" height="44" rx="8" fill="#0d9488"/>
+    <text x="75" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Invoke Engine</text>
+    <text x="75" y="34" text-anchor="middle" font-size="10" fill="#ccfbf1">ADO REST API call</text>
+  </g>
+
+  <!-- Arrow: Build Payload → Invoke Engine -->
+  <line x1="315" y1="374" x2="315" y2="440" stroke="#0d9488" stroke-width="2" marker-end="url(#arrow-teal)"/>
+
+  <!-- Arrow: API → Download & Read epic.json -->
+  <line x1="150" y1="305" x2="240" y2="152" stroke="#0072CE" stroke-width="2" marker-end="url(#arrow-teal)"/>
+
+  <!-- ============================================================ -->
+  <!-- COLUMN 3: Engine Stages                                       -->
+  <!-- ============================================================ -->
+
+  <!-- Engine box (group boundary) -->
+  <rect x="470" y="56" width="580" height="580" rx="10" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6 3" opacity="0.4"/>
+  <text x="760" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#16a34a">ENGINE</text>
+  <text x="760" y="93" text-anchor="middle" font-size="10" fill="#16a34a" opacity="0.7">Azure DevOps Pipeline</text>
+
+  <!-- Download -->
+  <g transform="translate(520, 120)" filter="url(#shadow)">
+    <rect width="130" height="44" rx="8" fill="#16a34a"/>
+    <text x="65" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Download</text>
+    <text x="65" y="34" text-anchor="middle" font-size="10" fill="#bbf7d0">Clone app repo</text>
+  </g>
+
+  <!-- Build -->
+  <g transform="translate(690, 100)" filter="url(#shadow)">
+    <rect width="130" height="44" rx="8" fill="#16a34a"/>
+    <text x="65" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Build</text>
+    <text x="65" y="34" text-anchor="middle" font-size="10" fill="#bbf7d0">Compile / package</text>
+  </g>
+
+  <!-- Test -->
+  <g transform="translate(690, 180)" filter="url(#shadow)">
+    <rect width="130" height="44" rx="8" fill="#16a34a"/>
+    <text x="65" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Unit Test</text>
+    <text x="65" y="34" text-anchor="middle" font-size="10" fill="#bbf7d0">Run test suites</text>
+  </g>
+
+  <!-- Arrow: Download → Build -->
+  <line x1="650" y1="137" x2="690" y2="122" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+  <!-- Arrow: Download → Test -->
+  <line x1="650" y1="152" x2="690" y2="202" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+  <!-- Scan -->
+  <g transform="translate(860, 140)" filter="url(#shadow)">
+    <rect width="130" height="44" rx="8" fill="#16a34a"/>
+    <text x="65" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Scan</text>
+    <text x="65" y="34" text-anchor="middle" font-size="10" fill="#bbf7d0">SonarQube / Wiz</text>
+  </g>
+
+  <!-- Arrow: Build → Scan -->
+  <line x1="820" y1="122" x2="860" y2="152" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+  <!-- Arrow: Test → Scan -->
+  <line x1="820" y1="202" x2="860" y2="172" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+  <!-- Infra (Terraform) -->
+  <g transform="translate(690, 290)" filter="url(#shadow)">
+    <rect width="160" height="55" rx="8" fill="#16a34a"/>
+    <text x="80" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Deploy Infra</text>
+    <text x="80" y="36" text-anchor="middle" font-size="10" fill="#bbf7d0">Terraform</text>
+    <text x="80" y="50" text-anchor="middle" font-size="10" fill="#bbf7d0">init / plan / apply</text>
+  </g>
+
+  <!-- Arrow: Scan → Infra -->
+  <path d="M 925 184 Q 925 250, 850 290" fill="none" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+  <!-- Deploy App -->
+  <g transform="translate(690, 410)" filter="url(#shadow)">
+    <rect width="160" height="55" rx="8" fill="#16a34a"/>
+    <text x="80" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Deploy App</text>
+    <text x="80" y="36" text-anchor="middle" font-size="10" fill="#bbf7d0">S3 sync / SSM / zip</text>
+    <text x="80" y="50" text-anchor="middle" font-size="10" fill="#bbf7d0">deploy / App Service</text>
+  </g>
+
+  <!-- Arrow: Infra → Deploy -->
+  <line x1="770" y1="345" x2="770" y2="410" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+  <!-- Integration Tests -->
+  <g transform="translate(690, 530)" filter="url(#shadow)">
+    <rect width="160" height="44" rx="8" fill="#16a34a"/>
+    <text x="80" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">Integration Test</text>
+    <text x="80" y="34" text-anchor="middle" font-size="10" fill="#bbf7d0">Playwright</text>
+  </g>
+
+  <!-- Arrow: Deploy → Integration Tests -->
+  <line x1="770" y1="465" x2="770" y2="530" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+  <!-- Arrow: Invoke Engine → Download (Engine) -->
+  <line x1="390" y1="462" x2="520" y2="142" stroke="#0d9488" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+
+  <!-- ============================================================ -->
+  <!-- COLUMN 4: Cloud Targets                                       -->
+  <!-- ============================================================ -->
+
+  <!-- AWS -->
+  <g transform="translate(1100, 310)" filter="url(#shadow)">
+    <rect width="170" height="120" rx="10" fill="#FF6900"/>
+    <text x="85" y="24" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">AWS</text>
+    <line x1="15" y1="32" x2="155" y2="32" stroke="#FF8C3A" stroke-width="0.5"/>
+    <text x="85" y="50" text-anchor="middle" font-size="10" fill="#FFF0E0">S3 + CloudFront</text>
+    <text x="85" y="66" text-anchor="middle" font-size="10" fill="#FFF0E0">EC2 (via SSM)</text>
+    <text x="85" y="82" text-anchor="middle" font-size="10" fill="#FFF0E0">Elastic Beanstalk</text>
+    <text x="85" y="98" text-anchor="middle" font-size="10" fill="#FFF0E0">Secrets Manager</text>
+    <text x="85" y="112" text-anchor="middle" font-size="10" fill="#FFF0E0">Route 53 / ACM</text>
+  </g>
+
+  <!-- Azure -->
+  <g transform="translate(1100, 470)" filter="url(#shadow)">
+    <rect width="170" height="90" rx="10" fill="#FF6900"/>
+    <text x="85" y="24" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Azure</text>
+    <line x1="15" y1="32" x2="155" y2="32" stroke="#FF8C3A" stroke-width="0.5"/>
+    <text x="85" y="50" text-anchor="middle" font-size="10" fill="#FFF0E0">App Service</text>
+    <text x="85" y="66" text-anchor="middle" font-size="10" fill="#FFF0E0">Key Vault</text>
+    <text x="85" y="82" text-anchor="middle" font-size="10" fill="#FFF0E0">Storage / SQL / PG</text>
+  </g>
+
+  <!-- Arrow: Infra → AWS -->
+  <line x1="850" y1="317" x2="1100" y2="355" stroke="#FF6900" stroke-width="2" marker-end="url(#arrow-orange)"/>
+
+  <!-- Arrow: Deploy → AWS -->
+  <line x1="850" y1="437" x2="1100" y2="400" stroke="#FF6900" stroke-width="2" marker-end="url(#arrow-orange)"/>
+
+  <!-- Arrow: Infra → Azure -->
+  <path d="M 850 345 Q 1000 450, 1100 495" fill="none" stroke="#FF6900" stroke-width="2" marker-end="url(#arrow-orange)"/>
+
+  <!-- Arrow: Deploy → Azure -->
+  <line x1="850" y1="437" x2="1100" y2="535" stroke="#FF6900" stroke-width="2" marker-end="url(#arrow-orange)"/>
+
+
+</svg>

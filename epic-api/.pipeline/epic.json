@@ -1,0 +1,15 @@
+{
+  "app": {
+    "appName": "epic-api",
+    "appType": "dotnet",
+    "codePath": "/Epic.Api",
+    "runtimeVersion": "10.x",
+    "scanTool": "sonarqube",
+    "buildTestTool": "xunit"
+  },
+  "cloud": {
+    "awsAccountId": "514712703977",
+    "awsRegion": "us-west-2",
+    "appExecutable": "Epic.Api"
+  }
+}

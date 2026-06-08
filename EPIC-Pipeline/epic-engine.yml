@@ -17,6 +17,16 @@ parameters:
     type: string
     default: ""
 
+  - name: codePath
+    type: string
+    default: ""
+  - name: infraPath
+    type: string
+    default: ".infra"
+  - name: configPath
+    type: string
+    default: ".pipeline"
+
   - name: appName
     type: string
     default: ""
@@ -26,62 +36,24 @@ parameters:
   - name: buildType
     type: string
     default: ""
-  - name: codePath
+  - name: runtimeVersion
     type: string
     default: ""
-
-  # Build versions
-  - name: nodeVersion
+  - name: cloudProvider
     type: string
-    default: "18"
-  - name: pythonVersion
-    type: string
-    default: "3.11"
-  - name: dotnetVersion
-    type: string
-    default: "9.x"
-  - name: javaVersion
-    type: string
-    default: "17"
+    default: "aws"
 
   # Tools
   - name: scanTool
     type: string
     default: ""
-  - name: unitTestTool
+  - name: scanPolicy
+    type: string
+    default: ""
+  - name: buildTestTool
     type: string
     default: ""
   - name: integrationTestTool
-    type: string
-    default: ""
-
-  # AWS
-  - name: awsAccountId
-    type: string
-    default: ""
-  - name: awsRegion
-    type: string
-    default: "us-west-2"
-
-  # AWS Resources
-  - name: s3
-    type: string
-    default: ""
-  - name: cloudfront
-    type: string
-    default: ""
-  - name: ec2InstanceId
-    type: string
-    default: ""
-  - name: appExecutable
-    type: string
-    default: ""
-
-  # Azure
-  - name: azureSubscription
-    type: string
-    default: ""
-  - name: azureResourceGroup
     type: string
     default: ""
 
@@ -107,15 +79,34 @@ parameters:
     type: string
     default: "none"
 
+  # Approval gate
+  - name: requireApproval
+    type: boolean
+    default: false
+
 
 ###############################################################################
 # Global Variables
 ###############################################################################
 variables:
   - group: GV-account-access
-  
+
   - name: ORG
     value: "pgetech"
+
+  - name: defaultRuntimeVersion
+    ${{ if or(eq(parameters.appType, 'angular'), eq(parameters.appType, 'react'), eq(parameters.appType, 'html')) }}:
+      value: "18"
+    ${{ elseif or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')) }}:
+      value: "9.x"
+    ${{ elseif eq(parameters.appType, 'python') }}:
+      value: "3.11"
+    ${{ elseif eq(parameters.appType, 'java') }}:
+      value: "17"
+    ${{ elseif eq(parameters.appType, 'php') }}:
+      value: "8.3"
+    ${{ else }}:
+      value: ""
 
 
 ###############################################################################
@@ -134,6 +125,49 @@ stages:
         parameters:
           repo: ${{ parameters.repo }}
           branch: ${{ parameters.branch }}
+
+      - job: TagBuild
+        displayName: "Tag Build"
+        dependsOn: DownloadJob
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - bash: |
+              set -euo pipefail
+
+              echo ">> Tagging build with: ${{ parameters.appName }}, ${{ parameters.appType }}, ${{ parameters.environment }}"
+
+              API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/tags"
+
+              curl -s -X PUT -d "" \
+                -H "Authorization: Bearer $(System.AccessToken)" \
+                -H "Content-Type: application/json" \
+                "$API_URL/epicRepo.${{ parameters.repo }}?api-version=7.1"
+
+              curl -s -X PUT -d "" \
+                -H "Authorization: Bearer $(System.AccessToken)" \
+                -H "Content-Type: application/json" \
+                "$API_URL/epicAppName.${{ parameters.appName }}?api-version=7.1"
+
+              curl -s -X PUT -d "" \
+                -H "Authorization: Bearer $(System.AccessToken)" \
+                -H "Content-Type: application/json" \
+                "$API_URL/epicAppType.${{ parameters.appType }}?api-version=7.1"
+
+              curl -s -X PUT -d "" \
+                -H "Authorization: Bearer $(System.AccessToken)" \
+                -H "Content-Type: application/json" \
+                "$API_URL/epicEnvironment.${{ parameters.environment }}?api-version=7.1"
+
+              curl -s -X PUT -d "" \
+                -H "Authorization: Bearer $(System.AccessToken)" \
+                -H "Content-Type: application/json" \
+                "$API_URL/epicCloud.${{ parameters.cloudProvider }}?api-version=7.1"
+
+              echo ">> Build tagged"
+            displayName: "Tag build with app metadata"
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
 
   #############################################################################
@@ -154,9 +188,9 @@ stages:
   #############################################################################
   # Unit Tests
   #############################################################################
-  - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.unitTestTool, '')) }}:
-    - stage: UnitTest
-      displayName: "Unit Tests"
+  - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
+    - stage: BuildTest
+      displayName: "Build Tests"
       dependsOn: 
         - Download
 
@@ -164,7 +198,7 @@ stages:
         - template: /test/main.yml
           parameters:
             ${{ insert }}: ${{ parameters }}
-            testType: "Unit"
+            testType: "Build"
 
 
   #############################################################################
@@ -178,7 +212,7 @@ stages:
         - ${{ if eq(parameters.build, 'true') }}:
           - Build
         - ${{ if eq(parameters.tests, 'true') }}:
-          - UnitTest
+          - BuildTest
 
       jobs:
         - template: /scan/main.yml
@@ -196,9 +230,9 @@ stages:
         - Download
         - ${{ if eq(parameters.build, 'true') }}:
           - Build
-        - ${{ if eq(parameters.tests, 'true') }}:
-          - UnitTest
-        - ${{ if eq(parameters.scan, 'true') }}:
+        - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
+          - BuildTest
+        - ${{ if and(eq(parameters.scan, 'true'), ne(parameters.scanTool, '')) }}:
           - Scan
 
       jobs:
@@ -208,20 +242,56 @@ stages:
 
 
   #############################################################################
+  # Approval Gate (optional — driven by approvalEnvironments in epic.json)
+  #############################################################################
+  - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true'), eq(parameters.requireApproval, 'true')) }}:
+    - stage: Approval
+      displayName: "Approval Gate"
+      dependsOn:
+        - Download
+        - Build
+        - ${{ if eq(parameters.tests, 'true') }}:
+          - BuildTest
+        - ${{ if eq(parameters.scan, 'true') }}:
+          - Scan
+        - ${{ if ne(parameters.terraformAction, 'none') }}:
+          - DeployInfra
+
+      jobs:
+        - job: ApprovalJob
+          displayName: "Waiting for Approval"
+          pool: server
+          steps:
+            - task: ManualValidation@0
+              displayName: "Approve deployment to ${{ parameters.environment }}"
+              inputs:
+                notifyUsers: ""
+                instructions: |
+                  Approve deployment of **${{ parameters.appName }}** to **${{ parameters.environment }}**.
+
+                  - Branch: `${{ parameters.branch }}`
+                  - App Type: `${{ parameters.appType }}`
+
+                  Review the build and scan results before approving.
+
+
+  #############################################################################
   # Deploy App
   #############################################################################
   - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true')) }}:
     - stage: Deploy
       displayName: "Deploy App"
-      dependsOn: 
+      dependsOn:
         - Download
         - Build
         - ${{ if eq(parameters.tests, 'true') }}:
-          - UnitTest
+          - BuildTest
         - ${{ if eq(parameters.scan, 'true') }}:
           - Scan
         - ${{ if ne(parameters.terraformAction, 'none') }}:
           - DeployInfra
+        - ${{ if eq(parameters.requireApproval, 'true') }}:
+          - Approval
 
       jobs:
         - template: /deploy/main.yml

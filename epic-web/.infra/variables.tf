@@ -32,12 +32,6 @@ variable "environment" {
   type        = string
 }
 
-variable "app_path" {
-  description = "Relative path under the app folder containing static site files."
-  type        = string
-  default     = "/"
-}
-
 
 ###############################################################################
 # Tagging & Compliance
@@ -131,8 +125,28 @@ variable "private_hosted_zone_id" {
 }
 
 variable "public_hosted_zone_id" {
-  description = "Route53 public hosted zone ID."
+  description = "Route53 public hosted zone ID (used by ACM DNS validation only)."
   type        = string
+}
+
+
+###############################################################################
+# WAF
+###############################################################################
+
+variable "allowed_cidrs" {
+  description = <<EOT
+Source IP CIDRs allowed to reach the CloudFront distribution. Must be PG&E's
+PUBLIC egress IP ranges — CloudFront sees the corporate NAT egress IP, not
+the user's RFC1918 internal address. Anything not in this list is blocked
+by the WAF at the edge with a 403.
+EOT
+  type        = list(string)
+  default = [
+    "131.89.0.0/16",   # PG&E corporate egress
+    "131.90.0.0/16",   # PG&E corporate egress
+    "192.80.218.0/24", # Opsera tunnel
+  ]
 }
 
 
@@ -244,4 +258,10 @@ variable "custom_domain_aliases" {
   description = "Optional list of custom domain aliases for CloudFront."
   type        = list(string)
   default     = []
+}
+
+variable "cors_allowed_origins" {
+  description = "List of allowed CORS origins for the CloudFront response headers policy."
+  type        = list(string)
+  default     = ["https://epic-dev.nonprod.pge.com"]
 }

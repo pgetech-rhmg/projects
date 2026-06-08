@@ -241,3 +241,4 @@ tfplan
 *.plan
 *.tfplan
 *.tfplan.*
+.certs/

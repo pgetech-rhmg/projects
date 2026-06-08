@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 720" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f4e79"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2e7d32"/>
+    </marker>
+  </defs>
+
+  <!-- Title bar -->
+  <rect x="0" y="0" width="1024" height="60" fill="#1aa3d9"/>
+  <image href="pge_logo.png" x="8" y="4" width="52" height="52" preserveAspectRatio="xMidYMid meet"/>
+  <text x="80" y="28" fill="#fff" font-size="20" font-weight="bold">EPIC Pipeline</text>
+  <text x="80" y="48" fill="#fff" font-size="13">From business intent to secure cloud deployment – automatically and at scale</text>
+
+  <!-- IDP section -->
+  <rect x="20" y="80" width="984" height="180" fill="#eaf3fb" stroke="#1f4e79" stroke-width="1"/>
+  <rect x="20" y="80" width="984" height="22" fill="#1f4e79"/>
+  <text x="512" y="97" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">EPIC UX</text>
+
+  <!-- Step 1 -->
+  <rect x="50" y="120" width="170" height="36" fill="#f4a460" stroke="#1f4e79"/>
+  <text x="135" y="138" dominant-baseline="middle" text-anchor="middle" fill="#000" font-size="12" font-weight="bold">1 – User Interface</text>
+  <rect x="50" y="156" width="170" height="84" fill="#fff5e6" stroke="#1f4e79"/>
+  <text x="135" y="190" text-anchor="middle" fill="#000" font-size="11">Collect variables based</text>
+  <text x="135" y="206" text-anchor="middle" fill="#000" font-size="11">on user intent.</text>
+
+  <!-- Step 2 -->
+  <rect x="240" y="120" width="170" height="36" fill="#1f4e79"/>
+  <text x="325" y="133" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">2 – Build Pipeline</text>
+  <text x="325" y="148" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">Configuration</text>
+  <rect x="240" y="156" width="170" height="84" fill="#fff" stroke="#1f4e79"/>
+  <text x="325" y="185" text-anchor="middle" fill="#000" font-size="11">Build</text>
+  <text x="325" y="201" text-anchor="middle" fill="#000" font-size="11">.pipeline/epic.json</text>
+
+  <!-- Step 3 -->
+  <rect x="430" y="120" width="170" height="36" fill="#1f4e79"/>
+  <text x="515" y="133" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">3 – Verify/Create</text>
+  <text x="515" y="148" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">Terraform Project</text>
+  <rect x="430" y="156" width="170" height="84" fill="#fff" stroke="#1f4e79"/>
+  <text x="515" y="185" text-anchor="middle" fill="#000" font-size="11">Validate or create</text>
+  <text x="515" y="201" text-anchor="middle" fill="#000" font-size="11">infrastructure project.</text>
+
+  <!-- Step 4 -->
+  <rect x="620" y="120" width="170" height="36" fill="#1f4e79"/>
+  <text x="705" y="133" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">4 – Deploy</text>
+  <text x="705" y="148" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">Infrastructure</text>
+  <rect x="620" y="156" width="170" height="84" fill="#fff" stroke="#1f4e79"/>
+  <text x="705" y="185" text-anchor="middle" fill="#000" font-size="11">Deploy infrastructure</text>
+  <text x="705" y="201" text-anchor="middle" fill="#000" font-size="11">using TFC (optional).</text>
+
+  <!-- Step 5 -->
+  <rect x="810" y="120" width="170" height="36" fill="#1f4e79"/>
+  <text x="895" y="133" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">5 – Execute EPIC</text>
+  <text x="895" y="148" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">Pipeline</text>
+  <rect x="810" y="156" width="170" height="84" fill="#fff" stroke="#1f4e79"/>
+  <text x="895" y="185" text-anchor="middle" fill="#000" font-size="11">Execute the EPIC</text>
+  <text x="895" y="201" text-anchor="middle" fill="#000" font-size="11">pipeline.</text>
+
+  <!-- Arrows IDP -->
+  <line x1="222" y1="195" x2="238" y2="195" stroke="#1f4e79" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="412" y1="195" x2="428" y2="195" stroke="#1f4e79" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="602" y1="195" x2="618" y2="195" stroke="#1f4e79" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="792" y1="195" x2="808" y2="195" stroke="#1f4e79" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Down arrow connector -->
+  <polygon points="492,260 532,260 532,290 552,290 512,330 472,290 492,290" fill="#bfe0c2" stroke="#2e7d32"/>
+
+  <!-- EPIC Pipeline section -->
+  <rect x="20" y="330" width="984" height="120" fill="#dff2e1" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="20" y="330" width="984" height="22" fill="#2e7d32"/>
+  <text x="512" y="347" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">EPIC Pipeline</text>
+
+  <!-- App - Build -->
+  <rect x="40" y="375" width="120" height="50" fill="#fff" stroke="#2e7d32"/>
+  <text x="100" y="400" dominant-baseline="middle" text-anchor="middle" fill="#000" font-size="12" font-weight="bold">App - Build</text>
+
+  <!-- Unit Tests -->
+  <rect x="190" y="375" width="120" height="50" fill="#fff" stroke="#2e7d32"/>
+  <text x="250" y="400" dominant-baseline="middle" text-anchor="middle" fill="#000" font-size="12" font-weight="bold">Unit Tests</text>
+
+  <!-- App - Scan with Pass/Fail -->
+  <rect x="340" y="375" width="120" height="50" fill="#fff" stroke="#2e7d32"/>
+  <text x="400" y="400" dominant-baseline="middle" text-anchor="middle" fill="#000" font-size="12" font-weight="bold">App - Scan</text>
+  <rect x="340" y="358" width="57.5" height="16" fill="#2e7d32"/>
+  <text x="368.75" y="366" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">Pass</text>
+  <rect x="402.5" y="358" width="57.5" height="16" fill="#c62828"/>
+  <text x="431.25" y="366" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">Fail</text>
+
+  <!-- Infra - Deploy -->
+  <rect x="490" y="375" width="140" height="50" fill="#fff" stroke="#2e7d32"/>
+  <text x="560" y="395" dominant-baseline="middle" text-anchor="middle" fill="#000" font-size="12" font-weight="bold">Infra - Deploy</text>
+  <text x="560" y="411" dominant-baseline="middle" text-anchor="middle" fill="#000" font-size="10">(optional)</text>
+
+  <!-- App - Deploy with Approve/Deny -->
+  <rect x="660" y="375" width="120" height="50" fill="#fff" stroke="#2e7d32"/>
+  <text x="720" y="400" dominant-baseline="middle" text-anchor="middle" fill="#000" font-size="12" font-weight="bold">App - Deploy</text>
+  <rect x="660" y="358" width="57.5" height="16" fill="#2e7d32"/>
+  <text x="688.75" y="366" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">Approve</text>
+  <rect x="722.5" y="358" width="57.5" height="16" fill="#c62828"/>
+  <text x="751.25" y="366" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">Deny</text>
+
+  <!-- Integration Tests -->
+  <rect x="810" y="375" width="170" height="50" fill="#fff" stroke="#2e7d32"/>
+  <text x="895" y="395" dominant-baseline="middle" text-anchor="middle" fill="#000" font-size="12" font-weight="bold">Integration Tests</text>
+  <text x="895" y="411" dominant-baseline="middle" text-anchor="middle" fill="#000" font-size="10">(optional)</text>
+
+  <!-- Pipeline arrows -->
+  <line x1="162" y1="400" x2="188" y2="400" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <line x1="312" y1="400" x2="338" y2="400" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <line x1="462" y1="400" x2="488" y2="400" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <line x1="632" y1="400" x2="658" y2="400" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <line x1="782" y1="400" x2="808" y2="400" stroke="#2e7d32" stroke-width="2" marker-end="url(#arrowGreen)"/>
+
+  <!-- Business Outcomes section -->
+  <rect x="20" y="500" width="984" height="100" fill="#eaf3fb" stroke="#1f4e79" stroke-width="1"/>
+  <rect x="20" y="500" width="984" height="22" fill="#1aa3d9"/>
+  <text x="512" y="517" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">Business Outcomes</text>
+
+  <!-- Outcome icons (small box + green check, V inside, tail extending above box) -->
+  <rect x="74" y="551" width="14" height="14" fill="#fff" stroke="#1f4e79" stroke-width="1.5"/>
+  <polyline points="77,558 81,562 89,545" fill="none" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="100" y="562" fill="#000" font-size="12" font-weight="bold">Faster Delivery</text>
+
+  <rect x="234" y="551" width="14" height="14" fill="#fff" stroke="#1f4e79" stroke-width="1.5"/>
+  <polyline points="237,558 241,562 249,545" fill="none" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="260" y="562" fill="#000" font-size="12" font-weight="bold">Reduced Risk</text>
+
+  <rect x="394" y="551" width="14" height="14" fill="#fff" stroke="#1f4e79" stroke-width="1.5"/>
+  <polyline points="397,558 401,562 409,545" fill="none" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="420" y="562" fill="#000" font-size="12" font-weight="bold">Consistent Architecture</text>
+
+  <rect x="614" y="551" width="14" height="14" fill="#fff" stroke="#1f4e79" stroke-width="1.5"/>
+  <polyline points="617,558 621,562 629,545" fill="none" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="640" y="562" fill="#000" font-size="12" font-weight="bold">Audit-Ready by Default</text>
+
+  <rect x="824" y="551" width="14" height="14" fill="#fff" stroke="#1f4e79" stroke-width="1.5"/>
+  <polyline points="827,558 831,562 839,545" fill="none" stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="850" y="562" fill="#000" font-size="12" font-weight="bold">Business Value Focused</text>
+
+  <!-- Tagline -->
+  <text x="512" y="640" text-anchor="middle" fill="#000" font-size="13" font-style="italic">"EPIC transforms business intent into secure, compliant cloud deployments –</text>
+  <text x="512" y="660" text-anchor="middle" fill="#000" font-size="13" font-style="italic">automatically, consistently, and at enterprise scale."</text>
+
+  <!-- Footer -->
+  <text x="512" y="700" text-anchor="middle" fill="#888" font-size="10">Internal</text>
+</svg>

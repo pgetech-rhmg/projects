@@ -1,0 +1,93 @@
+###############################################################################
+# Azure App Service Deploy
+#
+# Deploys build artifacts to an Azure App Service via zip deploy.
+# Works for any runtime (node, dotnet, python, java, php) — the runtime
+# is configured in the App Service infrastructure, not at deploy time.
+#
+# Resolution order for deploy targets:
+#   1. Terraform outputs (from DeployInfra stage)
+#   2. Cloud config variables (from epic.json, read by dispatcher)
+###############################################################################
+steps:
+
+  #############################################################################
+  # Resolve Deploy Targets
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      APP_SERVICE_NAME=""
+      RESOURCE_GROUP=""
+
+      # 1. Try Terraform outputs first
+      if [ -f "${{ parameters.terraformOutputPath }}" ]; then
+        APP_SERVICE_NAME=$(jq -r '.app_service_name.value // empty' "${{ parameters.terraformOutputPath }}")
+        RESOURCE_GROUP=$(jq -r '.resource_group_name.value // empty' "${{ parameters.terraformOutputPath }}" 2>/dev/null || echo "")
+      fi
+
+      # 2. Fall back to cloud config from epic.json (read by dispatcher)
+      APP_SERVICE_NAME=${APP_SERVICE_NAME:-$(CLOUD_APP_SERVICE_NAME)}
+      RESOURCE_GROUP=${RESOURCE_GROUP:-$(CLOUD_RESOURCE_GROUP)}
+
+      if [ -z "$APP_SERVICE_NAME" ]; then
+        echo "##vso[task.logissue type=error]app_service_name not found in Terraform outputs or epic.json cloud config"
+        exit 1
+      fi
+
+      if [ -z "$RESOURCE_GROUP" ]; then
+        echo "##vso[task.logissue type=error]resource_group_name not found in Terraform outputs or epic.json cloud config"
+        exit 1
+      fi
+
+      echo "##vso[task.setvariable variable=APP_SERVICE_NAME]$APP_SERVICE_NAME"
+      echo "##vso[task.setvariable variable=RESOURCE_GROUP]$RESOURCE_GROUP"
+
+      echo ">> App Service: $APP_SERVICE_NAME"
+      echo ">> Resource Group: $RESOURCE_GROUP"
+    displayName: "Resolve deploy targets"
+
+
+  #############################################################################
+  # Zip Build Output
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+
+      cd "$BUILD_PATH"
+
+      echo ">> Creating deployment ZIP"
+      zip -r ../deploy.zip .
+
+      echo ">> ZIP created"
+    displayName: "Create deployment ZIP"
+
+
+  #############################################################################
+  # Deploy to Azure App Service
+  #############################################################################
+  - task: AzureCLI@2
+    displayName: "Deploy to Azure App Service"
+    inputs:
+      azureSubscription: 'Azure'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        set -euo pipefail
+
+        ZIP_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/deploy.zip"
+        APP_NAME="$(APP_SERVICE_NAME)"
+        RG="$(RESOURCE_GROUP)"
+
+        echo ">> Deploying to App Service: $APP_NAME (RG: $RG)"
+
+        az webapp deploy \
+          --name "$APP_NAME" \
+          --resource-group "$RG" \
+          --src-path "$ZIP_PATH" \
+          --type zip \
+          --async false
+
+        echo ">> Deployment complete"

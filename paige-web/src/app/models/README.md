@@ -1,1 +1,0 @@
-This file is a placeholder so the folder can be checked into source control.

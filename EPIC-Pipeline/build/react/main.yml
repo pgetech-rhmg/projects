@@ -1,0 +1,68 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Use Node Version
+  #############################################################################
+  - task: NodeTool@0
+    displayName: "Use Node ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+    inputs:
+      versionSpec: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+
+
+  #############################################################################
+  # Verify Node
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      node --version
+      npm --version
+    displayName: "Verify Node"
+
+
+  #############################################################################
+  # Install Dependencies
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Installing dependencies"
+      npm install --legacy-peer-deps
+    displayName: "Install dependencies"
+
+
+  #############################################################################
+  # Build
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Building app"
+      npm run build
+
+      rm -rf .build/*
+
+      # React output varies by toolchain:
+      #   CRA        → build/
+      #   Vite       → dist/
+      #   Next.js    → out/
+      # Locate index.html to find the actual output regardless of toolchain.
+      INDEX_HTML=$(find build dist out -name "index.html" 2>/dev/null | head -1 || true)
+
+      if [ -z "$INDEX_HTML" ]; then
+        echo "ERROR: index.html not found under build/, dist/, or out/ — build may have failed"
+        exit 1
+      fi
+
+      OUTPUT_DIR=$(dirname "$INDEX_HTML")
+      echo ">> Detected build output at: $OUTPUT_DIR"
+
+      cp -R "$OUTPUT_DIR"/. .build/
+    displayName: "Build app"

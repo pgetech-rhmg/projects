@@ -6,7 +6,7 @@ steps:
   ###############################################################################
   # Normalize coverage.xml paths (multi-agent safe)
   ###############################################################################
-  - ${{ if eq(parameters.unitTestTool, 'xunit') }}:
+  - ${{ if eq(parameters.buildTestTool, 'xunit') }}:
     - bash: |
         set -euo pipefail
 

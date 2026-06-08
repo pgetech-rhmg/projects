@@ -3,50 +3,146 @@ jobs:
   displayName: "Deploy App"
   pool:
     vmImage: ubuntu-latest
-    
+
   workspace:
     clean: all
 
-  #############################################################################
-  # Steps
-  #############################################################################
   steps:
 
     ###########################################################################
-    # Download App Artifact
+    # Download Artifacts
     ###########################################################################
     - task: DownloadPipelineArtifact@2
-      displayName: "Download app artifact"
+      displayName: "Download app source"
+      inputs:
+        artifactName: epic-app
+        targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}"
+
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download build artifact"
       inputs:
         artifactName: epic-build
         targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
 
+    - bash: |
+        set -euo pipefail
 
-    ###########################################################################
-    # Download Output File
-    ###########################################################################
+        URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts?artifactName=terraform-outputs&api-version=7.0"
+
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $(System.AccessToken)" "$URL")
+
+        if [ "$HTTP_STATUS" = "200" ]; then
+          echo "##vso[task.setvariable variable=HAS_TERRAFORM_ARTIFACT]true"
+          echo ">> Terraform artifact found — will download"
+        else
+          echo "##vso[task.setvariable variable=HAS_TERRAFORM_ARTIFACT]false"
+          echo ">> No Terraform artifact — project uses existing infrastructure via epic.json"
+        fi
+      displayName: "Check for Terraform artifact"
+
     - task: DownloadPipelineArtifact@2
-      displayName: "Download output file"
+      displayName: "Download Terraform outputs"
+      condition: eq(variables.HAS_TERRAFORM_ARTIFACT, 'true')
       inputs:
         artifactName: terraform-outputs
         targetPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform"
 
 
     ###########################################################################
-    # Deploy - HTML (static), Angular (node)
+    # ═════════════════════════════════════════════════════════════════════════
+    # AWS
+    # ═════════════════════════════════════════════════════════════════════════
     ###########################################################################
-    - ${{ if or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular')) }}:
-      - template: basic/main.yml
-        parameters:
-          ${{ insert }}: ${{ parameters }}
-          terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+    - ${{ if eq(parameters.cloudProvider, 'aws') }}:
+
+      #########################################################################
+      # Read AWS Cloud Config
+      #########################################################################
+      - bash: |
+          set -euo pipefail
+
+          CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
+
+          echo ">> Reading AWS cloud config"
+
+          AWS_ACCOUNT_ID=$(jq -r '.cloud.awsAccountId' "$CONFIG")
+          AWS_REGION=$(jq -r '.cloud.awsRegion // "us-west-2"' "$CONFIG")
+
+          echo "##vso[task.setvariable variable=CLOUD_AWS_ACCOUNT_ID]$AWS_ACCOUNT_ID"
+          echo "##vso[task.setvariable variable=CLOUD_AWS_REGION]$AWS_REGION"
+          echo "##vso[task.setvariable variable=CLOUD_S3]$(jq -r '.cloud.s3 // empty' "$CONFIG")"
+          echo "##vso[task.setvariable variable=CLOUD_CLOUDFRONT]$(jq -r '.cloud.cloudfront // empty' "$CONFIG")"
+          echo "##vso[task.setvariable variable=CLOUD_EC2_INSTANCE_ID]$(jq -r '.cloud.ec2InstanceId // empty' "$CONFIG")"
+          echo "##vso[task.setvariable variable=CLOUD_APP_EXECUTABLE]$(jq -r '.cloud.appExecutable // empty' "$CONFIG")"
+        displayName: "Read AWS cloud config"
+
+      #########################################################################
+      # AWS — Static (HTML, Angular, React) → S3 + CloudFront
+      #########################################################################
+      - ${{ if or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular'), eq(parameters.appType, 'react')) }}:
+        - template: aws/static/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+
+      #########################################################################
+      # AWS — EC2 (dotnet, python, java) → S3 + SSM
+      #########################################################################
+      - ${{ if eq(parameters.appType, 'dotnet') }}:
+        - template: aws/ec2/dotnet.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+
+      - ${{ if eq(parameters.appType, 'python') }}:
+        - template: aws/ec2/python.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+
+      - ${{ if eq(parameters.appType, 'java') }}:
+        - template: aws/ec2/java.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+
+      #########################################################################
+      # AWS — AMI (Image Builder)
+      #########################################################################
+      - ${{ if eq(parameters.appType, 'ami') }}:
+        - template: aws/ami/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
 
 
     ###########################################################################
-    # Deploy - .NET, Python
+    # ═════════════════════════════════════════════════════════════════════════
+    # AZURE
+    # ═════════════════════════════════════════════════════════════════════════
     ###########################################################################
-    - ${{ if and(ne(parameters.appType, 'html'), ne(parameters.appType, 'angular')) }}:
-      - template: ${{ parameters.appType }}/main.yml
+    - ${{ if eq(parameters.cloudProvider, 'azure') }}:
+
+      #########################################################################
+      # Read Azure Cloud Config
+      #########################################################################
+      - bash: |
+          set -euo pipefail
+
+          CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
+
+          echo ">> Reading Azure cloud config"
+
+          echo "##vso[task.setvariable variable=CLOUD_AZURE_SUBSCRIPTION_ID]$(jq -r '.cloud.azureSubscriptionId' "$CONFIG")"
+          echo "##vso[task.setvariable variable=CLOUD_AZURE_REGION]$(jq -r '.cloud.azureRegion // "westus2"' "$CONFIG")"
+          echo "##vso[task.setvariable variable=CLOUD_RESOURCE_GROUP]$(jq -r '.cloud.resourceGroupName // empty' "$CONFIG")"
+          echo "##vso[task.setvariable variable=CLOUD_APP_SERVICE_NAME]$(jq -r '.cloud.appServiceName // empty' "$CONFIG")"
+        displayName: "Read Azure cloud config"
+
+      #########################################################################
+      # Azure — App Service (any appType)
+      #########################################################################
+      - template: azure/app-service/main.yml
         parameters:
           ${{ insert }}: ${{ parameters }}
           terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"

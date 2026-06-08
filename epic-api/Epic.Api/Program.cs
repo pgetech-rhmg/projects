@@ -1,0 +1,187 @@
+using System.Text.Json;
+
+using Amazon;
+using Amazon.Extensions.NETCore.Setup;
+using Amazon.SecretsManager;
+using Amazon.SecretsManager.Model;
+
+using Epic.Api.Data;
+using Epic.Api.Services;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+builder.Configuration
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
+    .AddEnvironmentVariables();
+
+// ---------------------------------------------------------------------------
+// AWS Secrets Manager (non-development only)
+// ---------------------------------------------------------------------------
+if (!builder.Environment.IsDevelopment())
+{
+    var secretName =
+        builder.Configuration["AWS_SECRETS_NAME"]
+        ?? throw new InvalidOperationException("AWS_SECRETS_NAME not configured.");
+
+    var regionName =
+        builder.Configuration["AWS_REGION"]
+        ?? Environment.GetEnvironmentVariable("AWS_REGION")
+        ?? throw new InvalidOperationException("AWS_REGION not configured.");
+
+    var awsOptions = new AWSOptions
+    {
+        Region = RegionEndpoint.GetBySystemName(regionName)
+    };
+
+    using var client = awsOptions.CreateServiceClient<IAmazonSecretsManager>();
+
+    var response = await client.GetSecretValueAsync(new GetSecretValueRequest
+    {
+        SecretId = secretName
+    });
+
+    if (string.IsNullOrWhiteSpace(response.SecretString))
+        throw new InvalidOperationException("SecretString is empty.");
+
+    Dictionary<string, string?> secrets;
+    try
+    {
+        secrets = JsonSerializer.Deserialize<Dictionary<string, string?>>(
+            response.SecretString,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        ) ?? throw new InvalidOperationException("Failed to deserialize secrets.");
+    }
+    catch (JsonException ex)
+    {
+        throw new InvalidOperationException(
+            $"Secret '{secretName}' is not a valid JSON object of string-to-string entries.", ex);
+    }
+
+    // Convert double-underscore keys to colon notation for .NET configuration
+    // (e.g., ConnectionStrings__EpicDb → ConnectionStrings:EpicDb)
+    var normalizedSecrets = secrets.ToDictionary(
+        kvp => kvp.Key.Replace("__", ":"),
+        kvp => kvp.Value
+    );
+
+    builder.Configuration.AddInMemoryCollection(normalizedSecrets);
+
+    // -----------------------------------------------------------------------
+    // Build DB connection string from RDS-managed secret
+    // -----------------------------------------------------------------------
+    var rdsSecretArn = builder.Configuration["AWS_RDS_SECRET_ARN"];
+    var dbHost       = builder.Configuration["AWS_RDS_ENDPOINT"];
+
+    if (!string.IsNullOrEmpty(rdsSecretArn) && !string.IsNullOrEmpty(dbHost))
+    {
+        var rdsResponse = await client.GetSecretValueAsync(new GetSecretValueRequest
+        {
+            SecretId = rdsSecretArn
+        });
+
+        Dictionary<string, string?> rdsSecret;
+        try
+        {
+            rdsSecret = JsonSerializer.Deserialize<Dictionary<string, string?>>(
+                rdsResponse.SecretString!,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            ) ?? throw new InvalidOperationException("Failed to deserialize RDS secret.");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                $"RDS secret '{rdsSecretArn}' is not a valid JSON object.", ex);
+        }
+
+        var username = rdsSecret.GetValueOrDefault("username") ?? "epic";
+        var password = rdsSecret.GetValueOrDefault("password")
+            ?? throw new InvalidOperationException("RDS secret missing password.");
+
+        var connectionString = $"Host={dbHost};Port=5432;Database=epicdb;Username={username};Password={password}";
+
+        builder.Configuration.AddInMemoryCollection(
+            new Dictionary<string, string?> { ["ConnectionStrings:EpicDb"] = connectionString });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CORS
+// ---------------------------------------------------------------------------
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ApiCorsPolicy", policy =>
+    {
+        policy.WithOrigins(
+                "https://epic-dev.nonprod.pge.com",
+                "http://localhost:4200",
+                "https://localhost:4200")
+            .AllowAnyHeader()
+            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+            .AllowCredentials();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Database
+// ---------------------------------------------------------------------------
+builder.Services.AddDbContext<EpicDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("EpicDb")));
+
+// ---------------------------------------------------------------------------
+// Services
+// ---------------------------------------------------------------------------
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new()
+    {
+        Title = "EPIC API",
+        Description = "Enterprise Pipeline for Integration and Continuous Delivery"
+    });
+});
+
+// In-memory cache for ADO timeline + run-count results.
+// Sized to ~50k entries — a 50-byte PipelineStages * 50k ≈ 2.5 MB worst case.
+builder.Services.AddMemoryCache(options => options.SizeLimit = 50_000);
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Epic.Api.Auth.ICurrentUser, Epic.Api.Auth.HeaderCurrentUser>();
+builder.Services.AddHttpClient<IGitHubService, GitHubService>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<IAdoService, AdoService>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddScoped<IAppService, AppService>();
+
+// ---------------------------------------------------------------------------
+// Build & Configure
+// ---------------------------------------------------------------------------
+var app = builder.Build();
+
+// Apply pending EF Core migrations on startup (idempotent).
+// Set EPIC_RUN_MIGRATIONS=false on additional instances to avoid concurrent migrate races.
+var runMigrations = !string.Equals(
+    builder.Configuration["EPIC_RUN_MIGRATIONS"], "false", StringComparison.OrdinalIgnoreCase);
+if (runMigrations)
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<EpicDbContext>();
+    db.Database.Migrate();
+}
+
+app.UseSwagger();
+app.UseSwaggerUI();
+
+app.UseCors("ApiCorsPolicy");
+app.UseAuthorization();
+app.MapControllers();
+
+await app.RunAsync();

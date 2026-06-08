@@ -15,7 +15,7 @@ steps:
       coverageProperty=''
       testExecutionProperty=''
 
-      case "${{ parameters.unitTestTool }}" in
+      case "${{ parameters.buildTestTool }}" in
 
         jest)
           testFiles='**/*.spec.ts'
@@ -23,6 +23,14 @@ steps:
 
           coverageProperty="sonar.javascript.lcov.reportPaths=.reports/coverage/lcov.info"
           testExecutionProperty="sonar.testExecutionReportPaths=.reports/sonar-test-report.xml"
+          ;;
+
+        vitest)
+          testFiles='**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx'
+          exclusions='**/node_modules/**,**/dist/**,**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx'
+
+          coverageProperty="sonar.javascript.lcov.reportPaths=.reports/coverage/lcov.info"
+          testExecutionProperty=""
           ;;
 
         junit)
@@ -48,6 +56,14 @@ steps:
 
           coverageProperty="sonar.cs.opencover.reportsPaths=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/coverage.xml"
           testExecutionProperty="sonar.cs.vstest.reportsPaths=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/tests.trx"
+          ;;
+
+        phpunit)
+          testFiles='**/tests/**/*.php,**/*Test.php'
+          exclusions='**/vendor/**'
+
+          coverageProperty="sonar.php.coverage.reportPaths=.reports/coverage.xml"
+          testExecutionProperty="sonar.php.tests.reportPath=.reports/junit.xml"
           ;;
 
       esac
@@ -89,7 +105,7 @@ steps:
 
           sonar.exclusions=**/node_modules/**,**/dist/**,**/bin/**,**/obj/**,**/wwwroot/lib/**,**/jquery*/**,**/*.scss,packages/**/*,Web/**/*.js,**/*.sh,**/*.bash,**/*.ps1,**/*.cmd,**/*.config.js,$(exclusions)
 
-          sonar.python.version=${{ parameters.pythonVersion }}
+          sonar.python.version=${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}
 
   #############################################################################
   # SonarQube Prepare (dotnet)

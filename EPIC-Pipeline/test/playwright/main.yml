@@ -1,0 +1,79 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Use Node Version
+  #############################################################################
+  - task: NodeTool@0
+    displayName: "Use Node ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+    inputs:
+      versionSpec: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+
+
+  #############################################################################
+  # Verify Node
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      node --version
+      npm --version
+    displayName: "Verify Node"
+
+
+  #############################################################################
+  # Install Dependencies
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Installing dependencies"
+      npm install --legacy-peer-deps
+    displayName: "Install dependencies"
+
+
+  #############################################################################
+  # Install Playwright Browsers
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Installing Playwright browsers"
+      npx playwright install --with-deps
+    displayName: "Install Playwright browsers"
+
+
+  #############################################################################
+  # Test
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Executing tests against $BASE_URL"
+      BASE_URL="$(BASE_URL)" npx playwright test --reporter=list,junit,html
+
+      rm -rf .reports/*
+      cp -R reports/. .reports/
+    displayName: "Execute tests"
+
+
+  #############################################################################
+  # Publish Test Results
+  #############################################################################
+  - task: PublishTestResults@2
+    displayName: "Publish Playwright JUnit results"
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: "JUnit"
+      testResultsFiles: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/reports/junit/*.xml"
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+      testRunTitle: "Playwright"

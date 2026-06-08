@@ -1,0 +1,280 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 920" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000020"/>
+    </filter>
+    <filter id="shadowSm" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#00000015"/>
+    </filter>
+
+    <linearGradient id="hdr" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+
+    <marker id="a" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#475569"/>
+    </marker>
+    <marker id="aOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#d97706"/>
+    </marker>
+    <marker id="aPurple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#7c3aed"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="920" fill="#f8fafc"/>
+
+  <!-- TITLE -->
+  <rect x="0" y="0" width="1400" height="72" fill="url(#hdr)"/>
+  <text x="700" y="34" text-anchor="middle" fill="#fff" font-size="20" font-weight="700">EPIC Cloud Architecture</text>
+  <text x="700" y="56" text-anchor="middle" fill="#94a3b8" font-size="12">Source · CI/CD Platform · Federated Identity · Hub State · Multi-Cloud Targets</text>
+
+  <!-- ====================================================================== -->
+  <!-- ROW 1: SOURCE + CI/CD PLATFORM                                         -->
+  <!-- ====================================================================== -->
+
+  <!-- GitHub -->
+  <rect x="40" y="100" width="320" height="140" rx="10" fill="#fff" stroke="#0f172a" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="40" y="100" width="320" height="32" rx="10" fill="#0f172a"/>
+  <rect x="40" y="120" width="320" height="12" fill="#0f172a"/>
+  <text x="60" y="121" fill="#fff" font-size="12" font-weight="700">GITHUB ENTERPRISE</text>
+  <text x="200" y="158" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="600">App Repositories</text>
+  <text x="200" y="180" text-anchor="middle" fill="#475569" font-size="11">Application source · Terraform configs</text>
+  <text x="200" y="198" text-anchor="middle" fill="#475569" font-size="11" font-family="monospace">.pipeline/epic.json</text>
+  <text x="200" y="220" text-anchor="middle" fill="#64748b" font-size="10" font-style="italic">cloned by agents · read by orchestrator</text>
+
+  <!-- Azure DevOps -->
+  <rect x="400" y="100" width="960" height="140" rx="10" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="400" y="100" width="960" height="32" rx="10" fill="#7c3aed"/>
+  <rect x="400" y="120" width="960" height="12" fill="#7c3aed"/>
+  <text x="420" y="121" fill="#fff" font-size="12" font-weight="700">AZURE DEVOPS</text>
+  <text x="1340" y="121" text-anchor="end" fill="#ddd6fe" font-size="11">Sole enterprise CI/CD platform</text>
+
+  <rect x="420" y="150" width="220" height="76" rx="6" fill="#fff" stroke="#7c3aed" stroke-width="1" filter="url(#shadowSm)"/>
+  <text x="530" y="172" text-anchor="middle" fill="#5b21b6" font-size="12" font-weight="700">Pipelines</text>
+  <text x="530" y="192" text-anchor="middle" fill="#475569" font-size="10">epic-orchestrator.yml</text>
+  <text x="530" y="208" text-anchor="middle" fill="#475569" font-size="10">epic-engine.yml</text>
+  <text x="530" y="222" text-anchor="middle" fill="#64748b" font-size="9" font-style="italic">stage templates</text>
+
+  <rect x="660" y="150" width="220" height="76" rx="6" fill="#fff" stroke="#7c3aed" stroke-width="1" filter="url(#shadowSm)"/>
+  <text x="770" y="172" text-anchor="middle" fill="#5b21b6" font-size="12" font-weight="700">Service Connections</text>
+  <text x="770" y="192" text-anchor="middle" fill="#475569" font-size="10">AWS · OIDC federation</text>
+  <text x="770" y="208" text-anchor="middle" fill="#475569" font-size="10">Azure · workload identity</text>
+  <text x="770" y="222" text-anchor="middle" fill="#475569" font-size="10">GitHub · App / PAT</text>
+
+  <rect x="900" y="150" width="220" height="76" rx="6" fill="#fff" stroke="#7c3aed" stroke-width="1" filter="url(#shadowSm)"/>
+  <text x="1010" y="172" text-anchor="middle" fill="#5b21b6" font-size="12" font-weight="700">Library / Variable Groups</text>
+  <text x="1010" y="192" text-anchor="middle" fill="#475569" font-size="10">Pipeline parameters</text>
+  <text x="1010" y="208" text-anchor="middle" fill="#475569" font-size="10">Environment config</text>
+  <text x="1010" y="222" text-anchor="middle" fill="#475569" font-size="10">Approval gates</text>
+
+  <rect x="1140" y="150" width="200" height="76" rx="6" fill="#fff" stroke="#7c3aed" stroke-width="1" filter="url(#shadowSm)"/>
+  <text x="1240" y="172" text-anchor="middle" fill="#5b21b6" font-size="12" font-weight="700">Build Tags</text>
+  <text x="1240" y="192" text-anchor="middle" fill="#475569" font-size="9.5" font-family="monospace">epicAppName · epicAppType</text>
+  <text x="1240" y="206" text-anchor="middle" fill="#475569" font-size="9.5" font-family="monospace">epicCloud · epicEnvironment</text>
+  <text x="1240" y="222" text-anchor="middle" fill="#64748b" font-size="9" font-style="italic">indexed for inventory</text>
+
+  <!-- GitHub ↔ ADO -->
+  <line x1="360" y1="170" x2="398" y2="170" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+  <text x="380" y="162" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">checkout</text>
+
+  <!-- ====================================================================== -->
+  <!-- ROW 2: EPIC AWS HUB ACCOUNT — agents, hub services, identity            -->
+  <!-- ====================================================================== -->
+
+  <rect x="40" y="270" width="1320" height="370" rx="12" fill="#fef2f2" stroke="#b91c1c" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="40" y="270" width="1320" height="34" rx="12" fill="#b91c1c"/>
+  <rect x="40" y="292" width="1320" height="12" fill="#b91c1c"/>
+  <text x="60" y="292" fill="#fff" font-size="12" font-weight="700">EPIC AWS — HUB ACCOUNT</text>
+  <text x="1340" y="292" text-anchor="end" fill="#fee2e2" font-size="11">Owned by CI/CD Pipeline Team · Shared platform infrastructure</text>
+
+  <!-- VPC: Agent Infrastructure -->
+  <rect x="60" y="320" width="560" height="300" rx="10" fill="#fff" stroke="#b91c1c" stroke-width="1" stroke-dasharray="6 3"/>
+  <text x="80" y="342" fill="#b91c1c" font-size="11" font-weight="700">VPC — Agent Plane</text>
+  <text x="600" y="342" text-anchor="end" fill="#b91c1c" font-size="10" opacity="0.7">private subnets · NAT egress only</text>
+
+  <!-- Auto Scaling Group / EC2 agents -->
+  <rect x="80" y="358" width="240" height="140" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="200" y="380" text-anchor="middle" fill="#92400e" font-size="12" font-weight="700">EC2 Auto Scaling Group</text>
+  <text x="200" y="400" text-anchor="middle" fill="#78350f" font-size="11">Self-Hosted ADO Agents</text>
+
+  <g transform="translate(100, 414)">
+    <rect width="50" height="58" rx="4" fill="#fff" stroke="#d97706" stroke-width="1"/>
+    <text x="25" y="22" text-anchor="middle" font-size="14">&#x1F5A5;</text>
+    <text x="25" y="44" text-anchor="middle" font-size="9" fill="#92400e" font-weight="600">agent-1</text>
+    <rect x="65" width="50" height="58" rx="4" fill="#fff" stroke="#d97706" stroke-width="1"/>
+    <text x="90" y="22" text-anchor="middle" font-size="14">&#x1F5A5;</text>
+    <text x="90" y="44" text-anchor="middle" font-size="9" fill="#92400e" font-weight="600">agent-2</text>
+    <rect x="130" width="50" height="58" rx="4" fill="#fff" stroke="#d97706" stroke-width="1"/>
+    <text x="155" y="22" text-anchor="middle" font-size="14">&#x1F5A5;</text>
+    <text x="155" y="44" text-anchor="middle" font-size="9" fill="#92400e" font-weight="600">agent-N</text>
+  </g>
+  <text x="200" y="488" text-anchor="middle" fill="#78350f" font-size="9" font-style="italic">Linux · Terraform · az/aws/cf CLIs</text>
+
+  <!-- NAT GW -->
+  <rect x="340" y="358" width="120" height="64" rx="6" fill="#fff7ed" stroke="#d97706" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="400" y="380" text-anchor="middle" fill="#92400e" font-size="11" font-weight="700">NAT Gateway</text>
+  <text x="400" y="398" text-anchor="middle" fill="#78350f" font-size="10">Outbound only</text>
+  <text x="400" y="412" text-anchor="middle" fill="#78350f" font-size="10">→ ADO · GitHub · APIs</text>
+
+  <!-- IAM Instance Profile -->
+  <rect x="340" y="434" width="120" height="64" rx="6" fill="#fff7ed" stroke="#d97706" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="400" y="456" text-anchor="middle" fill="#92400e" font-size="11" font-weight="700">IAM Instance Profile</text>
+  <text x="400" y="474" text-anchor="middle" fill="#78350f" font-size="10">SSM · CloudWatch</text>
+  <text x="400" y="488" text-anchor="middle" fill="#78350f" font-size="10">no deploy permissions</text>
+
+  <!-- SSM + CW Logs -->
+  <rect x="480" y="358" width="120" height="64" rx="6" fill="#fff7ed" stroke="#d97706" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="540" y="380" text-anchor="middle" fill="#92400e" font-size="11" font-weight="700">Systems Manager</text>
+  <text x="540" y="398" text-anchor="middle" fill="#78350f" font-size="10">Patch · Session</text>
+  <text x="540" y="412" text-anchor="middle" fill="#78350f" font-size="10">Manager (no SSH)</text>
+
+  <rect x="480" y="434" width="120" height="64" rx="6" fill="#fff7ed" stroke="#d97706" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="540" y="456" text-anchor="middle" fill="#92400e" font-size="11" font-weight="700">CloudWatch Logs</text>
+  <text x="540" y="474" text-anchor="middle" fill="#78350f" font-size="10">Agent + pipeline</text>
+  <text x="540" y="488" text-anchor="middle" fill="#78350f" font-size="10">log streams</text>
+
+  <!-- Security group note -->
+  <text x="340" y="528" fill="#78350f" font-size="9" font-style="italic">Security group: egress 443 to ADO/GitHub/AWS/Azure/BTP endpoints; no inbound</text>
+
+  <text x="80" y="564" fill="#92400e" font-size="11" font-weight="700">Network</text>
+  <text x="160" y="564" fill="#78350f" font-size="10">private subnets across 2 AZs · Route 53 PHZ · VPC endpoints (S3, KMS, Secrets, ECR)</text>
+  <text x="80" y="586" fill="#92400e" font-size="11" font-weight="700">Image</text>
+  <text x="160" y="586" fill="#78350f" font-size="10">hardened AMI, baked via Image Builder · Terraform / cloud CLIs preinstalled</text>
+  <text x="80" y="608" fill="#92400e" font-size="11" font-weight="700">Scaling</text>
+  <text x="160" y="608" fill="#78350f" font-size="10">ASG min/max · scale on ADO agent queue depth (custom metric)</text>
+
+  <!-- Hub Services panel -->
+  <rect x="640" y="320" width="700" height="300" rx="10" fill="#fff" stroke="#b91c1c" stroke-width="1" stroke-dasharray="6 3"/>
+  <text x="660" y="342" fill="#b91c1c" font-size="11" font-weight="700">Hub Services</text>
+  <text x="1320" y="342" text-anchor="end" fill="#b91c1c" font-size="10" opacity="0.7">cross-account read · KMS-encrypted</text>
+
+  <!-- S3 -->
+  <rect x="660" y="358" width="220" height="120" rx="8" fill="#fef2f2" stroke="#b91c1c" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="770" y="382" text-anchor="middle" fill="#7f1d1d" font-size="12" font-weight="700">S3 — Terraform State</text>
+  <line x1="680" y1="392" x2="860" y2="392" stroke="#fecaca" stroke-width="0.5"/>
+  <text x="770" y="412" text-anchor="middle" fill="#475569" font-size="10">Versioning · SSE-KMS</text>
+  <text x="770" y="428" text-anchor="middle" fill="#475569" font-size="10">Block Public Access</text>
+  <text x="770" y="448" text-anchor="middle" fill="#64748b" font-size="9" font-family="monospace">apps/{name}/{env}/terraform.tfstate</text>
+  <text x="770" y="466" text-anchor="middle" fill="#64748b" font-size="9" font-style="italic">cross-account bucket policy</text>
+
+  <!-- DynamoDB -->
+  <rect x="900" y="358" width="200" height="120" rx="8" fill="#fef2f2" stroke="#b91c1c" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="1000" y="382" text-anchor="middle" fill="#7f1d1d" font-size="12" font-weight="700">DynamoDB</text>
+  <line x1="920" y1="392" x2="1080" y2="392" stroke="#fecaca" stroke-width="0.5"/>
+  <text x="1000" y="412" text-anchor="middle" fill="#475569" font-size="10">tf-state-lock</text>
+  <text x="1000" y="428" text-anchor="middle" fill="#475569" font-size="10">PK: LockID</text>
+  <text x="1000" y="448" text-anchor="middle" fill="#64748b" font-size="9" font-style="italic">prevents concurrent</text>
+  <text x="1000" y="460" text-anchor="middle" fill="#64748b" font-size="9" font-style="italic">terraform apply</text>
+
+  <!-- KMS -->
+  <rect x="1120" y="358" width="200" height="120" rx="8" fill="#fef2f2" stroke="#b91c1c" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="1220" y="382" text-anchor="middle" fill="#7f1d1d" font-size="12" font-weight="700">KMS</text>
+  <line x1="1140" y1="392" x2="1300" y2="392" stroke="#fecaca" stroke-width="0.5"/>
+  <text x="1220" y="412" text-anchor="middle" fill="#475569" font-size="10">CMK · automatic rotation</text>
+  <text x="1220" y="428" text-anchor="middle" fill="#475569" font-size="10">Grants per-spoke role</text>
+  <text x="1220" y="448" text-anchor="middle" fill="#64748b" font-size="9" font-style="italic">encrypts state, secrets,</text>
+  <text x="1220" y="460" text-anchor="middle" fill="#64748b" font-size="9" font-style="italic">log streams</text>
+
+  <!-- Secrets Manager -->
+  <rect x="660" y="498" width="320" height="100" rx="8" fill="#fef2f2" stroke="#b91c1c" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="820" y="522" text-anchor="middle" fill="#7f1d1d" font-size="12" font-weight="700">AWS Secrets Manager</text>
+  <line x1="680" y1="532" x2="960" y2="532" stroke="#fecaca" stroke-width="0.5"/>
+  <text x="820" y="554" text-anchor="middle" fill="#475569" font-size="10">BTP / Cloud Foundry credentials</text>
+  <text x="820" y="570" text-anchor="middle" fill="#475569" font-size="10">3rd-party API keys (SonarQube, Wiz, …)</text>
+  <text x="820" y="588" text-anchor="middle" fill="#64748b" font-size="9" font-style="italic">resolved per-stage into transient env</text>
+
+  <!-- Parameter Store -->
+  <rect x="1000" y="498" width="320" height="100" rx="8" fill="#fef2f2" stroke="#b91c1c" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="1160" y="522" text-anchor="middle" fill="#7f1d1d" font-size="12" font-weight="700">SSM Parameter Store</text>
+  <line x1="1020" y1="532" x2="1300" y2="532" stroke="#fecaca" stroke-width="0.5"/>
+  <text x="1160" y="554" text-anchor="middle" fill="#475569" font-size="10">Non-secret platform config</text>
+  <text x="1160" y="570" text-anchor="middle" fill="#475569" font-size="10">Module versions · default tags</text>
+  <text x="1160" y="588" text-anchor="middle" fill="#64748b" font-size="9" font-style="italic">read by orchestrator at runtime</text>
+
+  <!-- ====================================================================== -->
+  <!-- ROW 3: IDENTITY FEDERATION                                             -->
+  <!-- ====================================================================== -->
+  <rect x="40" y="660" width="1320" height="80" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="700" y="686" text-anchor="middle" fill="#92400e" font-size="13" font-weight="700">FEDERATED IDENTITY — No Long-Lived Cloud Credentials</text>
+  <text x="60" y="710" fill="#92400e" font-size="10" font-weight="600">AWS</text>
+  <text x="100" y="710" fill="#92400e" font-size="10">IAM OIDC Provider trusts</text>
+  <text x="245" y="710" fill="#92400e" font-size="10" font-family="monospace">vstoken.dev.azure.com</text>
+  <text x="430" y="710" fill="#92400e" font-size="10">→ ADO Service Connection assumes</text>
+  <text x="620" y="710" fill="#92400e" font-size="10" font-family="monospace">epic-deploy-role</text>
+  <text x="745" y="710" fill="#92400e" font-size="10">in each spoke (sts:AssumeRoleWithWebIdentity)</text>
+  <text x="60" y="728" fill="#92400e" font-size="10" font-weight="600">Azure</text>
+  <text x="100" y="728" fill="#92400e" font-size="10">App Registration with workload-identity federation, scoped per subscription</text>
+  <text x="600" y="728" fill="#92400e" font-size="10" font-weight="600">SAP BTP</text>
+  <text x="660" y="728" fill="#92400e" font-size="10">Service-principal credentials sourced from Secrets Manager into transient pipeline env</text>
+
+  <!-- ====================================================================== -->
+  <!-- ROW 4: TARGET WORKLOAD CLOUDS                                          -->
+  <!-- ====================================================================== -->
+  <rect x="40" y="760" width="1320" height="140" rx="12" fill="#ecfdf5" stroke="#059669" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="40" y="760" width="1320" height="34" rx="12" fill="#059669"/>
+  <rect x="40" y="782" width="1320" height="12" fill="#059669"/>
+  <text x="60" y="782" fill="#fff" font-size="12" font-weight="700">TARGET WORKLOAD ENVIRONMENTS</text>
+  <text x="1340" y="782" text-anchor="end" fill="#d1fae5" font-size="11">One spoke per app · per environment · trust-isolated</text>
+
+  <!-- AWS Spokes -->
+  <rect x="60" y="810" width="420" height="80" rx="8" fill="#fff" stroke="#059669" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="270" y="832" text-anchor="middle" fill="#065f46" font-size="13" font-weight="700">AWS Spoke Accounts</text>
+  <text x="80" y="852" fill="#475569" font-size="10">Compute:</text>
+  <text x="80" y="852" font-size="10">  </text>
+  <text x="155" y="852" fill="#475569" font-size="10">EC2 · Lambda · Beanstalk · ECS</text>
+  <text x="80" y="868" fill="#475569" font-size="10">Edge / Data:</text>
+  <text x="170" y="868" fill="#475569" font-size="10">S3 · CloudFront · API GW · RDS · DynamoDB</text>
+  <text x="80" y="884" fill="#475569" font-size="10">Identity:</text>
+  <text x="155" y="884" fill="#475569" font-size="10">IAM roles trusted by hub OIDC chain</text>
+
+  <!-- Azure -->
+  <rect x="500" y="810" width="420" height="80" rx="8" fill="#fff" stroke="#059669" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="710" y="832" text-anchor="middle" fill="#065f46" font-size="13" font-weight="700">Azure Subscriptions</text>
+  <text x="520" y="852" fill="#475569" font-size="10">Compute:</text>
+  <text x="595" y="852" fill="#475569" font-size="10">App Service · Function App</text>
+  <text x="520" y="868" fill="#475569" font-size="10">Data / secrets:</text>
+  <text x="620" y="868" fill="#475569" font-size="10">SQL · PostgreSQL Flexible · Storage · Key Vault</text>
+  <text x="520" y="884" fill="#475569" font-size="10">Identity:</text>
+  <text x="585" y="884" fill="#475569" font-size="10">Managed Identity · workload-identity federation</text>
+
+  <!-- BTP -->
+  <rect x="940" y="810" width="400" height="80" rx="8" fill="#fff" stroke="#059669" stroke-width="1.5" filter="url(#shadowSm)"/>
+  <text x="1140" y="832" text-anchor="middle" fill="#065f46" font-size="13" font-weight="700">SAP BTP Subaccounts</text>
+  <text x="960" y="852" fill="#475569" font-size="10">Runtime:</text>
+  <text x="1030" y="852" fill="#475569" font-size="10">Cloud Foundry · Datasphere</text>
+  <text x="960" y="868" fill="#475569" font-size="10">Provisioning:</text>
+  <text x="1060" y="868" fill="#475569" font-size="10">SAP/btp · cloudfoundry/cloudfoundry providers</text>
+  <text x="960" y="884" fill="#475569" font-size="10">Identity:</text>
+  <text x="1020" y="884" fill="#475569" font-size="10">service principal (creds from Secrets Manager)</text>
+
+  <!-- ====================================================================== -->
+  <!-- INTER-LAYER ARROWS                                                      -->
+  <!-- ====================================================================== -->
+
+  <!-- ADO → Agents -->
+  <path d="M 770 226 Q 600 250, 320 358" fill="none" stroke="#7c3aed" stroke-width="2" marker-end="url(#aPurple)"/>
+  <text x="500" y="278" font-size="10" fill="#5b21b6" font-weight="600">job dispatch</text>
+
+  <!-- Agents → ADO (poll) -->
+  <path d="M 200 358 Q 500 220, 770 228" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#aPurple)"/>
+  <text x="425" y="245" font-size="9" fill="#5b21b6" font-style="italic">long-poll</text>
+
+  <!-- Agents → S3/DDB/KMS -->
+  <line x1="450" y1="430" x2="660" y2="412" stroke="#b91c1c" stroke-width="2" marker-end="url(#a)"/>
+  <text x="555" y="408" font-size="9" fill="#7f1d1d" font-weight="600" text-anchor="middle">terraform init / lock</text>
+
+  <!-- Agents → Secrets Manager -->
+  <line x1="500" y1="490" x2="660" y2="538" stroke="#b91c1c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <text x="565" y="500" font-size="9" fill="#7f1d1d" font-style="italic">resolve secrets</text>
+
+  <!-- Agents → Federation bar (downward) -->
+  <line x1="200" y1="498" x2="200" y2="658" stroke="#d97706" stroke-width="2.5" marker-end="url(#aOrange)"/>
+  <text x="208" y="580" font-size="10" fill="#92400e" font-weight="600">request OIDC token</text>
+
+  <!-- Federation → Targets -->
+  <line x1="270" y1="740" x2="270" y2="808" stroke="#059669" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="710" y1="740" x2="710" y2="808" stroke="#059669" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="1140" y1="740" x2="1140" y2="808" stroke="#059669" stroke-width="2" marker-end="url(#a)"/>
+</svg>

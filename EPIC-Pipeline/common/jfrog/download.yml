@@ -1,0 +1,27 @@
+parameters:
+  appName: ""
+  version: ""
+  targetPath: ""
+  sourceRepo: ""
+
+steps:
+
+  ###########################################################################
+  # Download Artifact from JFrog
+  ###########################################################################
+  - task: JFrogGenericArtifacts@1
+    displayName: "Download artifact from JFrog"
+    inputs:
+      command: "Download"
+      connection: "JFrog ADO"
+      specSource: "taskConfiguration"
+      fileSpec: |
+        {
+          "files": [
+            {
+              "pattern": "${{ parameters.sourceRepo }}/${{ parameters.appName }}/${{ parameters.version }}/*",
+              "target": "${{ parameters.targetPath }}/"
+            }
+          ]
+        }
+      collectBuildInfo: false
