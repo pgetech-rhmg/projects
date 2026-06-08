@@ -82,8 +82,6 @@
 
 - **Networking** — VPC `vpc-8c57a5f4` with three subnets, all CCOE-managed. EPIC consumes the VPC ID and subnet IDs as inputs; we don't define networking in our Terraform.
 
-**Pause for questions on Lane 1.**
-
 ---
 
 ### Lane 2 — Source of Truth (GitHub)  *(~4 min)*
@@ -98,17 +96,15 @@
 
 - **Terraform Module Registry** — `pgetech/epic-pipeline-module-aws-…` repos, consumed via `git::https://...?ref=main`. Modules carry the security defaults: IAM policies, security groups, S3 public-access blocks, ACM, the tagging schema. App teams pick from a vetted catalog rather than hand-rolling primitives.
 
-- **Auth path** — For the POC, we authenticate to GitHub with a PAT in the ADO library group. That works, but it's user-bound. Long-term we're moving to a pgetech GitHub App: org-owned identity, one-hour installation tokens scoped per repo, no human dependency. Same security model we already use for AWS — short-lived credentials, no static keys. Listed in the hardening items alongside the AWS OIDC federation move.
-
-**Pause for questions on Lane 2.**
+- **Auth path** — For the POC, we authenticate to GitHub with a PAT in the ADO library group. That works, but it's user-bound. Long-term we're moving to a GitHub App: org-owned identity, one-hour installation tokens scoped per repo, no human dependency. Same security model we already use for AWS — short-lived credentials, no static keys.
 
 ---
 
 ### Lane 3 — CI/CD Control Plane (Azure DevOps)  *(~5 min)*
 
-**This is where the run actually happens. ADO is our CI/CD SaaS — `pgetech/EPIC-Pipeline` project.**
+**This is where the run actually happens. It's our CI/CD Control Plane.**
 
-- **Orchestrator** *(pipelineId 194)* — the entry point. Runs on Microsoft-hosted `ubuntu-latest`. Validates the run parameters, clones the app repo with the PAT, reads `epic.json`, builds a JSON payload via `jq`, then POSTs to `/_apis/pipelines/194/runs` to invoke the engine. Tags the orchestrator build with `epicRepo` and `epicAppName` — first audit hop.
+- **Orchestrator** *(pipelineId 194)* — the entry point. Runs on Microsoft-hosted `ubuntu-latest`. Validates the run parameters, clones the app repo, reads `epic.json`, builds a JSON payload via `jq`, then POSTs to `/_apis/pipelines/194/runs` to invoke the engine. Tags the orchestrator build with `epicRepo` and `epicAppName` — first audit hop.
 
 - **Engine** — the actual build/deploy pipeline. Runs on `ubuntu-latest` by default. Receives the templated parameters from the orchestrator and dispatches stages based on `appType` and `cloudProvider`.
   - **Builds tags every Engine run** with five values: `epicRepo`, `epicAppName`, `epicAppType`, `epicEnvironment`, `epicCloud`. That's the audit trail surfaced in the EPIC dashboard and queryable via ADO REST.
@@ -121,12 +117,11 @@
 
 - **8-stage flow** — Download → Build → Build Tests → Scan → Infra → Approval → Deploy → Integration Tests.
   - Stages are skipped or required by the contract. A static SPA skips Infra. A `dev` deploy skips Approval. A pure infra change can skip Build entirely.
-  - **Stage 4 — Scan** — mandatory if `scanTool` is set. Calls the bottom strip.
+  - **Stage 4 — Scan** — mandatory if `scanTool` is set or there's a defined environment requirement (e.g., PROD).
   - **Stage 5 — Infra** — Terraform with state in our S3 bucket plus DynamoDB lock. State is never stored locally on the agent.
   - **Stage 6 — Approval** — `ManualValidation@0` task. Inserted automatically when the target env is in `approvalEnvironments[]`. **This is the SoD gate I called out on slide 6.**
   - **Stage 7 — Deploy** — assumes a short-lived role into the target cloud. No long-lived credentials anywhere.
-
-**Pause for questions on Lane 3.**
+  - **Stage 8 — Integration Testing** — mandatory is `integrationTestTool` is set.
 
 ---
 
@@ -149,8 +144,6 @@
   - Credentials are written to a temp env file sourced by the Terraform/CF steps, never echoed.
   - Pipeline runs `terraform init / fmt / validate / test / plan / apply` for infrastructure, then `cf push` for the app tier.
 
-**Pause for questions on Lane 4.**
-
 ---
 
 ### Bottom strip — Centralized Quality & Security  *(~1 min)*
@@ -172,21 +165,21 @@
 **Trace one run end-to-end so the room sees the lanes connect:**
 
 1. **Trigger** — engineer clicks "Deploy to dev" in epic-web → epic-api receives REST call (`X-Epic-User` header, ALB on 443) → epic-api reads target repo's `epic.json` from GitHub → epic-api POSTs to ADO REST to start the orchestrator.
-2. **Orchestrator** clones the app repo with the PAT, builds the payload, invokes the engine via REST.
+2. **Orchestrator** clones the app repo, builds the payload, invokes the engine via REST.
 3. **Engine** runs the stage flow on Microsoft-hosted agents. Scan stage hits the bottom strip. If env is in `approvalEnvironments[]`, run pauses at the gate.
 4. **Deploy** assumes `pge-epic-deployment-role` in the target AWS account and runs the deploy template — `s3 sync` for static, `ssm send-command` for EC2.
 5. **Tags** are written to the engine build via the ADO REST `PUT /_apis/build/builds/{id}/tags` call.
 6. **Status** flows back: epic-api polls ADO for run status, epic-web auto-refreshes the dashboard.
 
 ### Closing  *(~30 sec)*
-- "That's the picture. Centralized control plane, multi-cloud reach, every run audited and gated. The follow-up slide has known concerns — happy to take broader questions there or now."
+- "That's the picture. Universal control plane, multi-cloud reach, every run audited and gated."
 
 ---
 
 ## Backup notes — likely questions
 
 **"Why ADO and not GitHub Actions / Jenkins / etc.?"**
-- ADO is the established CI/CD platform at PG&E. GitHub at PG&E is for source only; Actions isn't a sanctioned runner. Using ADO means we inherit existing service connections, agent pools, and audit infrastructure.
+- ADO is the established CI/CD platform. Using ADO means we inherit existing service connections, agent pools, and audit infrastructure.
 
 **"Why EC2 for epic-api instead of Beanstalk / Lambda / containers?"**
 - The workload is light, the team owns the runtime, and EC2 + systemd is the simplest path that meets PG&E's networking and patching standards. We can revisit if traffic justifies it.
@@ -201,4 +194,4 @@
 - Aurora Serverless v2 has automated backups and point-in-time recovery. The EPIC platform itself is recoverable from Terraform — `.infra/` plus state in S3 is the source of truth. We could rebuild epic-web/epic-api from the IaC in roughly a couple hours.
 
 **"Cross-account trust — why STS AssumeRole and not OIDC federation?"**
-- Current state uses the ADO `AWS` service connection. OIDC federation is a planned hardening — eliminates the long-lived ADO key in favor of short-lived federated tokens. Listed in the security overlay as a recommended next step.
+- Current state uses the ADO `AWS` service connection. OIDC federation is a planned hardening — eliminates the long-lived ADO key in favor of short-lived federated tokens.
