@@ -507,7 +507,7 @@
     </mxGraphModel>
   </diagram>
   <diagram id="epic-tech-arch" name="EPIC Technical Architecture">
-    <mxGraphModel dx="2698" dy="1838" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3000" pageHeight="1700" math="0" shadow="0">
+    <mxGraphModel dx="496" dy="338" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3000" pageHeight="1700" math="0" shadow="0">
       <root>
         <mxCell id="t0" />
         <mxCell id="t1" parent="t0" />
@@ -619,7 +619,7 @@
         <mxCell id="tOrchBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=2" value="" vertex="1">
           <mxGeometry height="160" width="580" x="1590" y="186" as="geometry" />
         </mxCell>
-        <mxCell id="tOrchTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(0, 120, 212);&quot;&gt;Orchestrator&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Pool: vmImage &lt;b&gt;ubuntu-latest&lt;/b&gt; (Microsoft-hosted)&lt;br&gt;Validates params · git clone app repo (PAT)&lt;br&gt;jq builds payload · POST /_apis/pipelines/&lt;i&gt;nnn&lt;/i&gt;/runs&lt;br&gt;Tags build: epicRepo · epicAppName&lt;/span&gt;" vertex="1">
+        <mxCell id="tOrchTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(0, 120, 212);&quot;&gt;Orchestrator&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Pool: vmImage &lt;b&gt;ubuntu-latest&lt;/b&gt; (Microsoft-hosted)&lt;br&gt;Validates params · git clone app repo&lt;br&gt;jq builds payload · POST /_apis/pipelines/&lt;i&gt;nnn&lt;/i&gt;/runs&lt;br&gt;Tags build: epicRepo · epicAppName&lt;/span&gt;" vertex="1">
           <mxGeometry height="140" width="460" x="1680" y="196" as="geometry" />
         </mxCell>
         <mxCell id="tEngBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=2;" value="" vertex="1">
