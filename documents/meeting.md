@@ -30,8 +30,9 @@
 4. **Self-service runs + automated CI**
    - "Two trigger paths. Engineers can kick a run from the EPIC dashboard for ad-hoc deploys, and PR merges to tracked branches kick off CI automatically. Same engine, same controls, both paths."
 
-5. **Per-app, per-environment infrastructure**
-   - "Each app owns a `.infra/` Terraform tree, but the modules they consume are versioned and centrally maintained — `pgetech/epic-pipeline-modules`. Security defaults — IAM, security groups, encryption, tagging — are baked into the modules, not hand-rolled by each team."
+5. **Per-app, per-environment infrastructure - for apps that use EPIC for infrastructure deploys**
+   - "TFC is currently the in-house solution for infrastrucutre deploys, but EPIC has built-in capabilities that don't require addtional layers or costs that are associated with TFC."
+   - "Each app owns a `.infra/` Terraform tree, but the modules they consume are versioned and centrally maintained in our Github — `pgetech/epic-pipeline-modules`. Security defaults — IAM, security groups, encryption, tagging — are baked into the modules, not hand-rolled by each team."
 
 ### Non-Functional Requirements (~2 min — ~25 sec each)
 
@@ -61,8 +62,8 @@
 **Goal:** walk the room left-to-right through each lane, then close with the cross-lane flows. Pause for questions at each lane boundary.
 
 ### Opening framing (~1 min)
-- "What you're looking at is four vertical lanes, left to right: the EPIC Interface, GitHub as our source of truth, Azure DevOps as the CI/CD control plane, and the multi-cloud workload targets. The strip across the bottom is centralized quality and security services that any stage can call into."
-- "I'll spend three to four minutes per lane, then walk the cross-lane flows for triggering a run, deploying, and scanning."
+- "What you're looking at is four vertical lanes, left to right: the EPIC Interface, GitHub as our source of truth, Azure DevOps as the CI/CD control plane, and the multi-cloud workload targets."
+- "The strip across the bottom is centralized quality and security services that any stage can call into."
 
 ---
 
@@ -104,7 +105,7 @@
 
 **This is where the run actually happens. It's our CI/CD Control Plane.**
 
-- **Orchestrator** *(pipelineId 194)* — the entry point. Runs on Microsoft-hosted `ubuntu-latest`. Validates the run parameters, clones the app repo, reads `epic.json`, builds a JSON payload via `jq`, then POSTs to `/_apis/pipelines/194/runs` to invoke the engine. Tags the orchestrator build with `epicRepo` and `epicAppName` — first audit hop.
+- **Orchestrator** *(pipelineId 194)* — the entry point. Runs on a Microsoft-hosted agent `ubuntu-latest`. Validates the run parameters, clones the app repo, reads `epic.json`, builds a JSON payload via `jq`, then POSTs to `/_apis/pipelines/194/runs` to invoke the engine. Tags the orchestrator build with `epicRepo` and `epicAppName` — first audit hop.
 
 - **Engine** — the actual build/deploy pipeline. Runs on `ubuntu-latest` by default. Receives the templated parameters from the orchestrator and dispatches stages based on `appType` and `cloudProvider`.
   - **Builds tags every Engine run** with five values: `epicRepo`, `epicAppName`, `epicAppType`, `epicEnvironment`, `epicCloud`. That's the audit trail surfaced in the EPIC dashboard and queryable via ADO REST.
