@@ -98,7 +98,7 @@
 
 - **Terraform Module Registry** — `pgetech/epic-pipeline-module-aws-…` repos, consumed via `git::https://...?ref=main`. Modules carry the security defaults: IAM policies, security groups, S3 public-access blocks, ACM, the tagging schema. App teams pick from a vetted catalog rather than hand-rolling primitives.
 
-- **Auth path** — EPIC reaches GitHub with a `GITHUB_PAT` held in the ADO library group `GV-account-access`. Read-only on the orchestrator side; the API uses it for `read epic.json` calls.
+- **Auth path** — For the POC, we authenticate to GitHub with a PAT in the ADO library group. That works, but it's user-bound. Long-term we're moving to a pgetech GitHub App: org-owned identity, one-hour installation tokens scoped per repo, no human dependency. Same security model we already use for AWS — short-lived credentials, no static keys. Listed in the hardening items alongside the AWS OIDC federation move.
 
 **Pause for questions on Lane 2.**
 
