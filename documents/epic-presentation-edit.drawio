@@ -507,291 +507,273 @@
     </mxGraphModel>
   </diagram>
   <diagram id="epic-tech-arch" name="EPIC Technical Architecture">
-    <mxGraphModel dx="1056" dy="719" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1700" math="0" shadow="0">
+    <mxGraphModel dx="2698" dy="1838" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3000" pageHeight="1700" math="0" shadow="0">
       <root>
         <mxCell id="t0" />
         <mxCell id="t1" parent="t0" />
-        <mxCell id="tTitle" parent="t1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=26;fontStyle=1;fontColor=#1E293B" value="EPIC — Technical Architecture" vertex="1">
-          <mxGeometry height="40" width="2320" x="40" y="20" as="geometry" />
+        <mxCell id="tTitle" parent="t1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=34;fontStyle=1;fontColor=#1E293B" value="EPIC — Technical Architecture" vertex="1">
+          <mxGeometry height="40" width="2920" x="40" y="20" as="geometry" />
         </mxCell>
-        <mxCell id="tSub" parent="t1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=2;fontColor=#475569" value="Architecture flow — User Experience → Source of Truth → CI/CD → Multi-Cloud Targets" vertex="1">
-          <mxGeometry height="24" width="2320" x="40" y="60" as="geometry" />
+        <mxCell id="tSub" parent="t1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=2;fontColor=#475569" value="Architecture flow — User Experience → Source of Truth → CI/CD → Multi-Cloud Targets" vertex="1">
+          <mxGeometry height="24" width="2910" x="40" y="60" as="geometry" />
         </mxCell>
-        <mxCell id="tLane1" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF8E1;strokeColor=#FF9900;strokeWidth=2;verticalAlign=top;align=center;fontSize=14;fontStyle=1;fontColor=#B45309;startSize=44" value="1.  EPIC Interface (UX)   ·   AWS account 514712703977 / us-west-2" vertex="1">
-          <mxGeometry height="1180" width="448" x="40" y="120" as="geometry" />
+        <mxCell id="tLane1" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF8E1;strokeColor=#FF9900;strokeWidth=2;verticalAlign=top;align=center;fontSize=18;fontStyle=1;fontColor=#B45309;startSize=44" value="1.  EPIC Interface (UX)   ·   AWS account 514712703977 / us-west-2" vertex="1">
+          <mxGeometry height="1180" width="650" x="40" y="120" as="geometry" />
         </mxCell>
         <mxCell id="tWebBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=2" value="" vertex="1">
-          <mxGeometry height="230" width="408" x="60" y="190" as="geometry" />
+          <mxGeometry height="230" width="589" x="70" y="190" as="geometry" />
         </mxCell>
         <mxCell id="tWebIconNg" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DD0031;strokeColor=#DD0031;fontColor=#FFFFFF;fontSize=20;fontStyle=1;align=center;verticalAlign=middle" value="NG" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="210" as="geometry" />
+          <mxGeometry height="56" width="56" x="100" y="208" as="geometry" />
         </mxCell>
         <mxCell id="tWebIconS3" parent="t1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#7AA116;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;" value="" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="276" as="geometry" />
+          <mxGeometry height="56" width="56" x="100" y="274" as="geometry" />
         </mxCell>
         <mxCell id="tWebIconCf" parent="t1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudfront;" value="" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="342" as="geometry" />
+          <mxGeometry height="56" width="56" x="100" y="340" as="geometry" />
         </mxCell>
-        <mxCell id="tWebTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#B45309&quot;&gt;epic-web&lt;/b&gt; — Angular 20 SPA&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;Static hosting: &lt;b&gt;S3 + CloudFront&lt;/b&gt; (no server)&lt;br&gt;DNS: epic-{env}.nonprod.pge.com (Route 53 private alias to CF)&lt;br&gt;Public ACM cert in us-east-1&lt;br&gt;&lt;b&gt;WAFv2&lt;/b&gt; (CLOUDFRONT scope, us-east-1) — IP allow-list of PG&amp;E public egress CIDRs only&lt;br&gt;Identity: X-Epic-User header (placeholder)&lt;/span&gt;" vertex="1">
-          <mxGeometry height="190" width="312" x="146" y="210" as="geometry" />
+        <mxCell id="tWebTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(180, 83, 9);&quot;&gt;epic-web&lt;/b&gt; — Angular 20 SPA&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Static hosting: &lt;b&gt;S3 + CloudFront&lt;/b&gt; (no server)&lt;br&gt;DNS: epic-{env}.nonprod.pge.com (Route 53 private alias to CF)&lt;br&gt;Public ACM cert in us-east-1&lt;br&gt;&lt;b&gt;WAFv2&lt;/b&gt; (CLOUDFRONT scope, us-east-1) — IP allow-list of PG&amp;amp;E public egress CIDRs only&lt;br&gt;Identity: X-Epic-User header (placeholder)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="190" width="454" x="166" y="208" as="geometry" />
         </mxCell>
         <mxCell id="tApiBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=3" value="" vertex="1">
-          <mxGeometry height="220" width="408" x="60" y="470" as="geometry" />
+          <mxGeometry height="220" width="589" x="70" y="473" as="geometry" />
         </mxCell>
         <mxCell id="tApiIconNet" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#512BD4;strokeColor=#512BD4;fontColor=#FFFFFF;fontSize=16;fontStyle=1;align=center;verticalAlign=middle" value=".NET" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="492" as="geometry" />
+          <mxGeometry height="56" width="56" x="100" y="501" as="geometry" />
         </mxCell>
         <mxCell id="tApiIconAlb" parent="t1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.application_load_balancer;" value="" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="554" as="geometry" />
+          <mxGeometry height="56" width="56" x="100" y="563" as="geometry" />
         </mxCell>
         <mxCell id="tApiIconEc2" parent="t1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" value="" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="612" as="geometry" />
+          <mxGeometry height="56" width="56" x="100" y="621" as="geometry" />
         </mxCell>
-        <mxCell id="tApiTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size: 13px; color: rgb(180, 83, 9);&quot;&gt;epic-api&lt;/b&gt; — .NET 10 REST API&lt;br&gt;&lt;span style=&quot;font-size: 11px; color: rgb(71, 85, 105);&quot;&gt;Runtime: &lt;b&gt;EC2 + systemd&lt;/b&gt; on :5000&lt;br&gt;Internal ALB · ACM cert · health: /api/health&lt;br&gt;DNS: epic-api-{env}.nonprod.pge.com (Route 53 private)&lt;br&gt;SG-WEB ingress 443 from PG&amp;amp;E corp CIDRs only&lt;br&gt;SG-API ingress 5000 from SG-WEB only&lt;/span&gt;" vertex="1">
-          <mxGeometry height="180" width="312" x="146" y="490" as="geometry" />
+        <mxCell id="tApiTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(180, 83, 9);&quot;&gt;epic-api&lt;/b&gt; — .NET 10 REST API&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Runtime: &lt;b&gt;EC2 + systemd&lt;/b&gt; on :5000&lt;br&gt;Internal ALB · ACM cert · health: /api/health&lt;br&gt;DNS: epic-api-{env}.nonprod.pge.com (Route 53 private)&lt;br&gt;SG-WEB ingress 443 from PG&amp;amp;E corp CIDRs only&lt;br&gt;SG-API ingress 5000 from SG-WEB only&lt;/span&gt;" vertex="1">
+          <mxGeometry height="180" width="454" x="166" y="499" as="geometry" />
         </mxCell>
         <mxCell id="tRdsBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="140" width="408" x="60" y="750" as="geometry" />
+          <mxGeometry height="140" width="589" x="70" y="748" as="geometry" />
         </mxCell>
         <mxCell id="tRdsIcon" parent="t1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#3334B9;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.rds;" value="" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="770" as="geometry" />
+          <mxGeometry height="56" width="56" x="100" y="790" as="geometry" />
         </mxCell>
-        <mxCell id="tRdsTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#B45309&quot;&gt;Aurora PostgreSQL Serverless v2&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;Engine 16.11 · db.serverless · storage_encrypted=true&lt;br&gt;manage_master_user_password=true (master secret in SM)&lt;br&gt;Tables: apps · pipeline_runs · user_apps&lt;br&gt;EF Core auto-migrate on startup · ingress 5432 from SG-API&lt;/span&gt;" vertex="1">
-          <mxGeometry height="110" width="312" x="146" y="770" as="geometry" />
+        <mxCell id="tRdsTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(180, 83, 9);&quot;&gt;Aurora PostgreSQL Serverless v2&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Engine 16.11 · db.serverless · storage_encrypted=true&lt;br&gt;manage_master_user_password=true (master secret in SM)&lt;br&gt;Tables: apps · pipeline_runs · user_apps&lt;br&gt;EF Core auto-migrate on startup · ingress 5432 from SG-API&lt;/span&gt;" vertex="1">
+          <mxGeometry height="110" width="454" x="166" y="770" as="geometry" />
         </mxCell>
         <mxCell id="tSmBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="130" width="408" x="60" y="920" as="geometry" />
+          <mxGeometry height="146" width="589" x="70.5" y="924" as="geometry" />
         </mxCell>
         <mxCell id="tSmIcon" parent="t1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#DD344C;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.secrets_manager;" value="" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="945" as="geometry" />
+          <mxGeometry height="56" width="56" x="100" y="969" as="geometry" />
         </mxCell>
-        <mxCell id="tSmTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#B45309&quot;&gt;AWS Secrets Manager&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;Appsettings secret holds:&lt;br&gt;&amp;nbsp;&amp;nbsp;GITHUB_BASE_URL · GITHUB_TOKEN · ADO_PAT&lt;br&gt;Auto-merged from Aurora cluster:&lt;br&gt;&amp;nbsp;&amp;nbsp;AWS_RDS_SECRET_ARN · AWS_RDS_ENDPOINT&lt;/span&gt;" vertex="1">
-          <mxGeometry height="80" width="312" x="146" y="945" as="geometry" />
+        <mxCell id="tSmTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(180, 83, 9);&quot;&gt;AWS Secrets Manager&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Appsettings secret holds:&lt;br&gt;&amp;nbsp;&amp;nbsp;GITHUB_BASE_URL · GITHUB_TOKEN · ADO_PAT&lt;br&gt;Auto-merged from Aurora cluster:&lt;br&gt;&amp;nbsp;&amp;nbsp;AWS_RDS_SECRET_ARN · AWS_RDS_ENDPOINT&lt;/span&gt;" vertex="1">
+          <mxGeometry height="112" width="464" x="166" y="948" as="geometry" />
         </mxCell>
         <mxCell id="tNetBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1;dashed=1" value="" vertex="1">
-          <mxGeometry height="160" width="408" x="60" y="1070" as="geometry" />
+          <mxGeometry height="160" width="589" x="70" y="1096" as="geometry" />
         </mxCell>
         <mxCell id="tNetIcon" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=#FF9900;fontColor=#FFFFFF;fontSize=16;fontStyle=1;align=center;verticalAlign=middle" value="VPC" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="1100" as="geometry" />
+          <mxGeometry height="56" width="56" x="100" y="1142" as="geometry" />
         </mxCell>
-        <mxCell id="tNetTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#B45309&quot;&gt;Networking (CCOE-managed)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;VPC vpc-8c57a5f4 · 3 subnets (consumed as inputs)&lt;br&gt;Allowed PG&amp;E corp CIDRs:&lt;br&gt;&amp;nbsp;&amp;nbsp;10/8 · 172.16/12 · 172.30/16 · 192.168/16 · 131.89/16 · 131.90/16&lt;br&gt;Route 53 private zone Z1PO7XO596QKJW · public zone Z184J8PCMR81S&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="312" x="146" y="1080" as="geometry" />
+        <mxCell id="tNetTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(180, 83, 9);&quot;&gt;Networking (CCOE-managed)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;VPC vpc-8c57a5f4 · 3 subnets (consumed as inputs)&lt;br&gt;Allowed PG&amp;amp;E corp CIDRs:&lt;br&gt;&amp;nbsp;&amp;nbsp;10/8 · 172.16/12 · 172.30/16 · 192.168/16 · 131.89/16 · 131.90/16&lt;br&gt;Route 53 private zone Z1PO7XO596QKJW · public zone Z184J8PCMR81S&lt;/span&gt;" vertex="1">
+          <mxGeometry height="140" width="454" x="166" y="1108" as="geometry" />
         </mxCell>
-        <mxCell id="tLane2" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F6F8FA;strokeColor=#24292E;strokeWidth=2;verticalAlign=top;align=center;fontSize=14;fontStyle=1;fontColor=#24292E;startSize=44" value="2.  Source of Truth   (GitHub — pgetech)" vertex="1">
-          <mxGeometry height="1180" width="448" x="676" y="120" as="geometry" />
+        <mxCell id="tLane2" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#24292E;strokeWidth=2;verticalAlign=top;align=center;fontSize=18;fontStyle=1;fontColor=#0078D4;startSize=44" value="2.  Source of Truth   (GitHub — pgetech)" vertex="1">
+          <mxGeometry height="1180" width="650" x="804" y="120" as="geometry" />
         </mxCell>
         <mxCell id="tScmAppBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#24292E;strokeWidth=2" value="" vertex="1">
-          <mxGeometry height="320" width="408" x="696" y="190" as="geometry" />
+          <mxGeometry height="320" width="578" x="840" y="190" as="geometry" />
         </mxCell>
         <mxCell id="tScmAppIcon" parent="t1" style="ellipse;fillColor=#181717;strokeColor=#181717;fontColor=#FFFFFF;fontSize=20;fontStyle=1;align=center;verticalAlign=middle" value="GH" vertex="1">
-          <mxGeometry height="56" width="56" x="716" y="220" as="geometry" />
+          <mxGeometry height="56" width="56" x="862" y="230" as="geometry" />
         </mxCell>
-        <mxCell id="tScmAppTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#24292E&quot;&gt;Application Repositories&lt;/b&gt; (N teams)&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;.pipeline/epic.json (the contract) · source · .infra/&lt;br&gt;Branch protection · CodeQL · secret scanning&lt;/span&gt;" vertex="1">
-          <mxGeometry height="100" width="312" x="782" y="200" as="geometry" />
+        <mxCell id="tScmAppTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(36, 41, 46);&quot;&gt;Application Repositories&lt;/b&gt; (N teams)&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;.pipeline/epic.json (the contract) · source · .infra/&lt;br&gt;Branch protection · CodeQL · secret scanning&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="452" x="928" y="210" as="geometry" />
         </mxCell>
-        <mxCell id="tScmJson" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8E1;strokeColor=#FF9900;strokeWidth=1;dashed=1;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;fontSize=10;fontColor=#1E293B" value="&lt;b&gt;epic.json&lt;/b&gt; — actual keys consumed by orchestrator/engine:&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;app: { appName · appType · codePath · infraPath · runtimeVersion · scanTool · buildTestTool · integrationTestTool · approvalEnvironments }&lt;br&gt;cloud (AWS): { awsAccountId · awsRegion · s3 · cloudfront · ec2InstanceId · appExecutable }&lt;br&gt;cloud (Azure): { azureSubscriptionId · azureRegion · resourceGroupName · appServiceName }&lt;br&gt;cloud (BTP): { secretsManager.name · secretsManager.keys[] }&lt;/span&gt;" vertex="1">
-          <mxGeometry height="180" width="368" x="716" y="320" as="geometry" />
+        <mxCell id="tScmJson" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8E1;strokeColor=#FF9900;strokeWidth=1;dashed=1;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;fontSize=14;fontColor=#1E293B" value="&lt;b&gt;epic.json&lt;/b&gt; — actual keys consumed by orchestrator/engine:&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;app: { appName · appType · codePath · infraPath · runtimeVersion · scanTool · buildTestTool · integrationTestTool · approvalEnvironments }&lt;br&gt;cloud (AWS): { awsAccountId · awsRegion · s3 · cloudfront · ec2InstanceId · appExecutable }&lt;br&gt;cloud (Azure): { azureSubscriptionId · azureRegion · resourceGroupName · appServiceName }&lt;br&gt;cloud (BTP): { secretsManager.name · secretsManager.keys[] }&lt;/span&gt;" vertex="1">
+          <mxGeometry height="170" width="528" x="862" y="310" as="geometry" />
         </mxCell>
         <mxCell id="tScmPipBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#24292E;strokeWidth=2" value="" vertex="1">
-          <mxGeometry height="240" width="408" x="696" y="540" as="geometry" />
+          <mxGeometry height="240" width="578" x="840" y="540" as="geometry" />
         </mxCell>
         <mxCell id="tScmPipIcon" parent="t1" style="ellipse;fillColor=#181717;strokeColor=#181717;fontColor=#FFFFFF;fontSize=20;fontStyle=1;align=center;verticalAlign=middle" value="GH" vertex="1">
-          <mxGeometry height="56" width="56" x="716" y="570" as="geometry" />
+          <mxGeometry height="56" width="56" x="872" y="630" as="geometry" />
         </mxCell>
-        <mxCell id="tScmPipTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#24292E&quot;&gt;epic-pipeline&lt;/b&gt; (1 repo)&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;epic-orchestrator.yml · epic-engine.yml&lt;br&gt;Stage templates:  build/ · test/ · scan/ · infra/ · deploy/&lt;br&gt;build/{angular,react,dotnet,…} · scan/{sonarqube,wiz,jfrog}&lt;br&gt;infra/{aws.yml,azure.yml,btp.yml} · deploy/{aws,azure}&lt;/span&gt;" vertex="1">
-          <mxGeometry height="220" width="312" x="782" y="550" as="geometry" />
+        <mxCell id="tScmPipTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(36, 41, 46);&quot;&gt;epic-pipeline&lt;/b&gt; (1 repo)&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;epic-orchestrator.yml · epic-engine.yml&lt;br&gt;Stage templates:  build/ · test/ · scan/ · infra/ · deploy/&lt;br&gt;build/{angular,react,dotnet,…} · scan/{sonarqube,wiz,jfrog}&lt;br&gt;infra/{aws.yml,azure.yml,btp.yml} · deploy/{aws,azure}&lt;/span&gt;" vertex="1">
+          <mxGeometry height="220" width="442" x="938" y="548" as="geometry" />
         </mxCell>
         <mxCell id="tScmTfBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7B42BC;strokeWidth=2" value="" vertex="1">
-          <mxGeometry height="200" width="408" x="696" y="810" as="geometry" />
+          <mxGeometry height="200" width="578" x="840" y="810" as="geometry" />
         </mxCell>
         <mxCell id="tScmTfIcon" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7B42BC;strokeColor=#7B42BC;fontColor=#FFFFFF;fontSize=20;fontStyle=1;align=center;verticalAlign=middle" value="TF" vertex="1">
-          <mxGeometry height="56" width="56" x="716" y="840" as="geometry" />
+          <mxGeometry height="56" width="56" x="872" y="874" as="geometry" />
         </mxCell>
-        <mxCell id="tScmTfTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#7B42BC&quot;&gt;Terraform Modules&lt;/b&gt; (versioned)&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;git::https://github.com/pgetech/&lt;b&gt;epic-pipeline-module-aws-…&lt;/b&gt;.git?ref=main&lt;br&gt;tags · secretmanager · certificate · security-group · s3 · ec2 · load-balancer · route53 · cloudfront · acm&lt;/span&gt;" vertex="1">
-          <mxGeometry height="180" width="312" x="782" y="820" as="geometry" />
+        <mxCell id="tScmTfTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(123, 66, 188);&quot;&gt;Terraform Modules&lt;/b&gt; (versioned)&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;git::https://github.com/pgetech/&lt;b&gt;epic-pipeline-module-aws-…&lt;/b&gt;.git?ref=main&lt;br&gt;tags · secretmanager · certificate · security-group · s3 · ec2 · load-balancer · route53 · cloudfront · acm&lt;/span&gt;" vertex="1">
+          <mxGeometry height="180" width="468" x="940" y="820" as="geometry" />
         </mxCell>
-        <mxCell id="tScmAuth" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F6F8FA;strokeColor=#24292E;dashed=1;fontSize=11;fontStyle=2;align=center;verticalAlign=middle" value="🔑  Auth: GITHUB_PAT (via ADO variable group GV-account-access) used by orchestrator git clone &amp; epic-api GitHub API calls" vertex="1">
-          <mxGeometry height="50" width="408" x="696" y="1040" as="geometry" />
+        <mxCell id="tScmAuth" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F6F8FA;strokeColor=#24292E;dashed=1;fontSize=16;fontStyle=2;align=center;verticalAlign=middle" value="🔑  Auth: GITHUB_PAT (via ADO variable group GV-account-access) used by orchestrator git clone &amp;amp; epic-api GitHub API calls" vertex="1">
+          <mxGeometry height="50" width="578" x="840" y="1040" as="geometry" />
         </mxCell>
-        <mxCell id="tLane3" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#0078D4;strokeWidth=2;verticalAlign=top;align=center;fontSize=14;fontStyle=1;fontColor=#0078D4;startSize=44" value="3.  CI/CD Control Plane   (Azure DevOps — pgetech / EPIC-Pipeline)" vertex="1">
-          <mxGeometry height="1180" width="448" x="1280" y="120" as="geometry" />
+        <mxCell id="tLane3" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#0078D4;strokeWidth=2;verticalAlign=top;align=center;fontSize=18;fontStyle=1;fontColor=#0078D4;startSize=44" value="3.  CI/CD Control Plane   (Azure DevOps — pgetech / EPIC-Pipeline)" vertex="1">
+          <mxGeometry height="1180" width="650" x="1558" y="120" as="geometry" />
         </mxCell>
         <mxCell id="tOrchBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=2" value="" vertex="1">
-          <mxGeometry height="160" width="408" x="1300" y="190" as="geometry" />
+          <mxGeometry height="160" width="580" x="1590" y="186" as="geometry" />
         </mxCell>
-        <mxCell id="tOrchIcon" parent="t1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure2.devops;" value="" vertex="1">
-          <mxGeometry height="56" width="56" x="1320" y="220" as="geometry" />
+        <mxCell id="tOrchTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(0, 120, 212);&quot;&gt;Orchestrator&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Pool: vmImage &lt;b&gt;ubuntu-latest&lt;/b&gt; (Microsoft-hosted)&lt;br&gt;Validates params · git clone app repo (PAT)&lt;br&gt;jq builds payload · POST /_apis/pipelines/&lt;i&gt;nnn&lt;/i&gt;/runs&lt;br&gt;Tags build: epicRepo · epicAppName&lt;/span&gt;" vertex="1">
+          <mxGeometry height="140" width="460" x="1680" y="196" as="geometry" />
         </mxCell>
-        <mxCell id="tOrchTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#0078D4&quot;&gt;Orchestrator&lt;/b&gt; · pipelineId=&lt;b&gt;194&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;Pool: vmImage &lt;b&gt;ubuntu-latest&lt;/b&gt; (Microsoft-hosted)&lt;br&gt;Validates params · git clone app repo (PAT)&lt;br&gt;jq builds payload · POST /_apis/pipelines/194/runs&lt;br&gt;Tags build: epicRepo · epicAppName&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="312" x="1386" y="200" as="geometry" />
+        <mxCell id="tEngBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=2;" value="" vertex="1">
+          <mxGeometry height="160" width="580" x="1590" y="384" as="geometry" />
         </mxCell>
-        <mxCell id="tEngBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=3" value="" vertex="1">
-          <mxGeometry height="160" width="408" x="1300" y="388" as="geometry" />
+        <mxCell id="tEngTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(0, 120, 212);&quot;&gt;Engine&lt;/b&gt; (parameterized YAML)&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Default pool: vmImage &lt;b&gt;ubuntu-latest&lt;/b&gt;&lt;br&gt;Tags every build: epicRepo · epicAppName&lt;br&gt;epicAppType · epicEnvironment · epicCloud&lt;br&gt;&lt;/span&gt;" vertex="1">
+          <mxGeometry height="140" width="480" x="1680" y="394" as="geometry" />
         </mxCell>
-        <mxCell id="tEngIcon" parent="t1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure2.devops;" value="" vertex="1">
-          <mxGeometry height="56" width="56" x="1320" y="420" as="geometry" />
+        <mxCell id="tPoolBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=2;" value="" vertex="1">
+          <mxGeometry height="160" width="580" x="1590" y="586" as="geometry" />
         </mxCell>
-        <mxCell id="tEngTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#0078D4&quot;&gt;Engine&lt;/b&gt; (parameterized YAML)&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;Default pool: vmImage &lt;b&gt;ubuntu-latest&lt;/b&gt;&lt;br&gt;Tags every build: epicRepo · epicAppName&lt;br&gt;epicAppType · epicEnvironment · epicCloud&lt;br&gt;Stages skipped/required by epic.json + run params&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="312" x="1386" y="398" as="geometry" />
+        <mxCell id="tPoolTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(0, 120, 212);&quot;&gt;Agent Pools&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;• &lt;b&gt;Microsoft-hosted&lt;/b&gt; (ubuntu-latest) — default for Build/Test/Deploy/Infra&lt;br&gt;• windows-latest — .NET build when scanTool ≠ sonarqube&lt;br&gt;• Pool &lt;b&gt;EPIC - Self-hosted&lt;/b&gt; — only for Wiz/Sonar scans&lt;/span&gt;" vertex="1">
+          <mxGeometry height="140" width="480" x="1680" y="596" as="geometry" />
         </mxCell>
-        <mxCell id="tPoolBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="160" width="408" x="1300" y="590" as="geometry" />
+        <mxCell id="tStagesBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#0078D4;strokeWidth=2;verticalAlign=top;align=center;fontSize=16;fontStyle=1;fontColor=#0078D4;startSize=28" value="Engine Stage Flow" vertex="1">
+          <mxGeometry height="500" width="580" x="1590" y="776" as="geometry" />
         </mxCell>
-        <mxCell id="tPoolTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;spacingRight=10" value="&lt;b style=&quot;font-size:13px;color:#0078D4&quot;&gt;Agent Pools&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#475569&quot;&gt;• &lt;b&gt;Microsoft-hosted&lt;/b&gt; (ubuntu-latest) — default for Build/Test/Deploy/Infra&lt;br&gt;• windows-latest — .NET build when scanTool ≠ sonarqube&lt;br&gt;• Pool &lt;b&gt;EPIC - Self-hosted&lt;/b&gt; — only for Wiz/Sonar scans &amp; .NET+Sonar build&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="312" x="1386" y="600" as="geometry" />
+        <mxCell id="ts1" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=16;align=center" value="1.  Download" vertex="1">
+          <mxGeometry height="44" width="540" x="1610" y="822" as="geometry" />
         </mxCell>
-        <mxCell id="tStagesBox" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#0078D4;strokeWidth=1;verticalAlign=top;align=center;fontSize=12;fontStyle=1;fontColor=#0078D4;startSize=28" value="Engine Stage Flow" vertex="1">
-          <mxGeometry height="500" width="408" x="1300" y="780" as="geometry" />
+        <mxCell id="ts2" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=16;align=center" value="2.  Build   ·   build/{appType}/main.yml" vertex="1">
+          <mxGeometry height="44" width="540" x="1610" y="876" as="geometry" />
         </mxCell>
-        <mxCell id="ts1" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=12;align=center" value="1.  Download" vertex="1">
-          <mxGeometry height="44" width="368" x="1320" y="826" as="geometry" />
+        <mxCell id="ts3" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=16;align=center" value="3.  Build Tests   ·   test/{tool}" vertex="1">
+          <mxGeometry height="44" width="540" x="1610" y="930" as="geometry" />
         </mxCell>
-        <mxCell id="ts2" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=11;align=center" value="2.  Build   ·   build/{appType}/main.yml" vertex="1">
-          <mxGeometry height="44" width="368" x="1320" y="880" as="geometry" />
+        <mxCell id="ts4" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7C3AED;strokeColor=#7C3AED;fontColor=#FFFFFF;fontStyle=1;fontSize=16;align=center" value="4.  Scan   ·   sonarqube · wiz · jfrog   (purple = SaaS)" vertex="1">
+          <mxGeometry height="44" width="540" x="1610" y="984" as="geometry" />
         </mxCell>
-        <mxCell id="ts3" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=11;align=center" value="3.  Build Tests   ·   test/{tool}" vertex="1">
-          <mxGeometry height="44" width="368" x="1320" y="934" as="geometry" />
+        <mxCell id="ts5" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=16;align=center" value="5.  Infra   ·   infra/{aws · azure · btp}.yml — terraform" vertex="1">
+          <mxGeometry height="44" width="540" x="1610" y="1038" as="geometry" />
         </mxCell>
-        <mxCell id="ts4" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7C3AED;strokeColor=#7C3AED;fontColor=#FFFFFF;fontStyle=1;fontSize=11;align=center" value="4.  Scan   ·   sonarqube · wiz · jfrog   (purple = SaaS)" vertex="1">
-          <mxGeometry height="44" width="368" x="1320" y="988" as="geometry" />
+        <mxCell id="ts6" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=16;align=center" value="6.  Approval   ·   ManualValidation@0 (if approvalEnvironments)" vertex="1">
+          <mxGeometry height="44" width="540" x="1610" y="1092" as="geometry" />
         </mxCell>
-        <mxCell id="ts5" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=11;align=center" value="5.  Infra   ·   infra/{aws · azure · btp}.yml — terraform" vertex="1">
-          <mxGeometry height="44" width="368" x="1320" y="1042" as="geometry" />
+        <mxCell id="ts7" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16A34A;strokeColor=#16A34A;fontColor=#FFFFFF;fontStyle=1;fontSize=16;align=center" value="7.  Deploy   ·   deploy/{aws · azure}/* — to target cloud" vertex="1">
+          <mxGeometry height="44" width="540" x="1610" y="1146" as="geometry" />
         </mxCell>
-        <mxCell id="ts6" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontStyle=1;fontSize=10;align=center" value="6.  Approval   ·   ManualValidation@0 (if approvalEnvironments)" vertex="1">
-          <mxGeometry height="44" width="368" x="1320" y="1096" as="geometry" />
+        <mxCell id="ts8" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16A34A;strokeColor=#16A34A;fontColor=#FFFFFF;fontStyle=1;fontSize=16;align=center" value="8.  Integration Tests" vertex="1">
+          <mxGeometry height="44" width="540" x="1610" y="1200" as="geometry" />
         </mxCell>
-        <mxCell id="ts7" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16A34A;strokeColor=#16A34A;fontColor=#FFFFFF;fontStyle=1;fontSize=11;align=center" value="7.  Deploy   ·   deploy/{aws · azure}/* — to target cloud" vertex="1">
-          <mxGeometry height="44" width="368" x="1320" y="1150" as="geometry" />
+        <mxCell id="tLane4" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#0F172A;strokeWidth=2;verticalAlign=top;align=center;fontSize=18;fontStyle=1;fontColor=#0F172A;startSize=44" value="4.  Multi-Cloud Workloads" vertex="1">
+          <mxGeometry height="1180" width="650" x="2310" y="120" as="geometry" />
         </mxCell>
-        <mxCell id="ts8" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16A34A;strokeColor=#16A34A;fontColor=#FFFFFF;fontStyle=1;fontSize=11;align=center" value="8.  Integration Tests" vertex="1">
-          <mxGeometry height="44" width="368" x="1320" y="1204" as="geometry" />
+        <mxCell id="tCloudAws" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1E6;strokeColor=#FF9900;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=16;fontStyle=1;fontColor=#B45309;startSize=28" value="&lt;blockquote style=&quot;margin: 0 0 0 40px; border: none; padding: 0px;&quot;&gt;AWS Workload Account (per app · per env)&lt;/blockquote&gt;" vertex="1">
+          <mxGeometry height="420" width="590" x="2340" y="180" as="geometry" />
         </mxCell>
-        <mxCell id="tLane4" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FAFAF9;strokeColor=#0F172A;strokeWidth=2;verticalAlign=top;align=center;fontSize=14;fontStyle=1;fontColor=#0F172A;startSize=44" value="4.  Multi-Cloud Workloads" vertex="1">
-          <mxGeometry height="1180" width="448" x="1912" y="120" as="geometry" />
+        <mxCell id="tCloudAwsRole" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1;fontSize=14;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;Trust:&lt;/b&gt; ADO &quot;AWS&quot; service connection · &lt;b&gt;sts:AssumeRole&lt;/b&gt;&lt;br&gt;&lt;b&gt;Role:&lt;/b&gt; arn:aws:iam::{cloud.awsAccountId}:role/&lt;b&gt;pge-epic-deployment-role&lt;/b&gt;&lt;br&gt;Session: PGE-EPIC-DEPLOY-ADO-{BuildId}   ·   Region: cloud.awsRegion (default us-west-2)" vertex="1">
+          <mxGeometry height="92" width="550" x="2360" y="218" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAws" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1E6;strokeColor=#FF9900;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#B45309;startSize=28" value="&lt;blockquote style=&quot;margin: 0 0 0 40px; border: none; padding: 0px;&quot;&gt;AWS Workload Account (per app · per env)&lt;/blockquote&gt;" vertex="1">
-          <mxGeometry height="370" width="408" x="1932" y="180" as="geometry" />
+        <mxCell id="tCloudAwsStatic" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1;fontSize=16;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;static&lt;/b&gt; (html · angular · react)&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;aws s3 sync → bucket · cloudfront create-invalidation&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="550" x="2360" y="320" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAwsRole" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;Trust:&lt;/b&gt; ADO &quot;AWS&quot; service connection · &lt;b&gt;sts:AssumeRole&lt;/b&gt;&lt;br&gt;&lt;b&gt;Role:&lt;/b&gt; arn:aws:iam::{cloud.awsAccountId}:role/&lt;b&gt;pge-epic-deployment-role&lt;/b&gt;&lt;br&gt;Session: PGE-EPIC-DEPLOY-ADO-{BuildId}   ·   Region: cloud.awsRegion (default us-west-2)" vertex="1">
-          <mxGeometry height="62" width="376" x="1948" y="218" as="geometry" />
+        <mxCell id="tCloudAwsEc2" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1;fontSize=16;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;ec2&lt;/b&gt; (dotnet · python · java)&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;aws s3 cp zip → bucket  ·  ssm send-command (AWS-RunShellScript)&lt;br&gt;wait instance-status-ok · stop/start systemd unit · is-active check&lt;/span&gt;" vertex="1">
+          <mxGeometry height="72" width="550" x="2360" y="394" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAwsStatic" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;static&lt;/b&gt; (html · angular · react)&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;aws s3 sync → bucket · cloudfront create-invalidation&lt;/span&gt;" vertex="1">
-          <mxGeometry height="60" width="376" x="1948" y="290" as="geometry" />
+        <mxCell id="tCloudAwsAmi" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1;fontSize=16;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;ami&lt;/b&gt; (ami)  ·  AWS Image Builder pipeline" vertex="1">
+          <mxGeometry height="40" width="550" x="2360" y="480" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAwsEc2" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;ec2&lt;/b&gt; (dotnet · python · java)&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;aws s3 cp zip → bucket  ·  ssm send-command (AWS-RunShellScript)&lt;br&gt;wait instance-status-ok · stop/start systemd unit · is-active check&lt;/span&gt;" vertex="1">
-          <mxGeometry height="60" width="376" x="1948" y="360" as="geometry" />
+        <mxCell id="tCloudAwsTfNote" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B42BC;dashed=1;fontSize=16;fontStyle=2;align=center;verticalAlign=middle" value="🟪 Terraform: aws.yml (S3 backend + DDB lock · pge-epic-deployment-role)" vertex="1">
+          <mxGeometry height="30" width="552" x="2358" y="533" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAwsAmi" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;ami&lt;/b&gt; (ami)  ·  AWS Image Builder pipeline" vertex="1">
-          <mxGeometry height="40" width="376" x="1948" y="430" as="geometry" />
+        <mxCell id="tCloudAz" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#0078D4;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=16;fontStyle=1;fontColor=#0078D4;startSize=28" value="&lt;blockquote style=&quot;margin: 0 0 0 40px; border: none; padding: 0px;&quot;&gt;Azure Workload Subscription (per app · per env)&lt;/blockquote&gt;" vertex="1">
+          <mxGeometry height="320" width="590" x="2340" y="621" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAwsTfNote" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B42BC;dashed=1;fontSize=10;fontStyle=2;align=center;verticalAlign=middle" value="🟪 Terraform: aws.yml (S3 backend + DDB lock · pge-epic-deployment-role)" vertex="1">
-          <mxGeometry height="30" width="376" x="1948" y="490" as="geometry" />
+        <mxCell id="tCloudAzAuth" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=1;fontSize=14;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;Trust:&lt;/b&gt; ADO Service Connection · Service Principal&lt;br&gt;&lt;b&gt;Subscription:&lt;/b&gt; cloud.azureSubscriptionId   ·   Region: cloud.azureRegion (default westus2)" vertex="1">
+          <mxGeometry height="60" width="554" x="2360" y="659" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAz" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#0078D4;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#0078D4;startSize=28" value="&lt;blockquote style=&quot;margin: 0 0 0 40px; border: none; padding: 0px;&quot;&gt;Azure Workload Subscription (per app · per env)&lt;/blockquote&gt;" vertex="1">
-          <mxGeometry height="320" width="408" x="1932" y="570" as="geometry" />
+        <mxCell id="tCloudAzApp" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=1;fontSize=16;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;app-service&lt;/b&gt; (any appType)&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;Resource Group: cloud.resourceGroupName&lt;br&gt;App Service: cloud.appServiceName · single template&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="554" x="2360" y="731" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAzAuth" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;Trust:&lt;/b&gt; ADO Service Connection · Service Principal&lt;br&gt;&lt;b&gt;Subscription:&lt;/b&gt; cloud.azureSubscriptionId   ·   Region: cloud.azureRegion (default westus2)" vertex="1">
-          <mxGeometry height="60" width="376" x="1948" y="608" as="geometry" />
+        <mxCell id="tCloudAzExtras" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=1;fontSize=14;align=center;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="Available via TF modules: Function · Key Vault · PostgreSQL Flex · SQL · Storage" vertex="1">
+          <mxGeometry height="40" width="554" x="2360" y="821" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAzApp" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;app-service&lt;/b&gt; (any appType)&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;Resource Group: cloud.resourceGroupName&lt;br&gt;App Service: cloud.appServiceName · single template&lt;/span&gt;" vertex="1">
-          <mxGeometry height="80" width="376" x="1948" y="680" as="geometry" />
+        <mxCell id="tCloudAzTfNote" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B42BC;dashed=1;fontSize=16;fontStyle=2;align=center;verticalAlign=middle" value="🟪 Terraform: azure.yml (AzureRM provider · S3 backend reused)" vertex="1">
+          <mxGeometry height="40" width="554" x="2360" y="871" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAzExtras" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=1;fontSize=10;align=center;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="Available via TF modules: Function · Key Vault · PostgreSQL Flex · SQL · Storage" vertex="1">
-          <mxGeometry height="40" width="376" x="1948" y="770" as="geometry" />
+        <mxCell id="tCloudBtp" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F7FF;strokeColor=#0FAAFF;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=16;fontStyle=1;fontColor=#0066B3;startSize=28" value="&lt;blockquote style=&quot;margin: 0 0 0 40px; border: none; padding: 0px;&quot;&gt;SAP BTP Subaccounts &amp;amp; Cloud Foundry&lt;/blockquote&gt;" vertex="1">
+          <mxGeometry height="310" width="590" x="2340" y="970" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudAzTfNote" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B42BC;dashed=1;fontSize=10;fontStyle=2;align=center;verticalAlign=middle" value="🟪 Terraform: azure.yml (AzureRM provider · S3 backend reused)" vertex="1">
-          <mxGeometry height="40" width="376" x="1948" y="820" as="geometry" />
+        <mxCell id="tCloudBtpAuth" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0FAAFF;strokeWidth=1;fontSize=16;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;Auth:&lt;/b&gt; BTP_USERNAME · BTP_PASSWORD · CF_USER · CF_PASSWORD&lt;br&gt;Pulled from AWS Secrets Manager — name &amp;amp; keys come from epic.json&lt;br&gt;cloud.secretsManager.name + cloud.secretsManager.keys[]" vertex="1">
+          <mxGeometry height="89" width="550" x="2360" y="1021" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudBtp" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F7FF;strokeColor=#0FAAFF;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#0066B3;startSize=28" value="&lt;blockquote style=&quot;margin: 0 0 0 40px; border: none; padding: 0px;&quot;&gt;SAP BTP Subaccounts &amp;amp; Cloud Foundry&lt;/blockquote&gt;" vertex="1">
-          <mxGeometry height="370" width="408" x="1932" y="910" as="geometry" />
+        <mxCell id="tCloudBtpFlow" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0FAAFF;strokeWidth=1;fontSize=16;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;infra/btp.yml flow:&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;secrets → temp env file → terraform init/fmt/validate/test/plan/apply/destroy  ·  cf push for app-tier&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="550" x="2360" y="1121" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudBtpAuth" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0FAAFF;strokeWidth=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;Auth:&lt;/b&gt; BTP_USERNAME · BTP_PASSWORD · CF_USER · CF_PASSWORD&lt;br&gt;Pulled from AWS Secrets Manager — name &amp; keys come from epic.json&lt;br&gt;cloud.secretsManager.name + cloud.secretsManager.keys[]" vertex="1">
-          <mxGeometry height="80" width="376" x="1948" y="948" as="geometry" />
+        <mxCell id="tCloudBtpTfNote" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B42BC;dashed=1;fontSize=16;fontStyle=2;align=center;verticalAlign=middle" value="🟪 Providers: SAP/btp · cloudfoundry/cloudfoundry" vertex="1">
+          <mxGeometry height="40" width="550" x="2360" y="1216" as="geometry" />
         </mxCell>
-        <mxCell id="tCloudBtpFlow" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0FAAFF;strokeWidth=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10" value="&lt;b&gt;infra/btp.yml flow:&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color:#475569&quot;&gt;secrets → temp env file → terraform init/fmt/validate/test/plan/apply/destroy  ·  cf push for app-tier&lt;/span&gt;" vertex="1">
-          <mxGeometry height="80" width="376" x="1948" y="1040" as="geometry" />
-        </mxCell>
-        <mxCell id="tCloudBtpRow" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none" value="" vertex="1">
-          <mxGeometry height="80" width="376" x="1948" y="1130" as="geometry" />
-        </mxCell>
-        <mxCell id="tBtpSap" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0FAAFF;strokeColor=#0FAAFF;fontColor=#FFFFFF;fontSize=10;fontStyle=1;align=center;verticalAlign=middle" value="BTP Subacct" vertex="1">
-          <mxGeometry height="40" width="120" x="1948" y="1140" as="geometry" />
-        </mxCell>
-        <mxCell id="tBtpCf" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0066B3;strokeColor=#0066B3;fontColor=#FFFFFF;fontSize=10;fontStyle=1;align=center;verticalAlign=middle" value="CF Spaces" vertex="1">
-          <mxGeometry height="40" width="120" x="2076" y="1140" as="geometry" />
-        </mxCell>
-        <mxCell id="tBtpDs" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1A78D5;strokeColor=#1A78D5;fontColor=#FFFFFF;fontSize=10;fontStyle=1;align=center;verticalAlign=middle" value="Datasphere · SAC" vertex="1">
-          <mxGeometry height="40" width="120" x="2204" y="1140" as="geometry" />
-        </mxCell>
-        <mxCell id="tCloudBtpTfNote" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F0FF;strokeColor=#7B42BC;dashed=1;fontSize=10;fontStyle=2;align=center;verticalAlign=middle" value="🟪 Providers: SAP/btp · cloudfoundry/cloudfoundry" vertex="1">
-          <mxGeometry height="40" width="376" x="1948" y="1200" as="geometry" />
-        </mxCell>
-        <mxCell id="tQualityLane" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#7C3AED;strokeWidth=2;verticalAlign=top;align=center;fontSize=14;fontStyle=1;fontColor=#7C3AED;startSize=36" value="🛡  Centralized Quality &amp; Security   (Scan + Approval invocations)" vertex="1">
-          <mxGeometry height="220" width="2320" x="40" y="1330" as="geometry" />
+        <mxCell id="tQualityLane" parent="t1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#7C3AED;strokeWidth=2;verticalAlign=top;align=center;fontSize=18;fontStyle=1;fontColor=#7C3AED;startSize=36" value="🛡  Centralized Quality &amp;amp; Security   (Scan + Approval invocations)" vertex="1">
+          <mxGeometry height="220" width="2920" x="40" y="1330" as="geometry" />
         </mxCell>
         <mxCell id="tqWiz" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="160" width="320" x="60" y="1380" as="geometry" />
+          <mxGeometry height="160" width="400" x="70" y="1370" as="geometry" />
         </mxCell>
         <mxCell id="tqWizIcon" parent="t1" style="ellipse;fillColor=#1F0E2F;strokeColor=#1F0E2F;fontColor=#FFFFFF;fontSize=22;fontStyle=1;align=center;verticalAlign=middle" value="W" vertex="1">
-          <mxGeometry height="56" width="56" x="80" y="1410" as="geometry" />
+          <mxGeometry height="56" width="56" x="90" y="1400" as="geometry" />
         </mxCell>
-        <mxCell id="tqWizTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=8" value="&lt;b style=&quot;font-size:12px;color:#1F0E2F&quot;&gt;Wiz&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px;color:#475569&quot;&gt;scan/wiz/main.yml&lt;br&gt;Pool: EPIC - Self-hosted&lt;br&gt;CSPM · IaC scanning&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="220" x="148" y="1390" as="geometry" />
+        <mxCell id="tqWizTxt" parent="t1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;spacingLeft=8;fontSize=16;" value="&lt;b style=&quot;color: rgb(31, 14, 47);&quot;&gt;Wiz&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;scan/wiz/main.yml&lt;br&gt;Pool: EPIC - Self-hosted&lt;br&gt;CSPM · IaC scanning&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="302" x="158" y="1400" as="geometry" />
         </mxCell>
         <mxCell id="tqSonar" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="160" width="320" x="400" y="1380" as="geometry" />
+          <mxGeometry height="160" width="400" x="478" y="1370" as="geometry" />
         </mxCell>
         <mxCell id="tqSonarIcon" parent="t1" style="ellipse;fillColor=#4E9BCD;strokeColor=#4E9BCD;fontColor=#FFFFFF;fontSize=18;fontStyle=1;align=center;verticalAlign=middle" value="SQ" vertex="1">
-          <mxGeometry height="56" width="56" x="420" y="1410" as="geometry" />
+          <mxGeometry height="56" width="56" x="498" y="1400" as="geometry" />
         </mxCell>
-        <mxCell id="tqSonarTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=8" value="&lt;b style=&quot;font-size:12px;color:#4E9BCD&quot;&gt;SonarQube&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px;color:#475569&quot;&gt;scan/sonarqube/{prepare,scan,normalize}&lt;br&gt;Pool: EPIC - Self-hosted&lt;br&gt;Coverage normalize for .NET&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="220" x="488" y="1390" as="geometry" />
+        <mxCell id="tqSonarTxt" parent="t1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;spacingLeft=8;fontSize=16;" value="&lt;b style=&quot;color: rgb(78, 155, 205);&quot;&gt;SonarQube&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;scan/sonarqube/{prepare,scan,normalize}&lt;br&gt;Pool: EPIC - Self-hosted&lt;br&gt;Coverage normalize for .NET&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="294" x="566" y="1400" as="geometry" />
         </mxCell>
         <mxCell id="tqJfrog" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="160" width="320" x="740" y="1380" as="geometry" />
+          <mxGeometry height="160" width="400" x="890" y="1370" as="geometry" />
         </mxCell>
         <mxCell id="tqJfrogIcon" parent="t1" style="ellipse;fillColor=#41BF47;strokeColor=#41BF47;fontColor=#FFFFFF;fontSize=22;fontStyle=1;align=center;verticalAlign=middle" value="🐸" vertex="1">
-          <mxGeometry height="56" width="56" x="760" y="1410" as="geometry" />
+          <mxGeometry height="56" width="56" x="910" y="1400" as="geometry" />
         </mxCell>
-        <mxCell id="tqJfrogTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=8" value="&lt;b style=&quot;font-size:12px;color:#41BF47&quot;&gt;JFrog Xray&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px;color:#475569&quot;&gt;scan/jfrog (where used)&lt;br&gt;Default pool: ubuntu-latest&lt;br&gt;SCA · artifact registry&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="220" x="828" y="1390" as="geometry" />
+        <mxCell id="tqJfrogTxt" parent="t1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;spacingLeft=8;fontSize=16;" value="&lt;b style=&quot;color: rgb(65, 191, 71);&quot;&gt;JFrog Xray&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;scan/jfrog (where used)&lt;br&gt;Default pool: ubuntu-latest&lt;br&gt;SCA · artifact registry&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="302" x="978" y="1400" as="geometry" />
         </mxCell>
         <mxCell id="tqGhas" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="160" width="320" x="1080" y="1380" as="geometry" />
+          <mxGeometry height="160" width="400" x="1298" y="1370" as="geometry" />
         </mxCell>
         <mxCell id="tqGhasIcon" parent="t1" style="ellipse;fillColor=#181717;strokeColor=#181717;fontColor=#FFFFFF;fontSize=18;fontStyle=1;align=center;verticalAlign=middle" value="GH" vertex="1">
-          <mxGeometry height="56" width="56" x="1100" y="1410" as="geometry" />
+          <mxGeometry height="56" width="56" x="1318" y="1400" as="geometry" />
         </mxCell>
-        <mxCell id="tqGhasTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=8" value="&lt;b style=&quot;font-size:12px;color:#181717&quot;&gt;GitHub Advanced Security&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px;color:#475569&quot;&gt;Branch protection · CodeQL&lt;br&gt;Secret scanning · Dependabot&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="220" x="1168" y="1390" as="geometry" />
+        <mxCell id="tqGhasTxt" parent="t1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;spacingLeft=8;fontSize=16;" value="&lt;b style=&quot;color: rgb(24, 23, 23);&quot;&gt;GitHub Advanced Security&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;Branch protection · CodeQL&lt;br&gt;Secret scanning · Dependabot&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="304" x="1386" y="1400" as="geometry" />
         </mxCell>
         <mxCell id="tqApproval" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="160" width="320" x="1420" y="1380" as="geometry" />
+          <mxGeometry height="160" width="400" x="1708" y="1370" as="geometry" />
         </mxCell>
         <mxCell id="tqApprovalIcon" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=center;verticalAlign=middle" value="✓" vertex="1">
-          <mxGeometry height="56" width="56" x="1440" y="1410" as="geometry" />
+          <mxGeometry height="56" width="56" x="1728" y="1400" as="geometry" />
         </mxCell>
-        <mxCell id="tqApprovalTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=8" value="&lt;b style=&quot;font-size:12px;color:#0078D4&quot;&gt;ADO Manual Validation&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px;color:#475569&quot;&gt;ManualValidation@0 task&lt;br&gt;Triggered by approvalEnvironments[]&lt;br&gt;in epic.json&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="220" x="1508" y="1390" as="geometry" />
+        <mxCell id="tqApprovalTxt" parent="t1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;spacingLeft=8;fontSize=16;" value="&lt;b style=&quot;color: rgb(0, 120, 212);&quot;&gt;ADO Manual Validation&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;ManualValidation@0 task&lt;br&gt;Triggered by approvalEnvironments[]&lt;br&gt;in epic.json&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="304" x="1796" y="1400" as="geometry" />
         </mxCell>
         <mxCell id="tqTags" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="160" width="280" x="1760" y="1380" as="geometry" />
+          <mxGeometry height="160" width="400" x="2120" y="1370" as="geometry" />
         </mxCell>
         <mxCell id="tqTagsIcon" parent="t1" style="ellipse;fillColor=#7C3AED;strokeColor=#7C3AED;fontColor=#FFFFFF;fontSize=22;fontStyle=1;align=center;verticalAlign=middle" value="🏷" vertex="1">
-          <mxGeometry height="56" width="56" x="1780" y="1410" as="geometry" />
+          <mxGeometry height="56" width="56" x="2140" y="1400" as="geometry" />
         </mxCell>
-        <mxCell id="tqTagsTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=8" value="&lt;b style=&quot;font-size:12px;color:#7C3AED&quot;&gt;ADO Build Tags&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px;color:#475569&quot;&gt;PUT _apis/build/builds/&lt;br&gt;{id}/tags?api-version=7.1&lt;br&gt;5 tags · audit trail&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="180" x="1848" y="1390" as="geometry" />
+        <mxCell id="tqTagsTxt" parent="t1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;spacingLeft=8;fontSize=16;" value="&lt;b style=&quot;color: rgb(124, 58, 237);&quot;&gt;ADO Build Tags&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;PUT _apis/build/builds/&lt;br&gt;{id}/tags?api-version=7.1&lt;br&gt;5 tags · audit trail&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="302" x="2208" y="1400" as="geometry" />
         </mxCell>
         <mxCell id="tqLogs" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="160" width="280" x="2060" y="1380" as="geometry" />
+          <mxGeometry height="160" width="400" x="2530" y="1370" as="geometry" />
         </mxCell>
         <mxCell id="tqLogsIcon" parent="t1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch;" value="" vertex="1">
-          <mxGeometry height="56" width="56" x="2080" y="1410" as="geometry" />
+          <mxGeometry height="56" width="56" x="2550" y="1400" as="geometry" />
         </mxCell>
-        <mxCell id="tqLogsTxt" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=8" value="&lt;b style=&quot;font-size:12px;color:#E7157B&quot;&gt;CloudWatch + ADO Logs&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px;color:#475569&quot;&gt;EC2/Aurora logs · ADO run logs&lt;br&gt;Surfaced in EPIC dashboard&lt;/span&gt;" vertex="1">
-          <mxGeometry height="140" width="180" x="2148" y="1390" as="geometry" />
+        <mxCell id="tqLogsTxt" parent="t1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;spacingLeft=8;fontSize=16;" value="&lt;b style=&quot;color: rgb(231, 21, 123);&quot;&gt;CloudWatch + ADO Logs&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(71, 85, 105);&quot;&gt;EC2/Aurora logs · ADO run logs&lt;br&gt;Surfaced in EPIC dashboard&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="302" x="2618" y="1400" as="geometry" />
         </mxCell>
         <mxCell id="taWebToApi" edge="1" parent="t1" source="tWebBox" style="endArrow=classic;html=1;rounded=0;strokeColor=#FF9900;strokeWidth=2;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" target="tApiBox" value="HTTPS · /api/*">
           <mxGeometry relative="1" as="geometry" />
@@ -802,195 +784,212 @@
         <mxCell id="taApiToSm" edge="1" parent="t1" source="tApiBox" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#DD344C;strokeWidth=1;dashed=1;fontSize=10;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="tSmBox" value="GetSecretValue">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="560" y="635" />
-              <mxPoint x="560" y="985" />
+              <mxPoint x="659" y="635" />
+              <mxPoint x="750" y="635" />
+              <mxPoint x="750" y="997" />
             </Array>
+            <mxPoint x="710" y="960" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="taApiToScm" edge="1" parent="t1" source="tApiBox" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#24292E;strokeWidth=2;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" target="tScmAppBox" value="GitHub API · read epic.json">
+        <mxCell id="taApiToScm" edge="1" parent="t1" source="tApiBox" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#24292E;strokeWidth=2;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" target="tScmAppBox" value="GitHub API&lt;div&gt;read epic.json&lt;/div&gt;">
           <mxGeometry relative="1" x="-0.3712" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="582" y="580" />
-              <mxPoint x="582" y="350" />
+              <mxPoint x="750" y="583" />
+              <mxPoint x="750" y="350" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="taApiToOrch" edge="1" parent="t1" source="tApiBox" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#0078D4;strokeWidth=3;fontSize=10;fontStyle=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" target="tOrchBox" value="ADO REST · trigger orchestrator (pipelineId=194)">
-          <mxGeometry relative="1" x="0.2357" as="geometry">
+          <mxGeometry relative="1" x="-0.1529" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="560" y="525" />
-              <mxPoint x="560" y="100" />
-              <mxPoint x="1200" y="100" />
-              <mxPoint x="1200" y="230" />
+              <mxPoint x="720" y="528" />
+              <mxPoint x="720" y="100" />
+              <mxPoint x="1500" y="100" />
+              <mxPoint x="1500" y="226" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="taOrchToScm" edge="1" parent="t1" source="tOrchBox" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#24292E;strokeWidth=2;fontSize=10;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0" target="tScmAppBox" value="git clone (PAT)">
-          <mxGeometry relative="1" as="geometry" />
+          <mxGeometry relative="1" x="0.1977" as="geometry">
+            <mxPoint y="1" as="offset" />
+            <Array as="points">
+              <mxPoint x="1500" y="266" />
+              <mxPoint x="1500" y="350" />
+            </Array>
+          </mxGeometry>
         </mxCell>
         <mxCell id="taOrchToEng" edge="1" parent="t1" source="tOrchBox" style="endArrow=classic;html=1;rounded=0;strokeColor=#0078D4;strokeWidth=2;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" target="tEngBox" value="REST: pipelines/runs">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="taEngToTpl" edge="1" parent="t1" source="tEngBox" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#24292E;strokeWidth=1;dashed=1;fontSize=10;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0" target="tScmPipBox" value="pull templates">
-          <mxGeometry relative="1" as="geometry" />
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1500" y="464" />
+              <mxPoint x="1500" y="660" />
+            </Array>
+          </mxGeometry>
         </mxCell>
         <mxCell id="taEngToPool" edge="1" parent="t1" source="tEngBox" style="endArrow=classic;html=1;rounded=0;strokeColor=#0078D4;strokeWidth=2;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" target="tPoolBox" value="dispatches jobs to pool">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="taPoolToAws" edge="1" parent="t1" source="tPoolBox" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#FF9900;strokeWidth=3;fontSize=10;fontStyle=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" target="tCloudAws" value="STS AssumeRole&lt;div&gt;pge-epic-deployment-role&lt;/div&gt;">
-          <mxGeometry relative="1" as="geometry" />
+          <mxGeometry relative="1" x="-0.2591" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
         </mxCell>
         <mxCell id="taPoolToAz" edge="1" parent="t1" source="tPoolBox" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#0078D4;strokeWidth=3;fontSize=10;fontStyle=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.998;exitY=0.454;exitDx=0;exitDy=0;exitPerimeter=0;" target="tCloudAz" value="ADO Service Connection · SP">
-          <mxGeometry relative="1" x="-0.2297" as="geometry">
+          <mxGeometry relative="1" x="-0.2332" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="1720" y="663" />
-              <mxPoint x="1860" y="663" />
-              <mxPoint x="1860" y="730" />
+              <mxPoint x="2270" y="659" />
+              <mxPoint x="2270" y="780" />
+              <mxPoint x="2340" y="780" />
             </Array>
             <mxPoint x="1708" y="660" as="sourcePoint" />
           </mxGeometry>
         </mxCell>
         <mxCell id="taPoolToBtp" edge="1" parent="t1" source="tPoolBox" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#0FAAFF;strokeWidth=3;fontSize=10;fontStyle=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.648;exitDx=0;exitDy=0;exitPerimeter=0;" target="tCloudBtp" value="terraform · cf push">
-          <mxGeometry relative="1" as="geometry">
+          <mxGeometry relative="1" x="-0.0437" y="10" as="geometry">
+            <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="1820" y="694" />
-              <mxPoint x="1820" y="1095" />
+              <mxPoint x="2250" y="690" />
+              <mxPoint x="2250" y="1125" />
             </Array>
             <mxPoint x="1760" y="700" as="sourcePoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="taScanToQ" edge="1" parent="t1" source="ts4" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#7C3AED;strokeWidth=3;fontSize=10;fontStyle=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" target="tQualityLane" value="centralized scanning">
-          <mxGeometry relative="1" as="geometry">
+        <mxCell id="taScanToQ" edge="1" parent="t1" source="ts4" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;strokeColor=#7C3AED;strokeWidth=3;fontSize=10;fontStyle=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" target="tQualityLane" value="centralized&lt;div&gt;scanning&lt;/div&gt;">
+          <mxGeometry relative="1" x="-0.0599" as="geometry">
+            <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="1200" y="1010" />
+              <mxPoint x="1500" y="1010" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="aKhqDRi1WCp9ZPd57hzP-0" parent="t1" style="image;sketch=0;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/mscae/Azure_DevOps.svg;" value="" vertex="1">
-          <mxGeometry height="50" width="50" x="1323" y="223" as="geometry" />
+          <mxGeometry height="50" width="50" x="1620" y="241" as="geometry" />
         </mxCell>
         <mxCell id="aKhqDRi1WCp9ZPd57hzP-1" parent="t1" style="image;sketch=0;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/mscae/Azure_DevOps.svg;" value="" vertex="1">
-          <mxGeometry height="50" width="50" x="1323" y="423" as="geometry" />
+          <mxGeometry height="50" width="50" x="1620" y="439" as="geometry" />
         </mxCell>
         <mxCell id="f1Tqk0m7zrn0BFnI4un4-0" parent="t1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/networking/Spot_VMSS.svg;" value="" vertex="1">
-          <mxGeometry height="46" width="48.88" x="1327.12" y="610" as="geometry" />
+          <mxGeometry height="46" width="48.88" x="1621.12" y="643" as="geometry" />
         </mxCell>
         <mxCell id="bg_web" parent="t1" style="ellipse;fillColor=#7C3AED;strokeColor=#5B21B6;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🛡" vertex="1">
-          <mxGeometry height="26" width="26" x="442" y="190" as="geometry" />
+          <mxGeometry height="26" width="26" x="633" y="190" as="geometry" />
         </mxCell>
         <mxCell id="bg_api1" parent="t1" style="ellipse;fillColor=#7C3AED;strokeColor=#5B21B6;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🛡" vertex="1">
-          <mxGeometry height="26" width="26" x="442" y="470" as="geometry" />
+          <mxGeometry height="26" width="26" x="633" y="473" as="geometry" />
         </mxCell>
         <mxCell id="bg_api2" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="26" width="26" x="442" y="500" as="geometry" />
+          <mxGeometry height="26" width="26" x="633" y="503" as="geometry" />
         </mxCell>
         <mxCell id="bg_rds" parent="t1" style="ellipse;fillColor=#DD344C;strokeColor=#9F1239;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔐" vertex="1">
-          <mxGeometry height="26" width="26" x="442" y="750" as="geometry" />
+          <mxGeometry height="26" width="26" x="633" y="748" as="geometry" />
         </mxCell>
         <mxCell id="bg_sm1" parent="t1" style="ellipse;fillColor=#DD344C;strokeColor=#9F1239;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔐" vertex="1">
-          <mxGeometry height="26" width="26" x="442" y="918" as="geometry" />
+          <mxGeometry height="26" width="26" x="633.5" y="922" as="geometry" />
         </mxCell>
         <mxCell id="bg_sm2" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="26" width="26" x="442" y="948" as="geometry" />
+          <mxGeometry height="26" width="26" x="633.5" y="952" as="geometry" />
         </mxCell>
         <mxCell id="bg_net" parent="t1" style="ellipse;fillColor=#7C3AED;strokeColor=#5B21B6;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🛡" vertex="1">
-          <mxGeometry height="26" width="26" x="442" y="1070" as="geometry" />
+          <mxGeometry height="26" width="26" x="633" y="1096" as="geometry" />
         </mxCell>
         <mxCell id="bg_scmapp" parent="t1" style="ellipse;fillColor=#16A34A;strokeColor=#166534;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🧪" vertex="1">
-          <mxGeometry height="26" width="26" x="1074" y="190" as="geometry" />
+          <mxGeometry height="26" width="26" x="1388" y="190" as="geometry" />
         </mxCell>
         <mxCell id="bg_scmpip" parent="t1" style="ellipse;fillColor=#16A34A;strokeColor=#166534;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🧪" vertex="1">
-          <mxGeometry height="26" width="26" x="1074" y="538" as="geometry" />
+          <mxGeometry height="26" width="26" x="1388" y="538" as="geometry" />
         </mxCell>
         <mxCell id="bg_scmtf" parent="t1" style="ellipse;fillColor=#16A34A;strokeColor=#166534;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🧪" vertex="1">
-          <mxGeometry height="26" width="26" x="1074" y="807" as="geometry" />
+          <mxGeometry height="26" width="26" x="1388" y="807" as="geometry" />
         </mxCell>
         <mxCell id="bg_orch" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="26" width="26" x="1684" y="184" as="geometry" />
+          <mxGeometry height="26" width="26" x="2146" y="180" as="geometry" />
         </mxCell>
         <mxCell id="bg_eng1" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="26" width="26" x="1688" y="377" as="geometry" />
+          <mxGeometry height="26" width="26" x="2150" y="373" as="geometry" />
         </mxCell>
         <mxCell id="bg_eng2" parent="t1" style="ellipse;fillColor=#FF9900;strokeColor=#B45309;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="📋" vertex="1">
-          <mxGeometry height="26" width="26" x="1688" y="410" as="geometry" />
+          <mxGeometry height="26" width="26" x="2150" y="406" as="geometry" />
         </mxCell>
         <mxCell id="bg_pool" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="26" width="26" x="1684" y="584" as="geometry" />
+          <mxGeometry height="26" width="26" x="2146" y="580" as="geometry" />
         </mxCell>
         <mxCell id="bg_s4" parent="t1" style="ellipse;fillColor=#7C3AED;strokeColor=#5B21B6;fontColor=#FFFFFF;fontSize=12;fontStyle=1;align=center;verticalAlign=middle" value="🛡" vertex="1">
-          <mxGeometry height="24" width="24" x="1660" y="941" as="geometry" />
+          <mxGeometry height="24" width="24" x="2122" y="937" as="geometry" />
         </mxCell>
         <mxCell id="bg_s5" parent="t1" style="ellipse;fillColor=#DD344C;strokeColor=#9F1239;fontColor=#FFFFFF;fontSize=12;fontStyle=1;align=center;verticalAlign=middle" value="🔐" vertex="1">
-          <mxGeometry height="24" width="24" x="1660" y="995" as="geometry" />
+          <mxGeometry height="24" width="24" x="2122" y="991" as="geometry" />
         </mxCell>
         <mxCell id="bg_s6" parent="t1" style="ellipse;fillColor=#FF9900;strokeColor=#B45309;fontColor=#FFFFFF;fontSize=12;fontStyle=1;align=center;verticalAlign=middle" value="📋" vertex="1">
-          <mxGeometry height="24" width="24" x="1660" y="1049" as="geometry" />
+          <mxGeometry height="24" width="24" x="2122" y="1045" as="geometry" />
         </mxCell>
         <mxCell id="bg_s7" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=12;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="24" width="24" x="1660" y="1103" as="geometry" />
+          <mxGeometry height="24" width="24" x="2122" y="1099" as="geometry" />
         </mxCell>
         <mxCell id="bg_aws" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="26" width="26" x="2310" y="184" as="geometry" />
+          <mxGeometry height="26" width="26" x="2900" y="184" as="geometry" />
         </mxCell>
         <mxCell id="bg_az" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="26" width="26" x="2310" y="574" as="geometry" />
+          <mxGeometry height="26" width="26" x="2900" y="625" as="geometry" />
         </mxCell>
         <mxCell id="bg_btp1" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="26" width="26" x="2310" y="914" as="geometry" />
+          <mxGeometry height="26" width="26" x="2900" y="969" as="geometry" />
         </mxCell>
         <mxCell id="bg_btp2" parent="t1" style="ellipse;fillColor=#DD344C;strokeColor=#9F1239;fontColor=#FFFFFF;fontSize=14;fontStyle=1;align=center;verticalAlign=middle" value="🔐" vertex="1">
-          <mxGeometry height="26" width="26" x="2310" y="944" as="geometry" />
+          <mxGeometry height="26" width="26" x="2900" y="999" as="geometry" />
         </mxCell>
-        <mxCell id="lgTitle" parent="t1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=2;fontColor=#475569" value="Security icons" vertex="1">
-          <mxGeometry height="20" width="2320" x="40" y="1570" as="geometry" />
+        <mxCell id="lgTitle" parent="t1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=2;fontColor=#475569" value="Security icons" vertex="1">
+          <mxGeometry height="20" width="2920" x="40" y="1570" as="geometry" />
         </mxCell>
         <mxCell id="ln_chip" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B21B6;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="50" width="440" x="60" y="1600" as="geometry" />
+          <mxGeometry height="50" width="440" x="402" y="1600" as="geometry" />
         </mxCell>
         <mxCell id="ln_ico" parent="t1" style="ellipse;fillColor=#7C3AED;strokeColor=#5B21B6;fontColor=#FFFFFF;fontSize=16;fontStyle=1;align=center;verticalAlign=middle" value="🛡" vertex="1">
-          <mxGeometry height="36" width="36" x="70" y="1607" as="geometry" />
+          <mxGeometry height="36" width="36" x="412" y="1607" as="geometry" />
         </mxCell>
-        <mxCell id="ln_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10" value="&lt;b style=&quot;color:#5B21B6;font-size:13px&quot;&gt;Network &amp;amp; Perimeter&lt;/b&gt;" vertex="1">
-          <mxGeometry height="50" width="380" x="116" y="1600" as="geometry" />
+        <mxCell id="ln_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(91, 33, 182);&quot;&gt;Network &amp;amp; Perimeter&lt;/b&gt;" vertex="1">
+          <mxGeometry height="50" width="380" x="458" y="1600" as="geometry" />
         </mxCell>
         <mxCell id="li_chip" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="50" width="440" x="520" y="1600" as="geometry" />
+          <mxGeometry height="50" width="440" x="862" y="1600" as="geometry" />
         </mxCell>
         <mxCell id="li_ico" parent="t1" style="ellipse;fillColor=#0078D4;strokeColor=#0078D4;fontColor=#FFFFFF;fontSize=16;fontStyle=1;align=center;verticalAlign=middle" value="🔑" vertex="1">
-          <mxGeometry height="36" width="36" x="530" y="1607" as="geometry" />
+          <mxGeometry height="36" width="36" x="872" y="1607" as="geometry" />
         </mxCell>
-        <mxCell id="li_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10" value="&lt;b style=&quot;color:#0078D4;font-size:13px&quot;&gt;Identity &amp;amp; Access&lt;/b&gt;" vertex="1">
-          <mxGeometry height="50" width="380" x="576" y="1600" as="geometry" />
+        <mxCell id="li_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(0, 120, 212);&quot;&gt;Identity &amp;amp; Access&lt;/b&gt;" vertex="1">
+          <mxGeometry height="50" width="380" x="918" y="1600" as="geometry" />
         </mxCell>
         <mxCell id="le_chip" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9F1239;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="50" width="440" x="980" y="1600" as="geometry" />
+          <mxGeometry height="50" width="440" x="1322" y="1600" as="geometry" />
         </mxCell>
         <mxCell id="le_ico" parent="t1" style="ellipse;fillColor=#DD344C;strokeColor=#9F1239;fontColor=#FFFFFF;fontSize=16;fontStyle=1;align=center;verticalAlign=middle" value="🔐" vertex="1">
-          <mxGeometry height="36" width="36" x="990" y="1607" as="geometry" />
+          <mxGeometry height="36" width="36" x="1332" y="1607" as="geometry" />
         </mxCell>
-        <mxCell id="le_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10" value="&lt;b style=&quot;color:#9F1239;font-size:13px&quot;&gt;Secrets &amp;amp; Encryption&lt;/b&gt;" vertex="1">
-          <mxGeometry height="50" width="380" x="1036" y="1600" as="geometry" />
+        <mxCell id="le_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(159, 18, 57);&quot;&gt;Secrets &amp;amp; Encryption&lt;/b&gt;" vertex="1">
+          <mxGeometry height="50" width="380" x="1378" y="1600" as="geometry" />
         </mxCell>
         <mxCell id="lc_chip" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#166534;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="50" width="440" x="1440" y="1600" as="geometry" />
+          <mxGeometry height="50" width="440" x="1782" y="1600" as="geometry" />
         </mxCell>
         <mxCell id="lc_ico" parent="t1" style="ellipse;fillColor=#16A34A;strokeColor=#166534;fontColor=#FFFFFF;fontSize=16;fontStyle=1;align=center;verticalAlign=middle" value="🧪" vertex="1">
-          <mxGeometry height="36" width="36" x="1450" y="1607" as="geometry" />
+          <mxGeometry height="36" width="36" x="1792" y="1607" as="geometry" />
         </mxCell>
-        <mxCell id="lc_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10" value="&lt;b style=&quot;color:#166534;font-size:13px&quot;&gt;Code &amp;amp; Supply Chain&lt;/b&gt;" vertex="1">
-          <mxGeometry height="50" width="380" x="1496" y="1600" as="geometry" />
+        <mxCell id="lc_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(22, 101, 52);&quot;&gt;Code &amp;amp; Supply Chain&lt;/b&gt;" vertex="1">
+          <mxGeometry height="50" width="380" x="1838" y="1600" as="geometry" />
         </mxCell>
         <mxCell id="lg_chip" parent="t1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B45309;strokeWidth=1" value="" vertex="1">
-          <mxGeometry height="50" width="440" x="1900" y="1600" as="geometry" />
+          <mxGeometry height="50" width="440" x="2242" y="1600" as="geometry" />
         </mxCell>
         <mxCell id="lg_ico" parent="t1" style="ellipse;fillColor=#FF9900;strokeColor=#B45309;fontColor=#FFFFFF;fontSize=16;fontStyle=1;align=center;verticalAlign=middle" value="📋" vertex="1">
-          <mxGeometry height="36" width="36" x="1910" y="1607" as="geometry" />
+          <mxGeometry height="36" width="36" x="2252" y="1607" as="geometry" />
         </mxCell>
-        <mxCell id="lg_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10" value="&lt;b style=&quot;color:#B45309;font-size:13px&quot;&gt;Governance &amp;amp; Audit&lt;/b&gt;" vertex="1">
-          <mxGeometry height="50" width="380" x="1956" y="1600" as="geometry" />
+        <mxCell id="lg_lbl" parent="t1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;spacingLeft=10;fontSize=16;" value="&lt;b style=&quot;color: rgb(180, 83, 9);&quot;&gt;Governance &amp;amp; Audit&lt;/b&gt;" vertex="1">
+          <mxGeometry height="50" width="380" x="2298" y="1600" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
