@@ -1,1 +1,0 @@
-Travis has been the driving force behind EPIC, our enterprise ADO pipeline. From day one he championed the work, cleared roadblocks, and kept momentum going at the points where it could have stalled. He didn't just support the effort. He owned it as a partner. EPIC is where it is because of his relentless commitment. Grateful to have him in my corner on this one.
