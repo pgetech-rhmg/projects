@@ -11,11 +11,11 @@
 
 ### Opening (~30 sec)
 - "Before I walk through the diagram, I want to anchor the room on the requirements that actually drove the architecture. Most of the design decisions you'll see on the slide come straight out of these ten bullets."
-- "Five functional, five non-functional. I'll move quickly — these aren't all the requirements, just the ones that materially shaped what got built."
+- "Five functional, five non-functional. These aren't all the requirements, just the ones that materially shaped what got built."
 
 ### Functional Requirements (~2 min — ~25 sec each)
 
-1. **Universal Pipeline** *(this is the headline; spend a little extra)*
+1. **Universal Pipeline**
    - "PG&E is a regulated utility. We can't have every app team writing their own YAML, picking their own scanners, and managing their own deploy scripts — there's no way to prove consistent controls across that footprint."
    - "Making it a universal (or centralized) isn't a preference, it's a compliance posture. One framework, one set of guardrails, every app."
 
@@ -95,9 +95,9 @@
 
 - **epic-pipeline** — one repo. Holds the orchestrator YAML, the engine YAML, and every reusable stage template — `build/`, `test/`, `scan/`, `infra/`, `deploy/`. App teams don't fork this; they consume it. **This is the architectural lever** that lets us guarantee consistent controls — there's no opt-out path.
 
-- **Terraform Module Registry** — `pgetech/epic-pipeline-module-aws-…` repos, consumed via `git::https://...?ref=main`. Modules carry the security defaults: IAM policies, security groups, S3 public-access blocks, ACM, the tagging schema. App teams pick from a vetted catalog rather than hand-rolling primitives.
+- **Terraform Modules** — `pgetech/epic-pipeline-module-aws-…` repos, consumed via `git::https://...?ref=main`. Modules carry the security defaults: IAM policies, security groups, S3 public-access blocks, ACM, the tagging schema. App teams pick from a vetted catalog rather than hand-rolling primitives.
 
-- **Auth path** — For the POC, we authenticate to GitHub with a PAT in the ADO library group. That works, but it's user-bound. Long-term we're moving to a GitHub App: org-owned identity, one-hour installation tokens scoped per repo, no human dependency. Same security model we already use for AWS — short-lived credentials, no static keys.
+- **Auth path** — For the POC, EPIC authenticates to GitHub with a PAT in the ADO library group. That works, it's secure, but it's user-bound. Obviously, long-term it needs to move to a GitHub App: org-owned identity, one-hour installation tokens scoped per repo, no human dependency. Same security model we already use for AWS — short-lived credentials, no static keys.
 
 ---
 
@@ -118,30 +118,32 @@
 
 - **8-stage flow** — Download → Build → Build Tests → Scan → Infra → Approval → Deploy → Integration Tests.
   - Stages are skipped or required by the contract. A static SPA skips Infra. A `dev` deploy skips Approval. A pure infra change can skip Build entirely.
-  - **Stage 4 — Scan** — mandatory if `scanTool` is set or there's a defined environment requirement (e.g., PROD).
+  - **Stage 4 — Scan** — mandatory if `scanTool` is set - in the epic.json contract file - or there's a defined environment requirement (e.g., PROD).
   - **Stage 5 — Infra** — Terraform with state in our S3 bucket plus DynamoDB lock. State is never stored locally on the agent.
-  - **Stage 6 — Approval** — `ManualValidation@0` task. Inserted automatically when the target env is in `approvalEnvironments[]`. **This is the SoD gate I called out on slide 6.**
+  - **Stage 6 — Approval** — `ManualValidation@0` task. Inserted automatically when the target environment is in the `approvalEnvironments[]` list.  
+  **This is the Separation of Duties gate I called out as a non-functional requirement on slide 6.**
   - **Stage 7 — Deploy** — assumes a short-lived role into the target cloud. No long-lived credentials anywhere.
-  - **Stage 8 — Integration Testing** — mandatory is `integrationTestTool` is set.
+  - **Stage 8 — Integration Testing** — mandatory if `integrationTestTool` is set - in the epic.json contract file.
 
 ---
 
 ### Lane 4 — Multi-Cloud Workloads  *(~4 min)*
 
-**Three sub-zones — AWS, Azure, BTP. Each has its own trust model.**
+**Three sub-zones defined at the moment — AWS, Azure, BTP. Each has its own trust model. Azure-Local will be the next workload.**
 
 - **AWS workload accounts** *(per app, per environment)*
-  - Engine assumes `arn:aws:iam::{cloud.awsAccountId}:role/pge-epic-deployment-role` via the ADO `AWS` service connection.
+  - Engine assumes `arn:aws:iam::{cloud.awsAccountId}:role/pge-epic-deployment-role` via the ADO `AWS` service connection.  
+  *Note: There will be a one-time deployment of this role into any AWS Account that EPIC needs to deploy to. It allows ADO to deploy via the ADO `AWS` service connection.*
   - Session name is `PGE-EPIC-DEPLOY-ADO-{BuildId}` — every CloudTrail event traces back to a specific build run.
-  - Three deploy patterns from the contract: `static` (S3 + CloudFront — for HTML / Angular / React), `ec2` (S3 upload + SSM RunShellScript — for .NET / Java / Python), `ami` (Image Builder).
+  - Three deploy patterns from the contract at the moment: `static` (S3 + CloudFront — for HTML / Angular / React), `ec2` (S3 upload + SSM RunShellScript — for .NET / Java / Python), `ami` (Image Builder). These were for the POC. We build out as needed/when needed for additional patterns.
 
 - **Azure workload subscriptions** *(per app, per environment)*
-  - ADO Service Connection backed by an Azure AD Service Principal scoped to `cloud.azureSubscriptionId`.
+  - ADO Service Connection backed by an Azure AD Service Principal scoped to `cloud.azureSubscriptionId` defined in the epic.json contract file.
   - Single `app-service` template handles every app type — Resource Group and App Service name come from the contract.
-  - Functions, Key Vault, SQL DB, Storage all available as TF modules when an app needs them.
+  - Functions, Key Vault, SQL DB, Storage all available as TF modules when an app needs them for infrastructure deploys.
 
 - **SAP BTP subaccounts + Cloud Foundry**
-  - Provider auth credentials (`BTP_USERNAME`, `BTP_PASSWORD`, `CF_USER`, `CF_PASSWORD`) are pulled from AWS Secrets Manager — the secret name and key list come from the app's `epic.json` (`cloud.secretsManager.name` + `.keys[]`).
+  - Provider auth credentials (`BTP_USERNAME`, `BTP_PASSWORD`, `CF_USER`, `CF_PASSWORD`) are pulled from AWS Secrets Manager — the secret name and key list come from the `epic.json` (`cloud.secretsManager.name` + `.keys[]`) contract file.
   - Credentials are written to a temp env file sourced by the Terraform/CF steps, never echoed.
   - Pipeline runs `terraform init / fmt / validate / test / plan / apply` for infrastructure, then `cf push` for the app tier.
 
