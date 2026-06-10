@@ -9,6 +9,24 @@ import { Subject } from 'rxjs';
 
 import { AppDetail, AppLookup, ManagedApp, PipelineRun, PipelineRunPage, RunStatus, StageDetail, StageStep } from './models/app.model';
 import { AppService } from './services/app.service';
+import {
+  APP_TYPE_LABELS,
+  AppType,
+  BUILD_TEST_TOOL_OPTIONS,
+  CloudProvider,
+  DeployTarget,
+  INTEGRATION_TEST_TOOL_OPTIONS,
+  NO_ARCHITECTURE_APP_TYPES,
+  QueueKind,
+  SCAN_TOOL_OPTIONS,
+  StorageKind,
+  WizardAnswers,
+  appTypesForCloud,
+  emptyAnswers,
+  emptyDeployTarget,
+  relevantDeployTargetKeys,
+} from './wizard/wizard.model';
+import { renderEpicMd } from './wizard/wizard.template';
 
 @Component({
   selector: 'app-root',
@@ -97,6 +115,7 @@ export class App implements OnInit, OnDestroy {
     else if (this.showNewRunModal()) this.closeNewRunModal();
     else if (this.showAddModal()) this.closeAddModal();
     else if (this.showManageModal()) this.closeManageModal();
+    else if (this.showCreateAppWizard()) this.closeCreateAppWizard();
   }
 
   private startAutoRefresh(): void {
@@ -1192,6 +1211,346 @@ export class App implements OnInit, OnDestroy {
     if (this.builderStep() === 1) return !!this.builderAppName.trim() && !!this.builderAppType;
     if (this.builderStep() === 2) return !!this.builderAwsAccountId.trim() && !!this.builderAwsRegion;
     return true;
+  }
+
+  // ── Create New App Wizard ─────────────────────────────────────────────────
+
+  protected readonly APP_TYPE_LABELS = APP_TYPE_LABELS;
+  protected readonly NO_ARCHITECTURE_APP_TYPES = NO_ARCHITECTURE_APP_TYPES;
+  protected readonly SCAN_TOOL_OPTIONS = SCAN_TOOL_OPTIONS;
+
+  protected wizardBuildTestOptions(): string[] {
+    const t = this.wizardAnswers().appType;
+    return t ? BUILD_TEST_TOOL_OPTIONS[t] : [];
+  }
+
+  protected wizardIntegrationTestOptions(): string[] {
+    const t = this.wizardAnswers().appType;
+    return t ? INTEGRATION_TEST_TOOL_OPTIONS[t] : [];
+  }
+
+  protected showCreateAppWizard = signal(false);
+  protected wizardStep = signal<1 | 2 | 3 | 4 | 5>(1);
+  protected wizardAnswers = signal<WizardAnswers>(emptyAnswers(''));
+  protected wizardAppNameError = signal<string | null>(null);
+  protected wizardPreview = signal<string>('');
+  protected epicInfraContent = signal<string>('');
+  protected epicInfraLoadError = signal<boolean>(false);
+
+  protected readonly wizardAppTypeOptions = computed<AppType[]>(() =>
+    appTypesForCloud(this.wizardAnswers().cloudProvider),
+  );
+
+  protected readonly wizardArchitectureSkipped = computed<boolean>(() => {
+    const t = this.wizardAnswers().appType;
+    return !!t && NO_ARCHITECTURE_APP_TYPES.includes(t);
+  });
+
+  protected wizardAppTypeLabel(): string {
+    const t = this.wizardAnswers().appType;
+    return t ? APP_TYPE_LABELS[t] : '';
+  }
+
+  protected onCreateNewApp(): void {
+    const fresh = emptyAnswers(this.currentUser() || '');
+    this.wizardAnswers.set(fresh);
+    this.wizardStep.set(1);
+    this.wizardAppNameError.set(null);
+    this.wizardPreview.set('');
+    this.showCreateAppWizard.set(true);
+    this.loadEpicInfraSteering();
+  }
+
+  private loadEpicInfraSteering(): void {
+    if (this.epicInfraContent() && !this.epicInfraLoadError()) return;
+    this.epicInfraLoadError.set(false);
+    fetch('/steering/epic-infra.md')
+      .then((res) => {
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        return res.text();
+      })
+      .then((text) => {
+        this.epicInfraContent.set(text);
+        this.epicInfraLoadError.set(false);
+      })
+      .catch(() => {
+        this.epicInfraContent.set('');
+        this.epicInfraLoadError.set(true);
+      });
+  }
+
+  protected closeCreateAppWizard(): void {
+    this.showCreateAppWizard.set(false);
+  }
+
+  protected wizardNext(): void {
+    const step = this.wizardStep();
+    if (step === 1 && !this.validateWizardStep1()) return;
+    if (step === 3 && !this.validateWizardStep3()) return;
+    if (step === 4) {
+      this.wizardPreview.set(renderEpicMd(this.stampedAnswers(), this.epicInfraContent()));
+    }
+    if (step < 5) this.wizardStep.set((step + 1) as 1 | 2 | 3 | 4 | 5);
+  }
+
+  protected wizardBack(): void {
+    const step = this.wizardStep();
+    if (step > 1) this.wizardStep.set((step - 1) as 1 | 2 | 3 | 4 | 5);
+  }
+
+  protected wizardUpdate<K extends keyof WizardAnswers>(key: K, value: WizardAnswers[K]): void {
+    this.wizardAnswers.update((a) => ({ ...a, [key]: value }));
+  }
+
+  protected wizardOnAppTypeChange(value: string): void {
+    const appType = value as AppType;
+    this.wizardAnswers.update((a) => {
+      const next: WizardAnswers = { ...a, appType };
+      // Reset every appType-dependent field. Tools — buildTestTool/integrationTestTool have
+      // different option sets per appType; scanTool's options are universal but the rendered
+      // tooling-allowlist section only fires for code-bearing appTypes, so a stale scanTool
+      // would emit into epic.json without a matching allowlist when switching to btp/infra/ami.
+      next.scanTool = '';
+      next.buildTestTool = '';
+      next.integrationTestTool = '';
+      // Deploy-target keys are per-(appType, cloudProvider); leftover values from the old
+      // appType are filtered by the renderer/form but pollute state — clear them.
+      next.deployTarget = emptyDeployTarget();
+      // BTP forces aws cloud (BTP secrets live in AWS Secrets Manager).
+      if (appType === 'btp') next.cloudProvider = 'aws';
+      // Reset architecture toggles for app types that bypass them.
+      if (NO_ARCHITECTURE_APP_TYPES.includes(appType)) {
+        next.hasFrontend = false;
+        next.frontend = null;
+        next.hasBackend = false;
+        next.backend = null;
+        next.needsDatabase = false;
+        next.database = null;
+        next.needsQueue = false;
+        next.queue = null;
+        next.needsScheduler = false;
+        next.schedulerCron = '';
+        next.needsStorage = false;
+        next.storage = null;
+      } else {
+        // Sensible defaults: SPAs get frontend, server runtimes get backend.
+        if (['angular', 'react', 'html'].includes(appType)) {
+          next.hasFrontend = true;
+          next.frontend = next.frontend ?? { authMode: 'msal', authClientId: '', apiBaseUrlNeeded: false };
+          next.hasBackend = false;
+          next.backend = null;
+        } else if (['dotnet', 'node', 'python', 'java', 'php'].includes(appType)) {
+          next.hasBackend = true;
+          next.backend = next.backend ?? { style: 'rest-api', runtime: '', authStyle: 'none', authClientId: '' };
+          next.hasFrontend = false;
+          next.frontend = null;
+        }
+      }
+      // Default infra=true for cloud-using apps; off for plain html sites with no backend.
+      next.includeInfra = !(appType === 'html' && !next.hasBackend);
+      if (appType === 'infra') next.includeInfra = true;
+      return next;
+    });
+    this.wizardAppNameError.set(null);
+  }
+
+
+  protected wizardOnCloudChange(value: string): void {
+    const provider = value as CloudProvider;
+    this.wizardAnswers.update((a) => {
+      const next: WizardAnswers = { ...a, cloudProvider: provider };
+      // If the current appType is invalid under this cloud, reset (let user re-pick).
+      const allowed = appTypesForCloud(provider);
+      if (next.appType && !allowed.includes(next.appType as AppType)) next.appType = '';
+      return next;
+    });
+  }
+
+  protected wizardUpdateDeployTarget<K extends keyof DeployTarget>(key: K, value: DeployTarget[K]): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      deployTarget: { ...a.deployTarget, [key]: value },
+    }));
+  }
+
+  protected wizardDeployTargetKeys(): (keyof DeployTarget)[] {
+    const a = this.wizardAnswers();
+    if (!a.appType) return [];
+    return relevantDeployTargetKeys(a.appType as AppType, a.cloudProvider);
+  }
+
+  protected wizardShowDeployTargetKey(key: keyof DeployTarget): boolean {
+    return this.wizardDeployTargetKeys().includes(key);
+  }
+
+  protected get wizardShowDeployTargetSection(): boolean {
+    const a = this.wizardAnswers();
+    return !a.includeInfra && this.wizardDeployTargetKeys().length > 0;
+  }
+
+  protected wizardToggleFrontend(checked: boolean): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      hasFrontend: checked,
+      frontend: checked
+        ? a.frontend ?? { authMode: 'msal', authClientId: '', apiBaseUrlNeeded: false }
+        : null,
+    }));
+  }
+
+  protected wizardToggleBackend(checked: boolean): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      hasBackend: checked,
+      backend: checked
+        ? a.backend ?? { style: 'rest-api', runtime: '', authStyle: 'none', authClientId: '' }
+        : null,
+    }));
+  }
+
+  protected wizardToggleDatabase(checked: boolean): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      needsDatabase: checked,
+      database: checked
+        ? a.database ?? { engine: 'postgres', scale: 'single-instance' }
+        : null,
+    }));
+  }
+
+  protected wizardToggleQueue(checked: boolean): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      needsQueue: checked,
+      queue: checked ? a.queue ?? { kind: 'sqs' } : null,
+    }));
+  }
+
+  protected wizardToggleScheduler(checked: boolean): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      needsScheduler: checked,
+      schedulerCron: checked ? a.schedulerCron : '',
+    }));
+  }
+
+  protected wizardToggleStorage(checked: boolean): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      needsStorage: checked,
+      storage: checked ? a.storage ?? { kind: 's3' } : null,
+    }));
+  }
+
+  protected wizardUpdateFrontend<K extends 'framework' | 'authMode' | 'authClientId' | 'apiBaseUrlNeeded'>(key: K, value: any): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      frontend: a.frontend ? { ...a.frontend, [key]: value } : a.frontend,
+    }));
+  }
+
+  protected wizardUpdateBackend<K extends 'style' | 'runtime' | 'authStyle' | 'authClientId'>(key: K, value: any): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      backend: a.backend ? { ...a.backend, [key]: value } : a.backend,
+    }));
+  }
+
+  protected wizardUpdateDatabase<K extends 'engine' | 'scale'>(key: K, value: any): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      database: a.database ? { ...a.database, [key]: value } : a.database,
+    }));
+  }
+
+  protected wizardUpdateQueue(value: QueueKind): void {
+    this.wizardAnswers.update((a) => ({ ...a, queue: a.queue ? { kind: value } : a.queue }));
+  }
+
+  protected wizardUpdateStorage(value: StorageKind): void {
+    this.wizardAnswers.update((a) => ({ ...a, storage: a.storage ? { kind: value } : a.storage }));
+  }
+
+  private validateWizardStep1(): boolean {
+    const a = this.wizardAnswers();
+    if (!/^[a-z][a-z0-9-]{2,40}$/.test(a.appName.trim())) {
+      this.wizardAppNameError.set('App name must be kebab-case, 3–41 chars, starting with a letter.');
+      return false;
+    }
+    const collision = this.apps().some((m) => m.name.toLowerCase() === a.appName.trim().toLowerCase());
+    if (collision) {
+      this.wizardAppNameError.set('An app with this name is already onboarded into EPIC.');
+      return false;
+    }
+    if (!a.appType) {
+      this.wizardAppNameError.set('App type is required.');
+      return false;
+    }
+    this.wizardAppNameError.set(null);
+    return true;
+  }
+
+  private validateWizardStep3(): boolean {
+    const a = this.wizardAnswers();
+    if (!a.includeInfra) return true;
+    if (a.cloudProvider === 'aws' || a.appType === 'btp') {
+      if (!/^\d{12}$/.test(a.awsAccountId.trim())) return false;
+      if (!a.awsRegion.trim()) return false;
+    }
+    if (a.cloudProvider === 'azure') {
+      if (!a.azureSubscriptionId.trim()) return false;
+    }
+    return true;
+  }
+
+  protected get canWizardNext(): boolean {
+    const a = this.wizardAnswers();
+    const step = this.wizardStep();
+    if (step === 1) {
+      return /^[a-z][a-z0-9-]{2,40}$/.test(a.appName.trim()) && !!a.appType;
+    }
+    if (step === 3) {
+      if (!a.includeInfra) return true;
+      if (a.cloudProvider === 'aws' || a.appType === 'btp') return /^\d{12}$/.test(a.awsAccountId.trim()) && !!a.awsRegion.trim();
+      if (a.cloudProvider === 'azure') return !!a.azureSubscriptionId.trim();
+      return true;
+    }
+    return true;
+  }
+
+  private stampedAnswers(): WizardAnswers {
+    return {
+      ...this.wizardAnswers(),
+      generatedAt: new Date().toISOString(),
+      generatedBy: this.currentUser() || this.wizardAnswers().generatedBy || 'unknown',
+    };
+  }
+
+  protected wizardDownload(): void {
+    if (this.epicInfraLoadError()) {
+      this.showToast('EPIC infrastructure steering content failed to load. Refresh and try again.');
+      return;
+    }
+    const md = this.wizardPreview() || renderEpicMd(this.stampedAnswers(), this.epicInfraContent());
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'epic.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    this.showToast('epic.md downloaded.');
+  }
+
+  protected wizardCopy(): void {
+    if (this.epicInfraLoadError()) {
+      this.showToast('EPIC infrastructure steering content failed to load. Refresh and try again.');
+      return;
+    }
+    const md = this.wizardPreview() || renderEpicMd(this.stampedAnswers(), this.epicInfraContent());
+    navigator.clipboard.writeText(md).then(() => this.showToast('epic.md copied to clipboard.'));
   }
 
   // ── Toast ─────────────────────────────────────────────────────────────────

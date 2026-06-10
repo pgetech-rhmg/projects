@@ -130,6 +130,12 @@
     font-weight: 600;
     color: #2d3748;
   }
+
+  &__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
 }
 
 .add-btn {
@@ -144,10 +150,21 @@
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 
   &:hover {
     background: #2c5282;
+  }
+
+  &--secondary {
+    background: #fff;
+    color: #2b6cb0;
+    border: 1px solid #2b6cb0;
+
+    &:hover {
+      background: #ebf4ff;
+      color: #2c5282;
+    }
   }
 }
 
@@ -1207,7 +1224,11 @@ tbody {
     color: #4a5568;
   }
 
-  input, select {
+  // Scope text-input styling to text-style inputs and selects. Checkboxes/radios
+  // would otherwise inherit padding/border/transition, which fights the native
+  // control and produces a click-time "stutter" as the focus ring animates.
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
     padding: 9px 12px;
     border: 1px solid #cbd5e0;
     border-radius: 6px;
@@ -1307,7 +1328,21 @@ tbody {
   to { transform: rotate(360deg); }
 }
 
-.field-hint--info { color: #2b6cb0; }
+.field-hint--info {
+  // Used for multi-line prose hints. Override the parent `.field-hint`'s flex layout —
+  // flex was designed for single-line indicators (spinner + label), and applying it to a
+  // paragraph with inline <code>/<strong> children shreds the text into columns.
+  display: block;
+  color: #2b6cb0;
+  line-height: 1.45;
+
+  code {
+    background: rgba(43, 108, 176, 0.08);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.78rem;
+  }
+}
 
 // ── New Run modal meta grid ──────────────────────────────────────────────────
 
@@ -1551,5 +1586,144 @@ tbody {
       border-color: #2b6cb0;
       color: #2b6cb0;
     }
+  }
+}
+
+.modal--wizard {
+  width: 740px;
+
+  .modal-body {
+    height: 540px;
+    min-height: 540px;
+    max-height: 540px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+
+    > * {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    // The Review-step hint sits below the textarea — it must NOT grow.
+    > .builder-output__hint {
+      flex: 0 0 auto;
+    }
+  }
+}
+
+.wizard-review {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+
+  .builder-output__textarea {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+    resize: none;
+  }
+}
+
+.wizard-hints {
+  gap: 16px;
+  height: 100%;
+
+  &__intro {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #4a5568;
+    line-height: 1.45;
+    flex: 0 0 auto;
+
+    em {
+      color: #2b6cb0;
+      font-style: normal;
+      font-weight: 600;
+    }
+  }
+
+  &__field {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  &__field textarea {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    line-height: 1.5;
+    color: #1a1a2e;
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+
+    &::placeholder { color: #a0aec0; }
+
+    &:focus {
+      outline: none;
+      border-color: #2b6cb0;
+      box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.15);
+    }
+  }
+}
+
+.wizard-deploy-target {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px 16px 16px;
+  background: #f7fafc;
+
+  &__heading {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 6px;
+  }
+
+  .field-hint {
+    margin-bottom: 10px;
+  }
+
+  .wizard-subgroup {
+    padding-left: 0;
+  }
+}
+
+.wizard-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 0 24px;
+
+  // Same scoping as `.form-field` — leave native checkboxes/radios untouched.
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    color: #2d3748;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.15s;
+
+    &:focus {
+      border-color: #2b6cb0;
+    }
+  }
+
+  .checkbox-label {
+    margin-top: 4px;
   }
 }

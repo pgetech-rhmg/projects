@@ -134,6 +134,36 @@ resource "aws_s3_bucket_policy" "cloudfront_access" {
             "AWS:SourceArn" = aws_cloudfront_distribution.cdn.arn
           }
         }
+      },
+      {
+        Sid       = "CCOE-TFE DenyNonOrgAccess"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = ["s3:*"]
+        Resource = [
+          var.bucket_arn,
+          "${var.bucket_arn}/*",
+        ]
+        Condition = {
+          StringNotEquals = {
+            "aws:PrincipalOrgID" = var.principal_orgid
+          }
+        }
+      },
+      {
+        Sid       = "CCOE-TFE DenyNonSecureAccess"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = ["s3:*"]
+        Resource = [
+          var.bucket_arn,
+          "${var.bucket_arn}/*",
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })

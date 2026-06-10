@@ -54,14 +54,26 @@
   <main class="page-content">
     <div class="section-header">
       <h2>My Apps</h2>
-      <button class="add-btn" (click)="onAddApp()" title="Add new app">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        New App
-      </button>
+      <div class="section-header__actions">
+        <button class="add-btn" (click)="onAddApp()" title="Onboard an existing GitHub repo into EPIC">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Existing App
+        </button>
+        <button class="add-btn add-btn--secondary" (click)="onCreateNewApp()" title="Generate an epic.md steering doc for a brand-new app">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+          Create New App
+        </button>
+      </div>
     </div>
 
     <div class="toolbar">
@@ -648,6 +660,513 @@
             <button class="btn-primary" (click)="builderNext()" [disabled]="!canBuilderNext">Next</button>
           } @else {
             <button class="btn-primary" (click)="closeBuilder()">Done</button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showCreateAppWizard()) {
+  <div class="modal-overlay" (click)="closeCreateAppWizard()">
+    <div class="modal modal--builder modal--wizard" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div>
+          <h3>Create New App</h3>
+          <p class="modal-subtitle">Generate an <code>epic.md</code> steering doc for a new app.</p>
+        </div>
+        <button class="modal-close" (click)="closeCreateAppWizard()" title="Close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="builder-progress">
+        <div class="builder-progress__step" [class.builder-progress__step--active]="wizardStep() >= 1" [class.builder-progress__step--current]="wizardStep() === 1">
+          <span class="builder-progress__dot">1</span>
+          <span class="builder-progress__label">Basics</span>
+        </div>
+        <div class="builder-progress__line" [class.builder-progress__line--active]="wizardStep() >= 2"></div>
+        <div class="builder-progress__step" [class.builder-progress__step--active]="wizardStep() >= 2" [class.builder-progress__step--current]="wizardStep() === 2">
+          <span class="builder-progress__dot">2</span>
+          <span class="builder-progress__label">Architecture</span>
+        </div>
+        <div class="builder-progress__line" [class.builder-progress__line--active]="wizardStep() >= 3"></div>
+        <div class="builder-progress__step" [class.builder-progress__step--active]="wizardStep() >= 3" [class.builder-progress__step--current]="wizardStep() === 3">
+          <span class="builder-progress__dot">3</span>
+          <span class="builder-progress__label">Cloud</span>
+        </div>
+        <div class="builder-progress__line" [class.builder-progress__line--active]="wizardStep() >= 4"></div>
+        <div class="builder-progress__step" [class.builder-progress__step--active]="wizardStep() >= 4" [class.builder-progress__step--current]="wizardStep() === 4">
+          <span class="builder-progress__dot">4</span>
+          <span class="builder-progress__label">Hints</span>
+        </div>
+        <div class="builder-progress__line" [class.builder-progress__line--active]="wizardStep() >= 5"></div>
+        <div class="builder-progress__step" [class.builder-progress__step--active]="wizardStep() >= 5" [class.builder-progress__step--current]="wizardStep() === 5">
+          <span class="builder-progress__dot">5</span>
+          <span class="builder-progress__label">Review</span>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        @if (wizardStep() === 1) {
+          <div class="onboard-form">
+            <div class="form-field">
+              <label for="wiz-app-name">App Name <span class="form-required">*</span></label>
+              <input
+                id="wiz-app-name"
+                type="text"
+                placeholder="e.g. my-new-app (kebab-case)"
+                [ngModel]="wizardAnswers().appName"
+                (ngModelChange)="wizardUpdate('appName', $event)"
+                [ngModelOptions]="{ standalone: true }"
+                [class.input--taken]="wizardAppNameError()"
+              />
+              @if (wizardAppNameError()) {
+                <span class="field-hint field-hint--taken">{{ wizardAppNameError() }}</span>
+              }
+            </div>
+            <div class="form-field">
+              <label for="wiz-app-type">App Type <span class="form-required">*</span></label>
+              <select
+                id="wiz-app-type"
+                [ngModel]="wizardAnswers().appType"
+                (ngModelChange)="wizardOnAppTypeChange($event)"
+                [ngModelOptions]="{ standalone: true }"
+              >
+                <option value="" disabled>Select type...</option>
+                @for (t of wizardAppTypeOptions(); track t) {
+                  <option [value]="t">{{ APP_TYPE_LABELS[t] }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="wiz-scan-tool">Scan Tool</label>
+              <select
+                id="wiz-scan-tool"
+                [ngModel]="wizardAnswers().scanTool"
+                (ngModelChange)="wizardUpdate('scanTool', $event)"
+                [ngModelOptions]="{ standalone: true }"
+                [disabled]="!wizardAnswers().appType"
+              >
+                <option value="">None</option>
+                @for (tool of SCAN_TOOL_OPTIONS; track tool) {
+                  <option [value]="tool">{{ tool }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="wiz-test-tool">Unit Test Tool</label>
+              <select
+                id="wiz-test-tool"
+                [ngModel]="wizardAnswers().buildTestTool"
+                (ngModelChange)="wizardUpdate('buildTestTool', $event)"
+                [ngModelOptions]="{ standalone: true }"
+                [disabled]="!wizardAnswers().appType"
+              >
+                <option value="">None</option>
+                @for (tool of wizardBuildTestOptions(); track tool) {
+                  <option [value]="tool">{{ tool }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="wiz-integration-tool">Integration Test Tool</label>
+              <select
+                id="wiz-integration-tool"
+                [ngModel]="wizardAnswers().integrationTestTool"
+                (ngModelChange)="wizardUpdate('integrationTestTool', $event)"
+                [ngModelOptions]="{ standalone: true }"
+                [disabled]="!wizardAnswers().appType"
+              >
+                <option value="">None</option>
+                @for (tool of wizardIntegrationTestOptions(); track tool) {
+                  <option [value]="tool">{{ tool }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        }
+
+        @if (wizardStep() === 3) {
+          <div class="onboard-form">
+            <div class="form-field">
+              <label for="wiz-cloud">Cloud Provider <span class="form-required">*</span></label>
+              <select
+                id="wiz-cloud"
+                [ngModel]="wizardAnswers().cloudProvider"
+                (ngModelChange)="wizardOnCloudChange($event)"
+                [ngModelOptions]="{ standalone: true }"
+                [disabled]="wizardAnswers().appType === 'btp'"
+              >
+                <option value="aws">AWS</option>
+                <option value="azure">Azure</option>
+                <option value="btp">SAP BTP</option>
+              </select>
+              @if (wizardAnswers().appType === 'btp') {
+                <span class="field-hint field-hint--info">BTP apps require AWS for Secrets Manager.</span>
+              }
+            </div>
+            @if (wizardAnswers().cloudProvider === 'aws' || wizardAnswers().appType === 'btp') {
+              <div class="form-field">
+                <label for="wiz-aws-account">AWS Account ID @if (wizardAnswers().includeInfra) { <span class="form-required">*</span> }</label>
+                <input
+                  id="wiz-aws-account"
+                  type="text"
+                  placeholder="12-digit account ID"
+                  [ngModel]="wizardAnswers().awsAccountId"
+                  (ngModelChange)="wizardUpdate('awsAccountId', $event)"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+              @if (wizardAnswers().includeInfra) {
+                <div class="form-field">
+                  <label for="wiz-aws-region">AWS Region <span class="form-required">*</span></label>
+                  <select
+                    id="wiz-aws-region"
+                    [ngModel]="wizardAnswers().awsRegion"
+                    (ngModelChange)="wizardUpdate('awsRegion', $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                  >
+                    <option value="us-west-2">us-west-2 (Oregon)</option>
+                    <option value="us-west-1">us-west-1 (N. California)</option>
+                    <option value="us-east-1">us-east-1 (N. Virginia)</option>
+                    <option value="us-east-2">us-east-2 (Ohio)</option>
+                  </select>
+                </div>
+              }
+            }
+            @if (wizardAnswers().cloudProvider === 'azure') {
+              <div class="form-field">
+                <label for="wiz-az-sub">Azure Subscription ID @if (wizardAnswers().includeInfra) { <span class="form-required">*</span> }</label>
+                <input
+                  id="wiz-az-sub"
+                  type="text"
+                  placeholder="UUID"
+                  [ngModel]="wizardAnswers().azureSubscriptionId"
+                  (ngModelChange)="wizardUpdate('azureSubscriptionId', $event)"
+                  [ngModelOptions]="{ standalone: true }"
+                />
+              </div>
+              @if (wizardAnswers().includeInfra) {
+                <div class="form-field">
+                  <label for="wiz-az-rg">Azure Resource Group</label>
+                  <input
+                    id="wiz-az-rg"
+                    type="text"
+                    placeholder="e.g. rg-myapp-dev"
+                    [ngModel]="wizardAnswers().azureResourceGroup"
+                    (ngModelChange)="wizardUpdate('azureResourceGroup', $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                  />
+                </div>
+              }
+            }
+
+            @if (wizardShowDeployTargetSection) {
+              <div class="form-field wizard-deploy-target">
+                <label class="wizard-deploy-target__heading">Deploy target — where this app will land</label>
+                <p class="field-hint field-hint--info">
+                  No <code>.infra/</code> selected. EPIC won't generate Terraform for this app — it needs to know which <strong>existing</strong> resources to push artifacts to. These values flow into <code>cloud.*</code> in <code>epic.json</code> and are read by the EPIC deploy stage. Leave any blank to render as a <code>"TODO"</code> placeholder.
+                </p>
+                <div class="wizard-subgroup">
+                  @if (wizardShowDeployTargetKey('s3')) {
+                    <input type="text" placeholder="Existing S3 bucket name (cloud.s3)" [ngModel]="wizardAnswers().deployTarget.s3" (ngModelChange)="wizardUpdateDeployTarget('s3', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                  @if (wizardShowDeployTargetKey('cloudfront')) {
+                    <input type="text" placeholder="Existing CloudFront distribution ID (cloud.cloudfront)" [ngModel]="wizardAnswers().deployTarget.cloudfront" (ngModelChange)="wizardUpdateDeployTarget('cloudfront', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                  @if (wizardShowDeployTargetKey('ec2InstanceId')) {
+                    <input type="text" placeholder="Existing EC2 instance ID (cloud.ec2InstanceId)" [ngModel]="wizardAnswers().deployTarget.ec2InstanceId" (ngModelChange)="wizardUpdateDeployTarget('ec2InstanceId', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                  @if (wizardShowDeployTargetKey('appExecutable')) {
+                    <input type="text" placeholder="Executable name (cloud.appExecutable, e.g. my-api)" [ngModel]="wizardAnswers().deployTarget.appExecutable" (ngModelChange)="wizardUpdateDeployTarget('appExecutable', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                  @if (wizardShowDeployTargetKey('appServiceName')) {
+                    <input type="text" placeholder="Existing Azure App Service name (cloud.appServiceName)" [ngModel]="wizardAnswers().deployTarget.appServiceName" (ngModelChange)="wizardUpdateDeployTarget('appServiceName', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                  @if (wizardShowDeployTargetKey('resourceGroupName')) {
+                    <input type="text" placeholder="Existing Azure resource group (cloud.resourceGroupName)" [ngModel]="wizardAnswers().deployTarget.resourceGroupName" (ngModelChange)="wizardUpdateDeployTarget('resourceGroupName', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                  @if (wizardShowDeployTargetKey('configDocPrefix')) {
+                    <input type="text" placeholder="SSM config document prefix (cloud.configDocPrefix)" [ngModel]="wizardAnswers().deployTarget.configDocPrefix" (ngModelChange)="wizardUpdateDeployTarget('configDocPrefix', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                  @if (wizardShowDeployTargetKey('testDocPrefix')) {
+                    <input type="text" placeholder="SSM test document prefix (cloud.testDocPrefix)" [ngModel]="wizardAnswers().deployTarget.testDocPrefix" (ngModelChange)="wizardUpdateDeployTarget('testDocPrefix', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                  @if (wizardShowDeployTargetKey('imageRecipeName')) {
+                    <input type="text" placeholder="EC2 Image Builder recipe name (cloud.imageRecipeName)" [ngModel]="wizardAnswers().deployTarget.imageRecipeName" (ngModelChange)="wizardUpdateDeployTarget('imageRecipeName', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                  @if (wizardShowDeployTargetKey('appUrl')) {
+                    <input type="text" placeholder="Deployed app URL (cloud.appUrl, e.g. https://app.lab.pge.com)" [ngModel]="wizardAnswers().deployTarget.appUrl" (ngModelChange)="wizardUpdateDeployTarget('appUrl', $event)" [ngModelOptions]="{ standalone: true }" />
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        @if (wizardStep() === 2) {
+          <div class="onboard-form">
+            @if (wizardArchitectureSkipped()) {
+              <p class="field-hint field-hint--info">
+                Architecture toggles don't apply to <strong>{{ wizardAppTypeLabel() }}</strong> apps. The AI will derive what's needed from the app type and the AI-DLC steering docs.
+              </p>
+              @if (wizardAnswers().appType !== 'infra') {
+                <div class="form-field">
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      [checked]="wizardAnswers().includeInfra"
+                      (change)="wizardUpdate('includeInfra', $any($event.target).checked)"
+                    />
+                    Include <code>.infra/</code> Terraform project
+                  </label>
+                </div>
+              }
+            } @else {
+              <div class="form-field">
+                <label class="checkbox-label">
+                  <input type="checkbox" [checked]="wizardAnswers().hasFrontend" (change)="wizardToggleFrontend($any($event.target).checked)" />
+                  Frontend Auth
+                </label>
+                @if (wizardAnswers().hasFrontend && wizardAnswers().frontend) {
+                  <div class="wizard-subgroup">
+                    <select
+                      [ngModel]="wizardAnswers().frontend!.authMode"
+                      (ngModelChange)="wizardUpdateFrontend('authMode', $event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      <option value="msal">MSAL (Recommended)</option>
+                      <option value="oidc-entra">OIDC (Entra ID)</option>
+                      <option value="none">No auth</option>
+                    </select>
+                    @if (wizardAnswers().frontend!.authMode === 'oidc-entra' || wizardAnswers().frontend!.authMode === 'msal') {
+                      <input
+                        type="text"
+                        placeholder="Entra client ID (optional — leave blank if not yet registered)"
+                        [ngModel]="wizardAnswers().frontend!.authClientId"
+                        (ngModelChange)="wizardUpdateFrontend('authClientId', $event)"
+                        [ngModelOptions]="{ standalone: true }"
+                      />
+                    }
+                    <label class="checkbox-label">
+                      <input
+                        type="checkbox"
+                        [checked]="wizardAnswers().frontend!.apiBaseUrlNeeded"
+                        (change)="wizardUpdateFrontend('apiBaseUrlNeeded', $any($event.target).checked)"
+                      />
+                      Needs an API base URL (calls a backend)
+                    </label>
+                  </div>
+                }
+              </div>
+
+              <div class="form-field">
+                <label class="checkbox-label">
+                  <input type="checkbox" [checked]="wizardAnswers().hasBackend" (change)="wizardToggleBackend($any($event.target).checked)" />
+                  Backend
+                </label>
+                @if (wizardAnswers().hasBackend && wizardAnswers().backend) {
+                  <div class="wizard-subgroup">
+                    <select
+                      [ngModel]="wizardAnswers().backend!.style"
+                      (ngModelChange)="wizardUpdateBackend('style', $event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      <option value="rest-api">REST API</option>
+                      <option value="lambda-per-endpoint">Lambda per endpoint</option>
+                      <option value="graphql">GraphQL</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Runtime (leave blank to use AI-DLC default)"
+                      [ngModel]="wizardAnswers().backend!.runtime"
+                      (ngModelChange)="wizardUpdateBackend('runtime', $event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    />
+                    <select
+                      [ngModel]="wizardAnswers().backend!.authStyle"
+                      (ngModelChange)="wizardUpdateBackend('authStyle', $event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      <option value="none">No auth</option>
+                      <option value="jwt-validator">JWT validator</option>
+                      <option value="api-key">API key</option>
+                    </select>
+                    @if (wizardAnswers().backend!.authStyle === 'jwt-validator') {
+                      <input
+                        type="text"
+                        placeholder="Entra client ID / audience (optional — leave blank if not yet registered)"
+                        [ngModel]="wizardAnswers().backend!.authClientId"
+                        (ngModelChange)="wizardUpdateBackend('authClientId', $event)"
+                        [ngModelOptions]="{ standalone: true }"
+                      />
+                    }
+                  </div>
+                }
+              </div>
+
+              <div class="form-field">
+                <label class="checkbox-label">
+                  <input type="checkbox" [checked]="wizardAnswers().needsDatabase" (change)="wizardToggleDatabase($any($event.target).checked)" />
+                  Database
+                </label>
+                @if (wizardAnswers().needsDatabase && wizardAnswers().database) {
+                  <div class="wizard-subgroup">
+                    <select
+                      [ngModel]="wizardAnswers().database!.engine"
+                      (ngModelChange)="wizardUpdateDatabase('engine', $event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      <option value="postgres">PostgreSQL</option>
+                      <option value="dynamodb">DynamoDB</option>
+                      <option value="sqlserver">SQL Server</option>
+                      <option value="sqlite-local-dev-only">SQLite (local dev only)</option>
+                    </select>
+                    <select
+                      [ngModel]="wizardAnswers().database!.scale"
+                      (ngModelChange)="wizardUpdateDatabase('scale', $event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      <option value="single-instance">Single instance</option>
+                      <option value="multi-az">Multi-AZ / HA</option>
+                    </select>
+                  </div>
+                }
+              </div>
+
+              <div class="form-field">
+                <label class="checkbox-label">
+                  <input type="checkbox" [checked]="wizardAnswers().needsQueue" (change)="wizardToggleQueue($any($event.target).checked)" />
+                  Messaging / events
+                </label>
+                @if (wizardAnswers().needsQueue && wizardAnswers().queue) {
+                  <div class="wizard-subgroup">
+                    <select
+                      [ngModel]="wizardAnswers().queue!.kind"
+                      (ngModelChange)="wizardUpdateQueue($event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      <option value="sqs">SQS</option>
+                      <option value="sns">SNS</option>
+                      <option value="eventbridge">EventBridge</option>
+                      <option value="servicebus">Azure Service Bus</option>
+                    </select>
+                  </div>
+                }
+              </div>
+
+              <div class="form-field">
+                <label class="checkbox-label">
+                  <input type="checkbox" [checked]="wizardAnswers().needsScheduler" (change)="wizardToggleScheduler($any($event.target).checked)" />
+                  Scheduled job
+                </label>
+                @if (wizardAnswers().needsScheduler) {
+                  <div class="wizard-subgroup">
+                    <input
+                      type="text"
+                      placeholder="cron(0 9 * * ? *) — schedule expression"
+                      [ngModel]="wizardAnswers().schedulerCron"
+                      (ngModelChange)="wizardUpdate('schedulerCron', $event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    />
+                  </div>
+                }
+              </div>
+
+              <div class="form-field">
+                <label class="checkbox-label">
+                  <input type="checkbox" [checked]="wizardAnswers().needsStorage" (change)="wizardToggleStorage($any($event.target).checked)" />
+                  Object storage
+                </label>
+                @if (wizardAnswers().needsStorage && wizardAnswers().storage) {
+                  <div class="wizard-subgroup">
+                    <select
+                      [ngModel]="wizardAnswers().storage!.kind"
+                      (ngModelChange)="wizardUpdateStorage($event)"
+                      [ngModelOptions]="{ standalone: true }"
+                    >
+                      <option value="s3">S3</option>
+                      <option value="azure-blob">Azure Blob Storage</option>
+                    </select>
+                  </div>
+                }
+              </div>
+
+              <div class="form-field">
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    [checked]="wizardAnswers().includeInfra"
+                    (change)="wizardUpdate('includeInfra', $any($event.target).checked)"
+                  />
+                  Include <code>.infra/</code> Terraform project
+                </label>
+              </div>
+            }
+          </div>
+        }
+
+        @if (wizardStep() === 4) {
+          <div class="onboard-form wizard-hints">
+            <p class="wizard-hints__intro">
+              This is where you tell the AI what you actually want. The earlier steps captured the shape; this step captures the <em>intent</em>. Be specific — the AI will treat both fields as authoritative input alongside the contracts above.
+            </p>
+            <div class="form-field wizard-hints__field">
+              <label for="wiz-notes">Detailed Description / Notes</label>
+              <textarea
+                id="wiz-notes"
+                placeholder="Tell the AI everything else — domain context, user personas, integrations, edge cases, design constraints, examples, what NOT to do. The structured fields above gave skeletons; flesh out the meat here."
+                [ngModel]="wizardAnswers().extraNotes"
+                (ngModelChange)="wizardUpdate('extraNotes', $event)"
+                [ngModelOptions]="{ standalone: true }"
+              ></textarea>
+            </div>
+            <div class="form-field wizard-hints__field">
+              <label for="wiz-acceptance">Acceptance Criteria</label>
+              <textarea
+                id="wiz-acceptance"
+                placeholder="What does 'done' look like? Bullet list of behaviors, screens, endpoints, data flows, performance targets — anything the AI must satisfy. The AI reads this verbatim."
+                [ngModel]="wizardAnswers().acceptanceCriteria"
+                (ngModelChange)="wizardUpdate('acceptanceCriteria', $event)"
+                [ngModelOptions]="{ standalone: true }"
+              ></textarea>
+            </div>
+          </div>
+        }
+
+        @if (wizardStep() === 5) {
+          <div class="builder-output wizard-review">
+            <button class="builder-output__copy" (click)="wizardCopy()" title="Copy to clipboard">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </button>
+            <textarea class="builder-output__textarea" readonly [value]="wizardPreview()"></textarea>
+          </div>
+          <p class="builder-output__hint">
+            Save the rendered output above as <code>epic.md</code> at the root of your repo — the EPIC infrastructure steering content is already embedded inside it. Make sure PG&E's AI-DLC steering docs (e.g., <code>CLAUDE.md</code>, <code>AGENTS.md</code>, <code>.cursorrules</code>) are also at the repo root, then ask Claude Code (or another AI session) to "run epic.md".
+          </p>
+        }
+      </div>
+
+      <div class="modal-footer">
+        @if (wizardStep() > 1) {
+          <button class="btn-secondary" (click)="wizardBack()">Back</button>
+        } @else {
+          <div></div>
+        }
+        <div class="modal-footer__right">
+          @if (wizardStep() < 5) {
+            <button class="btn-primary" (click)="wizardNext()" [disabled]="!canWizardNext">Next</button>
+          } @else {
+            <button class="btn-primary" (click)="wizardDownload()">Download epic.md</button>
           }
         </div>
       </div>

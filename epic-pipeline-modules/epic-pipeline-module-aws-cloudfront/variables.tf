@@ -3,6 +3,11 @@ variable "app_name" {
   type        = string
 }
 
+variable "principal_orgid" {
+  description = "AWS Organization ID. Used in the S3 bucket policy to deny access from any principal outside the PG&E AWS organization (CCOE-TFE guardrail). The cloudfront module owns the bucket policy on the backing bucket and must preserve this deny alongside the CloudFront read-allow."
+  type        = string
+}
+
 variable "environment" {
   description = "Deployment environment (dev, test, qa, prod)."
   type        = string
