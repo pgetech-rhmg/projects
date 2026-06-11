@@ -145,8 +145,11 @@ resource "aws_s3_bucket_policy" "cloudfront_access" {
           "${var.bucket_arn}/*",
         ]
         Condition = {
-          StringNotEquals = {
+          StringNotEqualsIfExists = {
             "aws:PrincipalOrgID" = var.principal_orgid
+          }
+          Bool = {
+            "aws:PrincipalIsAWSService" = "false"
           }
         }
       },
