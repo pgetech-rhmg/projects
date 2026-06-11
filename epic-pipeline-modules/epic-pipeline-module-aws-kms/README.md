@@ -1,176 +1,163 @@
-# EPIC AWS KMS Module (Tier 0)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps
-**Module Name:** epic-pipeline-module-aws-kms
-**Module Type:** Tier 0 – Foundational Infrastructure Module
-
----
+# EPIC AWS KMS Module
 
 ## Overview
 
-This repository provides the **foundational AWS KMS Customer-Managed Key (CMK) Terraform module** used by PG&E's **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+Terraform module that provisions a single AWS KMS Customer-Managed Key (CMK) and a single alias for the EPIC (Enterprise Pipeline for Infrastructure and Cloud) platform.
 
-This module creates a single CMK and a single alias, with a SAF-aligned default key policy that grants:
+The module ships with a SAF-aligned default key policy that grants:
 
 1. Account root admin (`kms:*`)
-2. `SecurityAdmin` role lifecycle actions (DeleteAlias / DisableKey / CancelKeyDeletion / EnableKey)
-3. `PrismaCloudReadWriteMasterMemberRole-member` `kms:*` for compliance scanning
-4. A `DenyFromInternet` statement scoped to PG&E CIDR space, with `aws:ViaAWSService` carve-out and an optional org-ID safety net
+2. A `SecurityAdmin` role lifecycle actions (`DeleteAlias`, `DisableKey`, `CancelKeyDeletion`, `EnableKey`)
+3. A Prisma Cloud compliance role full `kms:*` for scanning
+4. A `DenyFromInternet` statement scoped to PG&E CIDR space, with an `aws:ViaAWSService` carve-out and an optional `aws:PrincipalOrgID` safety net
 
-Caller may supply a fully-formed `policy_json` to override the default.
+A caller may supply a fully-formed `policy_json` to replace the default policy entirely.
 
----
+The default alias resolves to:
 
-## Design Principles
+```
+alias/pge-epic-<app_name>-<environment>-<purpose>
+```
 
-- One CMK per data classification per purpose
-- Annual rotation enforced (symmetric encryption keys)
-- 30-day deletion window default; 7-day minimum
-- Account-scoped — no cross-account principals on the default policy
-- Deny-internet condition baked into the default policy
-- Caller composes per-workload action grants via IAM role inline policies (NOT in the key policy)
+Set `custom_alias` to override the auto-derived alias (must start with `alias/`).
 
----
-
-## SAF 2.0 Compliance
-
-Enforced via Terraform `lifecycle` preconditions and validations:
-
-| SAF # | Control | Enforcement |
-|---|---|---|
-| #5 | Key rotation | `enable_key_rotation=true` enforced for symmetric ENCRYPT_DECRYPT keys |
-| #7 | Deletion window | `deletion_window_in_days` validated 7–30; default 30 |
-| #8 / #29 | Least-privilege management | `bypass_policy_lockout_safety_check=false` enforced; default policy grants `kms:*` only to account root, lifecycle subset to SecurityAdmin, full `kms:*` to Prisma compliance role |
-| #19 | Internet segregation | Default policy includes `DenyFromInternet` scoped to PG&E CIDR space with `aws:ViaAWSService=false` carve-out |
-
-Caller may supply `policy_json` to override; the override is the caller's responsibility to keep SAF-aligned.
-
-Out of module scope: KMS VPC endpoint, per-workload IAM role inline policies (`kms:Encrypt`, `kms:Decrypt`, `kms:GenerateDataKey`, `kms:DescribeKey`).
-
----
-
-## What This Module Is (and Is Not)
-
-### This module IS
-- A foundational symmetric/asymmetric CMK primitive
-- A SAF-aligned default key policy
-- Suitable for direct use by experienced Terraform users
-
-### This module is NOT
-- A grant-management layer (workload roles get `kms:Encrypt` / `kms:Decrypt` via their own IAM policies)
-- A KMS VPC endpoint module
-- A multi-key fleet manager (call it once per CMK)
-
----
-
-## Resources Created
+## Resources
 
 - `aws_kms_key`
 - `aws_kms_alias`
 
----
-
 ## Inputs
 
-### Required Inputs
+### Required
 
-| Name | Description |
-|---|---|
-| `app_name` | Application identifier |
-| `environment` | Deployment environment (dev, test, qa, prod) |
-| `tags` | Resource tags |
-| `purpose` | Suffix for the alias (e.g., `aurora`, `secrets`) |
-| `description` | Human-readable description |
-
-### Optional Inputs
-
-| Name | Description | Default |
+| Name | Type | Description |
 |---|---|---|
-| `custom_alias` | Full alias override (`alias/...`) | `null` |
-| `key_usage` | `ENCRYPT_DECRYPT`, `SIGN_VERIFY`, `GENERATE_VERIFY_MAC` | `ENCRYPT_DECRYPT` |
-| `customer_master_key_spec` | Key material spec | `SYMMETRIC_DEFAULT` |
-| `deletion_window_in_days` | Pending-deletion window (7–30) | `30` |
-| `enable_key_rotation` | Enable annual rotation (symmetric only) | `true` |
-| `multi_region` | Create as multi-region key | `false` |
-| `is_enabled` | Whether the key is enabled | `true` |
-| `bypass_policy_lockout_safety_check` | Bypass policy lockout check | `false` |
-| `policy_json` | Raw JSON key policy override | `null` |
-| `security_admin_role_name` | Role granted lifecycle actions on default policy | `SecurityAdmin` |
-| `prisma_role_name` | Role granted compliance access on default policy | `PrismaCloudReadWriteMasterMemberRole-member` |
-| `internal_cidr_blocks` | CIDRs allowed by `DenyFromInternet` | PG&E ranges |
-| `principal_org_id` | Org ID used in the safety-net condition | `null` |
+| `app_name` | `string` | Application name used for naming the key alias. |
+| `environment` | `string` | Deployment environment (`dev`, `test`, `qa`, `prod`). |
+| `tags` | `map(string)` | Common tags applied to the key. |
+| `purpose` | `string` | Purpose suffix for the key alias (e.g., `aurora`, `secrets`, `audit`). Combined into `alias/pge-epic-<app>-<env>-<purpose>`. |
+| `description` | `string` | Human-readable description of the key. |
 
----
+### Optional
+
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `custom_alias` | `string` | `null` | Full alias override (must start with `alias/`). Takes precedence over the auto-derived alias. |
+| `key_usage` | `string` | `ENCRYPT_DECRYPT` | Intended use of the key. One of `ENCRYPT_DECRYPT`, `SIGN_VERIFY`, `GENERATE_VERIFY_MAC`. |
+| `customer_master_key_spec` | `string` | `SYMMETRIC_DEFAULT` | Type of key material. Use `SYMMETRIC_DEFAULT` for symmetric encryption; asymmetric specs are valid for `SIGN_VERIFY`. |
+| `deletion_window_in_days` | `number` | `30` | Waiting period in days before pending key deletion (7 to 30). |
+| `enable_key_rotation` | `bool` | `true` | Enable automatic annual key rotation. Required for symmetric `ENCRYPT_DECRYPT` keys. |
+| `multi_region` | `bool` | `false` | Create the key as multi-region. |
+| `is_enabled` | `bool` | `true` | Specifies whether the key is enabled. |
+| `bypass_policy_lockout_safety_check` | `bool` | `false` | Bypass the safety check that prevents creating a key policy that locks out the principal updating it. Must remain `false`. |
+| `policy_json` | `string` | `null` | Raw JSON key policy override. When `null`, the SAF-aligned default policy is generated. |
+| `security_admin_role_name` | `string` | `SecurityAdmin` | Name of the IAM role granted lifecycle management actions on the default policy. |
+| `prisma_role_name` | `string` | `PrismaCloudReadWriteMasterMemberRole-member` | Name of the IAM role granted `kms:*` for compliance scanning on the default policy. |
+| `internal_cidr_blocks` | `list(string)` | PG&E internal ranges | CIDR blocks allowed by the `DenyFromInternet` condition on the default policy. |
+| `principal_org_id` | `string` | `null` | PG&E AWS Organizations ID used in the `DenyFromInternet` carve-out. When `null`, the org-id condition is omitted. |
 
 ## Outputs
 
 | Name | Description |
 |---|---|
-| `key_id` | KMS key ID |
-| `key_arn` | KMS key ARN |
-| `alias_name` | Alias name |
-| `alias_arn` | Alias ARN |
-| `key_rotation_enabled` | Resolved rotation flag |
+| `key_id` | KMS key ID. |
+| `key_arn` | KMS key ARN. |
+| `alias_name` | KMS key alias name. |
+| `alias_arn` | KMS key alias ARN. |
+| `key_rotation_enabled` | Whether automatic key rotation is enabled. |
 
----
+## Usage in a Terraform project
 
-## Example Usage (Direct Terraform)
+Place the following in the application's `.infra/kms.tf` (referenced by `app.infraPath` in `.pipeline/epic.json`). One CMK per data-classification boundary.
 
 ```hcl
-module "aurora_key" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-kms.git"
+module "kms_aurora" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-kms.git?ref=main"
 
-  app_name    = "nfr-tool"
-  environment = "dev"
-  purpose     = "aurora"
-  description = "Encrypts the NFR Tool Aurora cluster + automated/manual snapshots."
+  app_name                 = var.project_tag
+  environment              = var.environment
+  purpose                  = "aurora"
+  description              = "CMK for the NFR Tool Aurora cluster (storage encryption + master-user-password)."
+  enable_key_rotation      = true
+  security_admin_role_name = var.kms_security_admin_role_name
+  prisma_role_name         = var.kms_prisma_role_name
+  internal_cidr_blocks     = var.pge_cidr_allowlist
+  principal_org_id         = var.principal_orgid
 
-  principal_org_id = "o-abc123"
+  tags = module.tags.tags
+}
+
+module "kms_lambda" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-kms.git?ref=main"
+
+  app_name                 = var.project_tag
+  environment              = var.environment
+  purpose                  = "lambda-env"
+  description              = "CMK for NFR Tool Lambda environment-variable encryption."
+  enable_key_rotation      = true
+  security_admin_role_name = var.kms_security_admin_role_name
+  prisma_role_name         = var.kms_prisma_role_name
+  internal_cidr_blocks     = var.pge_cidr_allowlist
+  principal_org_id         = var.principal_orgid
+
+  tags = module.tags.tags
+}
+
+module "kms_secrets" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-kms.git?ref=main"
+
+  app_name                 = var.project_tag
+  environment              = var.environment
+  purpose                  = "secrets"
+  description              = "CMK for NFR Tool Secrets Manager entries (per-assessment AIDLC API keys, EntraID secrets)."
+  enable_key_rotation      = true
+  security_admin_role_name = var.kms_security_admin_role_name
+  prisma_role_name         = var.kms_prisma_role_name
+  internal_cidr_blocks     = var.pge_cidr_allowlist
+  principal_org_id         = var.principal_orgid
 
   tags = module.tags.tags
 }
 ```
 
-Resolves to alias `alias/pge-epic-nfr-tool-dev-aurora`.
+## Usage from another module
 
----
+Compose this module from a higher-level module (e.g., a workload module that creates an Aurora cluster and the CMK that encrypts it) by forwarding identity and policy inputs:
 
-## EPIC Usage (resources.yml)
+```hcl
+module "kms" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-kms.git?ref=main"
 
-```yaml
-modules:
-  - name: aurora-key
-    path: epic-pipeline-module-aws-kms
-    variables:
-      app_name: ${app_name}
-      environment: ${environment}
-      purpose: aurora
-      description: "Encrypts the NFR Tool Aurora cluster + snapshots."
-      tags: module.tags.tags
+  app_name                 = var.app_name
+  environment              = var.environment
+  purpose                  = var.purpose
+  description              = var.description
+  enable_key_rotation      = true
+  security_admin_role_name = var.security_admin_role_name
+  prisma_role_name         = var.prisma_role_name
+  internal_cidr_blocks     = var.internal_cidr_blocks
+  principal_org_id         = var.principal_org_id
+
+  tags = var.tags
+}
+
+resource "aws_rds_cluster" "this" {
+  # ...
+  kms_key_id        = module.kms.key_arn
+  storage_encrypted = true
+}
 ```
 
----
+## Versions
 
-## Naming Conventions
+| Requirement | Version |
+|---|---|
+| Terraform | `>= 1.5.0` |
+| AWS Provider | `~> 5.90` |
 
-Default alias resolves to:
+## Notes
 
-```text
-alias/pge-epic-<app_name>-<environment>-<purpose>
-```
-
----
-
-## Terraform Compatibility
-
-- Terraform >= 1.5
-- AWS Provider >= 5.x
-
----
-
-## Ownership
-
-Maintained by:
-**PG&E Enterprise Cloud & DevSecOps**
-
-Part of the **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** ecosystem.
+- `enable_key_rotation` is only honored when `key_usage = ENCRYPT_DECRYPT` and `customer_master_key_spec = SYMMETRIC_DEFAULT`. For all other combinations, rotation is forced to `false` regardless of input.
+- `bypass_policy_lockout_safety_check` is enforced to `false` via a `lifecycle.precondition`. Setting it to `true` will fail the plan.
+- When `policy_json` is supplied, none of the `security_admin_role_name`, `prisma_role_name`, `internal_cidr_blocks`, or `principal_org_id` inputs are used — the override owns the entire policy document.
+- Per-workload action grants (`kms:Encrypt`, `kms:Decrypt`, `kms:GenerateDataKey`, `kms:DescribeKey`) belong on the consuming IAM role's inline policy, not on the key policy.

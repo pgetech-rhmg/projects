@@ -1,179 +1,96 @@
-# EPIC AWS Deploy Static Site Module
-
-**Team:** PG&E Enterprise Cloud & DevSecOps  
-**Module Name:** epic-pipeline-module-aws-deploy-static-site  
-**Module Type:** Tier 2 – Workload / Application Deployment Module  
-**Last Updated:** 2025-12-17
-
----
+# epic-pipeline-module-aws-deploy-static-site
 
 ## Overview
 
-This repository provides the **AWS static website deployment Terraform module** used by PG&E’s **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+Terraform module that uploads a built static site (HTML/CSS/JS/assets) to a pre-existing S3 bucket as individually-tracked `aws_s3_object` resources. Intended for use from an application's `.infra/` folder when EPIC's deploy stage is not handling the upload directly, or when an `appType: "infra"` repo needs to publish assets as part of a Terraform apply.
 
-This module is **purpose-built for deploying static website assets** (HTML, CSS, JavaScript, images, etc.) to an **existing S3 bucket**.  
-It is intentionally **narrow in scope**, **pipeline-driven**, and **safe to re-run**.
+The module does not create the bucket, configure static website hosting, manage CloudFront, or invalidate caches. Those responsibilities belong to upstream infrastructure modules and to EPIC's `deploy/aws/static` stage.
 
-This module does **not** create infrastructure.  
-It **consumes** foundational infrastructure created by other EPIC modules, such as:
+Resolves the source directory using the EPIC workspace layout: `${path.root}/${app_name}/${app_path}`.
 
-- `pge-pipeline-module-aws-s3`
-- `pge-pipeline-module-aws-cloudfront`
+## Resources
 
----
+| Resource | Purpose |
+|----------|---------|
+| `aws_s3_object.website_files` | One object per file under the resolved website root. Content type is inferred from extension (with optional overrides), and changes are detected via `filemd5` etag. |
 
-## Design Principles
+This module is pure Terraform — it does not shell out to the AWS CLI, does not use `null_resource`, and does not invalidate CloudFront. Plans and applies are deterministic against the contents of the source directory.
 
-### Single Responsibility
+## Inputs
 
-This module performs **one job only**:
+### Required
 
-> Deterministically upload static website files to S3.
+| Name | Type | Description |
+|------|------|-------------|
+| `app_name` | `string` | Application name. Used as the first path segment when resolving the source directory (`${path.root}/${app_name}/${app_path}`). |
+| `bucket_name` | `string` | Target S3 bucket name. Must already exist. |
 
-It does **not**:
-- Build applications
-- Run npm / Angular / .NET builds
-- Zip or package artifacts
-- Modify bucket configuration
-- Manage CloudFront
+### Optional
 
-All build steps occur **outside Terraform**, typically in the EPIC pipeline.
-
----
-
-### Static-Site Specific (By Design)
-
-This module is **explicitly static-site focused**.
-
-Other delivery models (Angular, .NET, APIs, Lambdas, containers) are handled by **separate deploy modules** to avoid:
-- Conditional logic
-- Feature flags
-- Polymorphic Terraform modules
-
-This ensures clarity, scalability, and long-term maintainability.
-
----
-
-### EPIC Workspace Compatibility
-
-The module resolves website assets using the EPIC workspace layout:
-
-```hcl
-${path.root}/${app_name}/${app_path}
-```
-
-This allows:
-- Multi-app repositories
-- Environment isolation
-- Pipeline-driven builds
-- Zero hardcoded paths
-
----
-
-## What This Module Deploys
-
-- All files under the resolved website directory
-- Uploaded as individual `aws_s3_object` resources
-- Changes detected via file `etag` (MD5)
-- Content-Type automatically inferred by file extension
-- Optional `Cache-Control` header support
-
----
-
-## What This Module Does NOT Do
-
-- ❌ Create or configure S3 buckets  
-- ❌ Enable static website hosting  
-- ❌ Configure CloudFront  
-- ❌ Invalidate CloudFront caches  
-- ❌ Build or transpile code  
-
-Those responsibilities belong to other EPIC modules or pipeline steps.
-
----
-
-## Required Inputs
-
-| Variable Name | Description |
-|--------------|-------------|
-| `app_name` | Application name used to resolve workspace path |
-| `app_path` | Relative path to static site assets under the app folder |
-| `bucket_name` | Target S3 bucket name |
-
----
-
-## Optional Inputs
-
-| Variable Name | Description |
-|--------------|-------------|
-| `cache_control` | Cache-Control header applied to uploaded objects |
-| `content_type_overrides` | Map of file extension → MIME type overrides |
-
----
-
-## Example EPIC Usage (resources.yml)
-
-```yaml
-modules:
-  - name: deploy-static-site
-    path: epic-pipeline-module-aws-deploy-static-site
-    variables:
-       # Required but auto-injected by EPIC (can be omitted)
-      app_name: "${app_name}"
-      bucket_name: "${bucket_name}"
-
-      # Overrides
-      app_path: "/"
-      cache_control: "max-age=3600"
-```
-
----
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `app_path` | `string` | `"/"` | Relative path under the app folder containing the built static site files. |
+| `cache_control` | `string` | `null` | Optional `Cache-Control` header applied to every uploaded object. |
+| `content_type_overrides` | `map(string)` | `{}` | Map of lowercase file extension → MIME type. Merged over the module's defaults (`html`, `css`, `js`, `json`, `png`, `jpg`, `jpeg`, `svg`, `ico`, `txt`, `map`). Unmatched extensions fall back to `binary/octet-stream`. |
 
 ## Outputs
 
-| Output Name | Description |
-|------------|-------------|
-| `deployed_bucket` | Name of the S3 bucket receiving website assets |
-| `file_count` | Number of files deployed |
+| Name | Description |
+|------|-------------|
+| `deployed_bucket` | The S3 bucket name that received the assets (echoes `bucket_name`). |
+| `file_count` | Number of files uploaded. |
 
----
+## Usage in a Terraform Project
 
-## Intended Consumers
+Typical usage from an application's `.infra/main.tf`. The bucket is created elsewhere (for example by an upstream `aws-s3` module) and its name is passed in.
 
-This module is designed for:
-- Static HTML websites
-- Angular / React / Vue build outputs
-- Documentation sites
-- Lightweight front-end applications
+```hcl
+module "deploy_static_site" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-deploy-static-site.git?ref=main"
 
-For other workloads, use the appropriate EPIC deploy module.
+  app_name    = "my-react-app"
+  bucket_name = module.web_bucket.bucket_name
 
----
+  app_path      = "/dist"
+  cache_control = "max-age=3600"
 
-## EPIC Module Tiering
+  content_type_overrides = {
+    webmanifest = "application/manifest+json"
+  }
+}
+```
 
-| Tier | Responsibility |
-|-----|---------------|
-| Tier 0 | Foundational infrastructure (S3, IAM, KMS) |
-| Tier 1 | Platform services (CloudFront, ALB, RDS) |
-| Tier 2 | Application deployment (this module) |
+With this configuration, the module reads files from `${path.root}/my-react-app/dist` and uploads each one to `module.web_bucket.bucket_name`.
 
----
+The corresponding `.pipeline/epic.json` entry points the deploy stage at the same bucket (and at the CloudFront distribution that fronts it):
 
-## Summary
+```json
+{
+  "app": {
+    "appName": "my-react-app",
+    "appType": "react",
+    "codePath": "/"
+  },
+  "cloud": {
+    "awsAccountId": "999999999999",
+    "awsRegion": "us-west-2",
+    "s3": "pge-epic-my-react-app-web-dev",
+    "cloudfront": "X9X9X9XX99XX9X"
+  }
+}
+```
 
-This module completes the **static website delivery path** in EPIC:
+## Versions
 
-Infrastructure:
-- `aws-s3`
-- `aws-cloudfront`
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
+| AWS provider | Inherited from the calling project |
 
-Deployment:
-- `aws-deploy-static-site`
+This module does not pin an `aws` provider version — the calling project's `terraform.tf` controls provider configuration and versioning.
 
-Clear boundaries.  
-No hidden logic.  
-Pipeline-first by design.
+## Notes
 
----
-
+- The source directory is resolved with `abspath()` against `path.root`, which means it is evaluated relative to the root module being applied (the application's `.infra/` folder), not the location of this module.
+- Each file is registered as its own `aws_s3_object` resource. Adding or removing a file produces a corresponding plan diff, so deployments are reviewable in `terraform plan` output.
+- No real consumer of this module exists in `epic-web/.infra/`, `epic-api/.infra/`, or under `projects/` at the time of writing — the example above is synthetic.

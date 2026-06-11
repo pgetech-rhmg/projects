@@ -1,284 +1,144 @@
-# EPIC Azure Key Vault Module (Tier 0)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps
-**Module Name:** epic-pipeline-module-azure-key-vault
-**Module Type:** Tier 0 -- Secrets Management Primitive
-**Last Updated:** 2026-03-25
-
----
+# EPIC Azure Key Vault Module
 
 ## Overview
 
-This repository provides the **standard Azure Key Vault Terraform module** used by PG&E's
-**EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+Provisions an Azure Key Vault for secrets, keys, and certificates used by EPIC-managed Azure workloads. The vault defaults to RBAC authorization, soft-delete with purge protection, and supports optional network ACLs and bulk creation of initial secrets (suitable for App Service Key Vault references).
 
-This is the **Azure equivalent of aws-secretmanager** -- the canonical EPIC secrets management primitive for Azure workloads.
+This module is consumed from an application's `.infra/` directory, which is provisioned by the EPIC pipeline when an app's `.pipeline/epic.json` declares Azure as the cloud target.
 
-The module delivers a **secure, policy-aligned Key Vault** with:
+## Resources
 
-- RBAC authorization by default (no legacy access policies)
-- Purge protection enabled
-- Soft delete with configurable retention
-- TLS-enforced access
-- Optional network ACLs
-- Optional initial secret provisioning
-
----
-
-## Design Principles
-
-- RBAC-first (Azure RBAC instead of vault access policies)
-- Secure by default (purge protection, soft delete)
-- No secrets in Terraform state (use `sensitive = true` on inputs)
-- Network isolation ready (optional ACLs)
-- Compatible with EPIC auto-wiring and App Service Key Vault references
-- Clean separation between vault creation and secret consumption
-
----
-
-## What This Module Is (and Is Not)
-
-### This module IS
-- A standard Azure Key Vault implementation
-- A shared secrets management primitive for all Azure workloads
-- A Tier 0 EPIC building block
-- Safe for direct consumption by application teams
-
-### This module is NOT
-- A certificate management module
-- A key management / HSM module
-- A deployment or CI/CD module
-- A place to embed org- or app-specific policy logic
-
----
-
-## Resources Created
-
-- azurerm_key_vault
-- azurerm_key_vault_secret (one per entry in `secrets` map)
-
-No networking, logging, or monitoring resources are created directly.
-
----
-
-## Security Defaults
-
-The following controls are enforced automatically:
-
-- Azure RBAC authorization (no legacy access policies)
-- Purge protection enabled
-- Soft delete with 90-day retention
-- TLS-only access
-
-### App Service Integration
-
-This module outputs **versionless secret URIs** suitable for App Service Key Vault references:
-
-```text
-@Microsoft.KeyVault(SecretUri=https://myvault.vault.azure.net/secrets/my-secret)
-```
-
-Pass the `secret_uris` output directly to the App Service module's `key_vault_secret_refs` input.
-
----
+- `azurerm_key_vault.this` — the Key Vault
+- `azurerm_key_vault_secret.this` — one secret per entry in `var.secrets` (created via `for_each`)
+- `azurerm_client_config.current` (data) — resolves the current tenant ID
 
 ## Inputs
 
-### Required Inputs
+### Required
 
-| Name | Description |
-|------|-------------|
-| tenant_id | Target tenant |
-| subscription_id | Target subscription |
-| resource_group_name | Target resource group |
-| azure_region | Azure region |
-| key_vault_name | Key Vault name (3-24 chars, alphanumeric and hyphens) |
-| tags | Resource tags |
+| Name | Type | Description |
+|------|------|-------------|
+| `resource_group_name` | `string` | Name of the resource group |
+| `azure_region` | `string` | Azure region |
+| `key_vault_name` | `string` | Name of the Key Vault — must be 3-24 chars, alphanumeric and hyphens |
+| `tags` | `map(string)` | Resource tags |
 
----
+### Optional
 
-### Vault Configuration
-
-| Name | Description | Default |
-|------|-------------|---------|
-| sku_name | Key Vault SKU (standard or premium) | standard |
-| soft_delete_retention_days | Soft delete retention (7-90 days) | 90 |
-| purge_protection_enabled | Prevent permanent deletion during retention | true |
-| enable_rbac_authorization | Use Azure RBAC instead of access policies | true |
-| enabled_for_deployment | Allow VMs to retrieve certificates | false |
-| enabled_for_disk_encryption | Allow Azure Disk Encryption access | false |
-| enabled_for_template_deployment | Allow ARM template access | false |
-
----
-
-### Network Configuration
-
-| Name | Description | Default |
-|------|-------------|---------|
-| network_acls | Network ACL rules (default_action, bypass, ip_rules, virtual_network_subnet_ids) | null |
-
----
-
-### Secrets
-
-| Name | Description | Default |
-|------|-------------|---------|
-| secrets | Map of secret name to secret value (sensitive) | {} |
-
----
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `sku_name` | `string` | `"standard"` | Key Vault SKU (`standard` or `premium`) |
+| `soft_delete_retention_days` | `number` | `90` | Days to retain soft-deleted vaults and secrets (7-90) |
+| `purge_protection_enabled` | `bool` | `true` | Prevent permanent deletion during the retention period |
+| `enable_rbac_authorization` | `bool` | `true` | Use Azure RBAC instead of vault access policies |
+| `enabled_for_deployment` | `bool` | `false` | Allow Azure VMs to retrieve certificates stored as secrets |
+| `enabled_for_disk_encryption` | `bool` | `false` | Allow Azure Disk Encryption to retrieve secrets and unwrap keys |
+| `enabled_for_template_deployment` | `bool` | `false` | Allow Azure Resource Manager to retrieve secrets |
+| `network_acls` | `object({ default_action, bypass, ip_rules, virtual_network_subnet_ids })` | `null` | Network ACL rules for the Key Vault |
+| `secrets` | `map(string)` | `{}` | Initial secrets to create — map of secret name to secret value |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| key_vault_id | Key Vault resource ID |
-| key_vault_name | Key Vault name |
-| key_vault_uri | Key Vault URI |
-| secret_uris | Map of secret name to versionless URI (for App Service Key Vault references) |
+| `key_vault_id` | ID of the Key Vault |
+| `key_vault_name` | Name of the Key Vault |
+| `key_vault_uri` | URI of the Key Vault |
+| `secret_uris` | Map of secret name to versionless URI (for App Service Key Vault references) |
 
----
+## Usage in a Terraform project
 
-## Example Usage — Key Vault + App Service Integration
+Typical usage from an application's `.infra/main.tf`:
 
 ```hcl
 module "key_vault" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-key-vault.git"
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-key-vault.git?ref=main"
 
-  tenant_id       = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-
-  resource_group_name = "rg-example-dev"
-  azure_region        = "westus"
-
-  key_vault_name = "kv-example-dev"
-
-  secrets = {
-    "ConnectionStrings--DefaultConnection" = var.db_connection_string
-    "GitHub--Token"                        = var.github_token
-  }
+  resource_group_name = "rg-my-app-dev"
+  azure_region        = "westus2"
+  key_vault_name      = "kv-my-app-dev"
 
   tags = {
-    owner       = "team-x"
-    environment = "dev"
+    Environment = "dev"
+    Application = "my-app"
+  }
+
+  secrets = {
+    "DB-PASSWORD" = var.db_password
+    "API-KEY"     = var.api_key
   }
 }
 
-module "api_app" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-app-service-linux.git"
-
-  tenant_id       = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-
-  resource_group_name = "rg-example-dev"
-  azure_region        = "westus"
-
-  service_plan_name = "asp-example-dev"
-  app_name          = "example-api-dev"
-
-  runtime        = "dotnet"
-  dotnet_version = "10.0"
-
-  key_vault_secret_refs = module.key_vault.secret_uris
-
-  tags = {
-    owner       = "team-x"
-    environment = "dev"
-  }
+output "key_vault_uri" {
+  value = module.key_vault.key_vault_uri
 }
 ```
 
----
-
-## Example Usage — Network-Restricted Vault
+A locked-down vault with network ACLs and the premium SKU:
 
 ```hcl
 module "key_vault" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-key-vault.git"
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-key-vault.git?ref=main"
 
-  tenant_id       = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  resource_group_name = "rg-my-app-prod"
+  azure_region        = "westus2"
+  key_vault_name      = "kv-my-app-prod"
+  sku_name            = "premium"
 
-  resource_group_name = "rg-example-prod"
-  azure_region        = "westus"
-
-  key_vault_name = "kv-example-prod"
-  sku_name       = "premium"
+  tags = {
+    Environment = "prod"
+    Application = "my-app"
+  }
 
   network_acls = {
     default_action             = "Deny"
     bypass                     = "AzureServices"
     ip_rules                   = ["203.0.113.0/24"]
-    virtual_network_subnet_ids = [module.network.subnet_id]
-  }
-
-  tags = {
-    owner       = "team-x"
-    environment = "prod"
+    virtual_network_subnet_ids = [azurerm_subnet.app.id]
   }
 }
 ```
 
----
+## Usage from another module
 
-## EPIC Usage (resources.yml)
+Compose the Key Vault alongside other EPIC modules — for example, wiring secret URIs into an App Service:
 
-```yaml
-parameters:
-  tenant_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  azure_region: "westus"
-  environment: "dev"
+```hcl
+module "key_vault" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-key-vault.git?ref=main"
 
-modules:
-  - name: key_vault
-    path: epic-pipeline-module-azure-key-vault
-    variables:
-      key_vault_name: "kv-example-dev"
+  resource_group_name = var.resource_group_name
+  azure_region        = var.azure_region
+  key_vault_name      = "kv-${var.app_name}-${var.environment}"
+  tags                = var.tags
 
-      tags: module.tags.tags
+  secrets = {
+    "DB-CONNECTION" = var.db_connection_string
+  }
+}
+
+module "app_service" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-app-service.git?ref=main"
+
+  # ...
+
+  app_settings = {
+    "DB_CONNECTION" = "@Microsoft.KeyVault(SecretUri=${module.key_vault.secret_uris["DB-CONNECTION"]})"
+  }
+}
 ```
 
----
+## Versions
 
-## Terraform Compatibility
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
+| `hashicorp/azurerm` | `~> 3.100` |
 
-- Terraform >= 1.5
-- AzureRM Provider >= 3.100
+## Notes
 
----
-
-## Why This Module Exists
-
-This module exists to:
-
-- Standardize Azure Key Vault deployments
-- Remove copy-paste secrets infrastructure
-- Enforce consistent security defaults (RBAC, purge protection)
-- Enable seamless integration with App Service Key Vault references
-- Serve as the canonical EPIC secrets management primitive for Azure
-
-It is **infrastructure**, not deployment logic.
-
----
-
-## Ownership
-
-Maintained by:
-**PG&E Enterprise Cloud & DevSecOps**
-
-Part of the **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** ecosystem.
-
----
-
-## Final Notes
-
-If you need:
-
-- Certificate management (import, rotation, issuance)
-- HSM-backed keys
-- Private endpoint connectivity
-- Diagnostic logging to Log Analytics
-
-Use or compose a **higher-level EPIC module** that builds on this foundation.
-
-This module should remain **clean, minimal, and secrets-focused**.
+- `enable_rbac_authorization` defaults to `true`. If you opt out, you are responsible for declaring `azurerm_key_vault_access_policy` resources outside this module.
+- `purge_protection_enabled` defaults to `true` and cannot be reversed once enabled on the underlying vault — plan accordingly for non-production environments where you may want to recreate vaults.
+- Secrets passed via `var.secrets` are stored in Terraform state. Source them from variables marked `sensitive = true` and avoid committing values to `terraform.auto.tfvars`.
+- App Service Key Vault references should use the `versionless_id` returned in `secret_uris` so rotated secret versions are picked up automatically.
+- The vault's `tenant_id` is resolved from the active Azure provider via `azurerm_client_config` — there is no `tenant_id` input on this module.

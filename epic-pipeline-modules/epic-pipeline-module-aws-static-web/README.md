@@ -1,192 +1,185 @@
-# EPIC AWS Static Web Module (Tier 1)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps  
-**Module Name:** epic-pipeline-module-aws-static-web  
-**Module Type:** Tier 1 – Composed “Super” Infrastructure Module  
-**Last Updated:** 2025-12-17
-
----
+# EPIC AWS Static Web Module
 
 ## Overview
 
-This repository provides the **AWS Static Web “Super” Terraform module** used by PG&E’s **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+This module provisions a complete AWS static website hosting stack — S3 origin, CloudFront distribution, deployment pipeline, and standardized tags — as a single composition.
 
-This module composes multiple **Tier 0 and Tier 1 foundational modules** into a **single, application-consumable unit** for deploying secure, enterprise-compliant static websites on AWS.
+It is a higher-level module that wraps four EPIC building blocks:
 
-The module is designed to be:
-- **Safe for direct use by application teams**
-- **Secure-by-default**
-- **Composable, opinionated, and EPIC-aligned**
-- **Abstracted from AWS and Terraform complexity**
+- `epic-pipeline-module-aws-tags` — standardized resource tagging
+- `epic-pipeline-module-aws-s3` — private S3 bucket configured as a CloudFront origin
+- `epic-pipeline-module-aws-cloudfront` — CloudFront distribution with OAC to the S3 bucket
+- `epic-pipeline-module-aws-deploy-static-site` — CodePipeline-based static site deployment
 
-Application teams do **not** need to understand S3, CloudFront, IAM, or CodePipeline to use this module.
+Use this module when its composed defaults fit the workload. For SPAs requiring custom WAF, certificates, or Route 53 records, compose the underlying modules directly instead.
 
----
-
-## What This Module Creates
-
-This module provisions and configures the following AWS components:
-
-- **S3 Bucket (private, encrypted, optional versioning)**
-  - Hosts static web assets
-  - Blocks public access
-  - Supports optional access logging and lifecycle rules
-
-- **CloudFront Distribution**
-  - Secure global content delivery
-  - Origin Access Control (OAC) enforced
-  - Optional custom domain aliases and ACM certificates
-  - Restricted to the PG&E AWS Organization
-
-- **CodePipeline Deployment Pipeline**
-  - Deploys static site assets to S3
-  - Supports cache-control headers and content-type overrides
-
-- **Enterprise Tagging**
-  - Injected via the EPIC AWS Tags module
-  - Enforces PG&E compliance, ownership, and classification standards
+The module is consumed by application repositories that conform to the EPIC contract via `.pipeline/epic.json`.
 
 ---
 
-## Module Composition
+## Resources
 
-This is a **Tier 1 Super Module** composed of the following EPIC modules:
+The module composes the following child modules, which in turn create:
 
-- `epic-pipeline-module-aws-tags`
-- `epic-pipeline-module-aws-s3` (Tier 0)
-- `epic-pipeline-module-aws-cloudfront` (Tier 1)
-- `epic-pipeline-module-aws-deploy-static-site`
-
-All provider aliasing, regional requirements, and inter-module wiring are handled internally.
-
----
-
-## Intended Usage
-
-This module **may be used directly** by application teams via EPIC `resources.yml`.
-
-Typical use cases include:
-- Public or internal static websites
-- Documentation portals
-- UI-only applications (Angular, React, Vue, plain HTML)
-- Frontends backed by APIs hosted elsewhere
+- S3 bucket (private, with public access block, optional versioning, optional access logging, optional lifecycle rules, optional KMS encryption)
+- CloudFront distribution with Origin Access Control (OAC) to the S3 bucket
+- CloudFront cache and origin request policies
+- CodePipeline and supporting resources for static site deployment
+- Standardized PG&E governance tags applied across resources
 
 ---
 
-## EPIC Usage (resources.yml)
+## Inputs
 
-Example usage within an EPIC-enabled application repository:
+### Required
 
-```yaml
-parameters:
-  app_name: "example-static-site"
-  environment: "dev"
-  aws_region: "us-west-2"
+| Name | Type | Description |
+|------|------|-------------|
+| `principal_orgid` | `string` | AWS Organization ID used to scope CloudFront/S3 access policies. |
+| `aws_account_id` | `string` | AWS account ID for tag generation and naming. |
+| `app_name` | `string` | Application name, used in resource naming. |
+| `environment` | `string` | Deployment environment (`dev`, `test`, `qa`, `prod`). |
+| `appid` | `number` | AMPS APP ID in the format `APP-####`. |
+| `notify` | `list(string)` | Notification recipients (email addresses or distribution lists) for failures and maintenance. |
+| `owner` | `list(string)` | Three system owners as defined by AMPS (Director, Client Owner, IT Lead) — LANIDs. |
+| `order` | `number` | AMPS order number (7–9 digits) used as a tag. |
 
-modules:
-  - name: static_web
-    path: epic-pipeline-module-aws-static-web
-    variables:
-      # Required but auto-injected by EPIC (can be omitted)
-      principal_orgid: ${principal_orgid}
-      app_name: ${app_name}
-      environment: ${environment}
+### Optional
 
-      # Required
-      appid: "2324"
-      notify:
-        - lanid1@pge.com
-        - lanid2@pge.com
-        - lanid3@pge.com
-      owner:
-        - LANID1
-        - LANID2
-        - LANID3
-      order: 123456789
-
-      # Overrides
-      enable_versioning: true
-      app_path: "/"
-```
-
----
-
-## Required Inputs
-
-| Name | Description |
-|-----|-------------|
-| `app_name` | Application name used for resource naming |
-| `environment` | Deployment environment (dev, test, qa, prod) |
-| `appid` | AMPS application ID |
-| `notify` | Notification email list |
-| `owner` | List of three system owners |
-| `order` | Financial order number |
-| `principal_orgid` | AWS Organization ID |
-
----
-
-## Optional Inputs
-
-| Name | Description |
-|-----|-------------|
-| `custom_bucket_name` | Override default S3 bucket name |
-| `enable_versioning` | Enable S3 versioning |
-| `force_destroy` | Allow bucket deletion with objects |
-| `enable_access_logging` | Enable S3 access logging |
-| `lifecycle_rules` | S3 lifecycle configuration |
-| `price_class` | CloudFront price class |
-| `custom_domain_aliases` | Custom CloudFront domain names |
-| `custom_acm_certificate_arn` | ACM cert ARN (us-east-1) |
-| `app_path` | Path to static site assets |
-| `cache_control` | Cache-Control header for uploads |
-| `content_type_overrides` | MIME type overrides |
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `dataclassification` | `string` | `"Internal"` | One of `Public`, `Internal`, `Confidential`, `Restricted`, `Privileged`, `Confidential-BCSI`, `Restricted-BCSI`. |
+| `compliance` | `list(string)` | `["None"]` | Compliance scope. Values: `SOX`, `HIPAA`, `CCPA`, `BCSI`, `None`. |
+| `cris` | `string` | `"Low"` | Cyber Risk Impact Score: `High`, `Medium`, `Low`. |
+| `custom_bucket_name` | `string` | `null` | Globally-unique S3 bucket name override. |
+| `force_destroy` | `bool` | `false` | Allow Terraform to delete the bucket even if it contains objects. |
+| `object_ownership` | `string` | `"BucketOwnerEnforced"` | One of `BucketOwnerEnforced`, `BucketOwnerPreferred`, `ObjectWriter`. |
+| `enable_public_access_block` | `bool` | `true` | Enforce S3 public access block at the bucket level. |
+| `enable_versioning` | `bool` | `false` | Enable S3 versioning. |
+| `sse_algorithm` | `string` | `"AES256"` | Server-side encryption algorithm: `AES256` or `aws:kms`. |
+| `kms_key_arn` | `string` | `null` | KMS key ARN; required when `sse_algorithm = "aws:kms"`. |
+| `enable_access_logging` | `bool` | `false` | Enable S3 server access logging. |
+| `access_log_bucket` | `string` | `null` | Target bucket for access logs (required if logging is enabled). |
+| `access_log_prefix` | `string` | `null` | Prefix applied to access log objects. |
+| `lifecycle_rules` | `any` | `[]` | List of S3 lifecycle rule objects. Supports `id`, `enabled`, `prefix`, `filter`, `transitions`, `expiration`, `noncurrent_version_expiration`. |
+| `bucket_policy_json` | `string` | `null` | Optional raw JSON bucket policy. |
+| `price_class` | `string` | `"PriceClass_100"` | CloudFront price class: `PriceClass_All`, `PriceClass_100`, `PriceClass_200`. |
+| `custom_domain_aliases` | `list(string)` | `[]` | Custom domain aliases for the CloudFront distribution. |
+| `custom_acm_certificate_arn` | `string` | `null` | ACM certificate ARN (must be in `us-east-1`). |
+| `app_path` | `string` | `"/"` | Relative path under the build artifact containing static site files. |
+| `cache_control` | `string` | `null` | Optional `Cache-Control` header applied to uploaded objects. |
+| `content_type_overrides` | `map(string)` | `{}` | File extension to MIME type overrides for uploads. |
 
 ---
 
 ## Outputs
 
 | Name | Description |
-|-----|-------------|
-| `bucket_name` | S3 bucket name |
-| `bucket_arn` | S3 bucket ARN |
-| `bucket_domain_name` | S3 domain name |
-| `bucket_regional_domain_name` | Regional S3 domain |
-| `cloudfront_distribution_id` | CloudFront distribution ID |
-| `cloudfront_domain_name` | CloudFront domain name |
+|------|-------------|
+| `bucket_name` | S3 bucket name. |
+| `bucket_arn` | S3 bucket ARN. |
+| `bucket_domain_name` | S3 bucket domain name. |
+| `bucket_regional_domain_name` | S3 bucket regional domain name. |
+| `distribution_id` | CloudFront distribution ID. |
+| `distribution_arn` | CloudFront distribution ARN. |
+| `distribution_domain_name` | CloudFront distribution domain name. |
 
 ---
 
-## Security & Compliance
+## Usage in a Terraform project
 
-This module enforces PG&E enterprise standards:
+The module requires two configured AWS provider aliases:
 
-- No public S3 access
-- Encryption at rest
-- Secure CloudFront origin access
-- Organization-based access controls
-- Mandatory tagging and ownership metadata
+- `aws.deploy` — the target deployment account/region
+- `aws.us_east_1` — `us-east-1`, required for CloudFront-scoped resources (ACM)
 
-All security decisions are centralized and maintained by the EPIC platform team.
+```hcl
+provider "aws" {
+  alias  = "deploy"
+  region = var.aws_region
+}
+
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
+module "static_web" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-static-web.git?ref=main"
+
+  providers = {
+    aws           = aws.deploy
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  principal_orgid = var.principal_orgid
+  aws_account_id  = var.aws_account_id
+  app_name        = var.app_name
+  environment     = var.environment
+
+  appid  = var.appid
+  notify = var.notify
+  owner  = var.owner
+  order  = var.order
+
+  dataclassification = "Internal"
+  compliance         = ["None"]
+  cris               = "Low"
+
+  enable_versioning = true
+  price_class       = "PriceClass_100"
+
+  custom_domain_aliases      = var.custom_domain_aliases
+  custom_acm_certificate_arn = var.custom_acm_certificate_arn
+
+  app_path = "/dist"
+}
+```
 
 ---
 
-## Module Tiering
+## Usage from another module
 
-| Tier | Description |
-|-----|-------------|
-| Tier 0 | Foundational, low-level infrastructure modules |
-| Tier 1 | Composed infrastructure modules |
-| **Tier 1 (Super)** | **Application-facing composed modules** |
+When called from a parent module, declare the provider aliases in the parent's `versions.tf` and pass them through explicitly:
 
-This module is classified as **Tier 1 – Super Module**.
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source                = "hashicorp/aws"
+      version               = "~> 5.90"
+      configuration_aliases = [aws.deploy, aws.us_east_1]
+    }
+  }
+}
+
+module "static_web" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-static-web.git?ref=main"
+
+  providers = {
+    aws           = aws.deploy
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  # ... inputs
+}
+```
 
 ---
 
-## Support & Ownership
+## Versions
 
-This module is maintained by:
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
+| AWS provider | `~> 5.90` |
 
-**PG&E Enterprise Cloud & DevSecOps**
+The module declares `configuration_aliases` for `aws.deploy` and `aws.us_east_1`; both must be supplied by the consuming configuration.
 
-Questions, enhancements, and fixes should be routed through the EPIC platform team.
+---
 
+## Notes
+
+- ACM certificates passed via `custom_acm_certificate_arn` must reside in `us-east-1` because CloudFront only consumes certificates from that region.
+- `kms_key_arn` is only honored when `sse_algorithm = "aws:kms"`.
+- This module does not create Route 53 records or WAF resources. If the application requires DNS aliases, a hosted zone record, or a WAFv2 ACL, compose those modules directly alongside this one.

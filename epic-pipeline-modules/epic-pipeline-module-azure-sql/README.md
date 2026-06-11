@@ -1,287 +1,120 @@
-# EPIC Azure SQL Database Module (Tier 1)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps
-**Module Name:** epic-pipeline-module-azure-sql
-**Module Type:** Tier 1 -- Database Infrastructure Module
-**Last Updated:** 2026-03-25
-
----
+# EPIC Module — Azure SQL Server
 
 ## Overview
 
-This repository provides the **standard Azure SQL Database Terraform module** used by PG&E's
-**EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+Provisions an Azure SQL Server with optional databases and firewall rules. Designed to be consumed from an application's `.infra/` Terraform layout when EPIC provisions infrastructure as part of a pipeline run driven by `.pipeline/epic.json`.
 
-This module delivers a **secure, policy-aligned Azure SQL Server and database** suitable for teams that prefer SQL Server over PostgreSQL.
+The module accepts a generated administrator password by default (returned as a sensitive output) and optionally configures an Azure AD administrator on the server.
 
-The module is intentionally **opinionated where it matters** (security, TLS, public access) and **flexible where it must be** (databases, SKUs, firewall rules, Azure AD authentication).
+## Resources
 
----
-
-## Design Principles
-
-This module follows strict enterprise standards:
-
-- Secure by default (TLS 1.2, public access disabled)
-- Password auto-generation when not provided
-- Azure AD authentication support
-- Multi-database support from a single server
-- No secrets stored in Terraform state (sensitive outputs)
-- Explicit configuration via inputs
-- Compatible with EPIC auto-wiring and orchestration
-
----
-
-## Resources Created
-
-This module creates the following Azure resources:
-
-- azurerm_mssql_server
-- azurerm_mssql_database (one per entry in `databases`)
-- azurerm_mssql_firewall_rule (one per entry in `firewall_rules`)
-- random_password (when admin_password is not provided)
-
-No networking, logging, or monitoring resources are created directly.
-
----
-
-## Security Defaults
-
-The following controls are enforced automatically:
-
-- TLS 1.2 minimum
-- Public network access disabled
-- Password auto-generation (24 characters) when not explicitly provided
-- Sensitive password output
-
----
+- `azurerm_mssql_server.this` — the SQL Server
+- `azurerm_mssql_database.this` — one per entry in `databases`
+- `azurerm_mssql_firewall_rule.this` — one per entry in `firewall_rules`
+- `random_password.admin` — generated when `admin_password` is null
 
 ## Inputs
 
-### Required Inputs
+### Required
 
-| Name | Description |
-|------|-------------|
-| tenant_id | Target tenant |
-| subscription_id | Target subscription |
-| resource_group_name | Target resource group |
-| azure_region | Azure region |
-| server_name | SQL Server name |
-| tags | Resource tags |
+| Name | Type | Description |
+|------|------|-------------|
+| `resource_group_name` | `string` | Name of the resource group |
+| `azure_region` | `string` | Azure region |
+| `server_name` | `string` | Name of the SQL Server |
+| `tags` | `map(string)` | Resource tags |
 
----
+### Optional
 
-### Server Configuration
-
-| Name | Description | Default |
-|------|-------------|---------|
-| sql_version | SQL Server version | 12.0 |
-| admin_username | Administrator login username | epicadmin |
-| admin_password | Administrator login password (auto-generated if null) | null |
-| minimum_tls_version | Minimum TLS version | 1.2 |
-| public_network_access_enabled | Whether public network access is enabled | false |
-| enable_auditing | Enable auditing on the SQL Server | false |
-
----
-
-### Azure AD Authentication
-
-| Name | Description | Default |
-|------|-------------|---------|
-| azuread_admin | Azure AD administrator (object with login_username and object_id) | null |
-
----
-
-### Database Configuration
-
-| Name | Description | Default |
-|------|-------------|---------|
-| databases | List of databases to create (name, sku_name, max_size_gb, zone_redundant) | [] |
-| firewall_rules | List of firewall rules (name, start_ip, end_ip) | [] |
-
-Database object defaults: sku_name = "S0", max_size_gb = 2, zone_redundant = false.
-
----
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `sql_version` | `string` | `"12.0"` | SQL Server version |
+| `admin_username` | `string` | `"epicadmin"` | Administrator login username |
+| `admin_password` | `string` | `null` | Administrator login password. If null, a 24-character password is auto-generated |
+| `minimum_tls_version` | `string` | `"1.2"` | Minimum TLS version |
+| `public_network_access_enabled` | `bool` | `false` | Whether public network access is enabled |
+| `azuread_admin` | `object` | `null` | Azure AD administrator. Shape: `{ login_username, object_id }` |
+| `databases` | `list(object)` | `[]` | Databases to create. Each: `{ name, sku_name = "S0", max_size_gb = 2, zone_redundant = false }` |
+| `firewall_rules` | `list(object)` | `[]` | Firewall rules to create. Each: `{ name, start_ip, end_ip }` |
+| `enable_auditing` | `bool` | `false` | Enable auditing on the SQL Server |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| server_id | SQL Server resource ID |
-| server_name | SQL Server name |
-| server_fqdn | Fully qualified domain name |
-| admin_username | Administrator login username |
-| admin_password | Administrator login password (sensitive) |
-| database_ids | Map of database name to database ID |
+| `server_id` | ID of the SQL Server |
+| `server_name` | Name of the SQL Server |
+| `server_fqdn` | Fully qualified domain name of the SQL Server |
+| `admin_username` | Administrator login username |
+| `admin_password` | Administrator login password (sensitive) |
+| `database_ids` | Map of database name to database ID |
 
----
+## Usage in a Terraform project
 
-## Example Usage (Direct Terraform)
+Consumed from `.infra/main.tf` in an application repo that uses EPIC. The module is referenced over HTTPS and pinned with `?ref=`.
 
-### Basic SQL Server with a single database
-
-```hcl
-module "sql" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-sql.git"
-
-  tenant_id       = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-
-  resource_group_name = "rg-example-dev"
-  azure_region        = "westus"
-
-  server_name = "sql-example-dev"
-
-  databases = [
-    {
-      name        = "appdb"
-      sku_name    = "S0"
-      max_size_gb = 5
-    }
-  ]
-
-  tags = {
-    owner = "team-x"
-  }
-}
-```
-
-### SQL Server with Azure AD admin and firewall rules
+No real consumer of this module exists in the workspace today; the example below is synthetic.
 
 ```hcl
 module "sql" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-sql.git"
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-sql.git?ref=main"
 
-  tenant_id       = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-
-  resource_group_name = "rg-example-prod"
-  azure_region        = "westus"
-
-  server_name = "sql-example-prod"
-
-  azuread_admin = {
-    login_username = "sqladmin@pge.com"
-    object_id      = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  }
+  resource_group_name = "rg-my-app-dev"
+  azure_region        = "westus2"
+  server_name         = "sql-my-app-dev"
 
   databases = [
-    {
-      name           = "appdb"
-      sku_name       = "S1"
-      max_size_gb    = 50
-      zone_redundant = true
-    },
-    {
-      name = "reportdb"
-    }
+    { name = "appdb", sku_name = "S1", max_size_gb = 10 }
   ]
 
   firewall_rules = [
-    {
-      name     = "allow-azure-services"
-      start_ip = "0.0.0.0"
-      end_ip   = "0.0.0.0"
-    }
+    { name = "allow-azure-services", start_ip = "0.0.0.0", end_ip = "0.0.0.0" }
   ]
 
   tags = {
-    owner = "team-y"
+    application = "my-app"
+    environment = "dev"
   }
+}
+
+output "app_db_fqdn" {
+  value = module.sql.server_fqdn
 }
 ```
 
----
+## Usage from another module
 
-## EPIC Usage (resources.yml)
-
-This module is intended for **direct use within EPIC**.
-
-```yaml
-parameters:
-  tenant_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  azure_region: "westus"
-  environment: "dev"
-
-modules:
-  - name: sql
-    path: epic-pipeline-module-azure-sql
-    variables:
-      server_name: "sql-example-dev"
-      databases:
-        - name: appdb
-          sku_name: S0
-          max_size_gb: 5
-
-      tags: module.tags.tags
-```
-
----
-
-## Module Composition Pattern
-
-Higher-level modules should follow this pattern:
+Composable inside a higher-level wrapper (e.g. an app-stack module that also creates a resource group and App Service):
 
 ```hcl
 module "sql" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-sql.git"
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-sql.git?ref=main"
 
-  tenant_id           = var.tenant_id
-  subscription_id     = var.subscription_id
-  resource_group_name = var.resource_group_name
-  azure_region        = var.azure_region
-  server_name         = var.server_name
+  resource_group_name = azurerm_resource_group.this.name
+  azure_region        = azurerm_resource_group.this.location
+  server_name         = "${var.app_name}-sql-${var.environment}"
 
-  databases      = var.databases
-  firewall_rules = var.firewall_rules
+  azuread_admin = {
+    login_username = var.dba_group_name
+    object_id      = var.dba_group_object_id
+  }
+
+  databases = [for db in var.databases : { name = db }]
+
+  tags = var.tags
 }
 ```
 
-Additional concerns (monitoring, networking, private endpoints) should be layered **outside** this module.
+## Versions
 
----
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
+| `hashicorp/azurerm` | `~> 3.100` |
+| `hashicorp/random` | `~> 3.5` |
 
-## Terraform Compatibility
+## Notes
 
-- Terraform >= 1.5
-- AzureRM Provider >= 3.100
-
----
-
-## Why This Module Exists
-
-This module exists to:
-
-- Standardize Azure SQL Database deployments
-- Remove copy-paste infrastructure definitions
-- Enforce consistent security defaults
-- Provide a SQL Server option alongside PostgreSQL
-- Serve as the canonical EPIC SQL Database primitive
-
-It is **infrastructure**, not deployment logic.
-
----
-
-## Ownership
-
-Maintained by:
-**PG&E Enterprise Cloud & DevSecOps**
-
-Part of the **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** ecosystem.
-
----
-
-## Final Notes
-
-If you need:
-
-- Elastic pools
-- Geo-replication
-- Private endpoints
-- Advanced threat protection
-- Long-term backup retention
-
-Use or compose a **higher-level EPIC module** that builds on this foundation.
-
-This module should remain **clean, minimal, and security-first**.
+- When `admin_password` is null, the module generates a 24-character password and exposes it via the `admin_password` output (sensitive). Capture it in a Terraform output or write it to a secret store — it cannot be recovered later.
+- `public_network_access_enabled` defaults to `false`. Public `firewall_rules` are only effective when this is set to `true`.
+- The deploy stage does not consume any output of this module by convention. If the app needs the FQDN at deploy time, surface it via `outputs.tf` in `.infra/` so it lands in the `terraform-outputs` artifact.

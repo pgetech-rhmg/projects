@@ -1,320 +1,127 @@
-# EPIC Azure PostgreSQL Flexible Server Module (Tier 1)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps
-**Module Name:** epic-pipeline-module-azure-postgresql
-**Module Type:** Tier 1 -- Database Infrastructure Module
-**Last Updated:** 2026-03-25
-
----
+# EPIC Module — Azure PostgreSQL Flexible Server
 
 ## Overview
 
-This repository provides the **standard Azure PostgreSQL Flexible Server Terraform module** used by PG&E's
-**EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+Provisions an Azure Database for PostgreSQL Flexible Server with optional databases, firewall rules, and VNet integration. Designed to be consumed from an application's `.infra/` Terraform layout when EPIC provisions infrastructure as part of a pipeline run driven by `.pipeline/epic.json`.
 
-This module delivers a **secure, policy-aligned PostgreSQL Flexible Server** suitable for:
+The module accepts a generated administrator password by default (returned as a sensitive output) and can attach to a delegated subnet with a private DNS zone for private networking.
 
-- Application databases (relational workloads)
-- Backend data stores for APIs and services
-- Development, staging, and production environments
+## Resources
 
-The module is intentionally **opinionated where it matters** (security, authentication, structure) and **flexible where it must be** (SKU, storage, networking, databases).
-
-It serves as the **canonical EPIC PostgreSQL primitive** -- the Azure equivalent of Aurora PostgreSQL on AWS.
-
----
-
-## Design Principles
-
-This module follows strict enterprise standards:
-
-- Flexible Server only (Single Server is deprecated)
-- Secure by default (SSL enforced, password authentication required)
-- Password auto-generation when not explicitly provided
-- No secrets stored in Terraform state unless unavoidable
-- Explicit configuration via inputs
-- Compatible with EPIC auto-wiring and orchestration
-
----
-
-## Resources Created
-
-This module creates the following Azure resources:
-
-- azurerm_postgresql_flexible_server
-- azurerm_postgresql_flexible_server_database (one per entry in `databases`)
-- azurerm_postgresql_flexible_server_firewall_rule (one per entry in `firewall_rules`)
-- random_password (when `admin_password` is null)
-
-No networking, logging, or monitoring resources are created directly.
-
----
-
-## Security Defaults
-
-The following controls are enforced automatically:
-
-- Password authentication enabled via `authentication` block
-- SSL enforced by Azure Flexible Server defaults
-- Admin password auto-generated (24 characters, special characters) when not provided
-- No public firewall rules unless explicitly configured
-- VNet integration supported via `delegated_subnet_id`
-
----
+- `azurerm_postgresql_flexible_server.this` — the Flexible Server
+- `azurerm_postgresql_flexible_server_database.this` — one per entry in `databases`
+- `azurerm_postgresql_flexible_server_firewall_rule.this` — one per entry in `firewall_rules`
+- `random_password.admin` — generated when `admin_password` is null
 
 ## Inputs
 
-### Required Inputs
+### Required
 
-| Name | Description |
-|----|----|
-| tenant_id | Target tenant |
-| subscription_id | Target subscription |
-| resource_group_name | Target resource group |
-| azure_region | Azure region |
-| server_name | PostgreSQL Flexible Server name |
-| tags | Resource tags |
+| Name | Type | Description |
+|------|------|-------------|
+| `resource_group_name` | `string` | Name of the resource group |
+| `azure_region` | `string` | Azure region |
+| `server_name` | `string` | Name of the PostgreSQL Flexible Server |
+| `tags` | `map(string)` | Resource tags |
 
----
+### Optional
 
-### Server Configuration
-
-| Name | Description | Default |
-|----|----|----|
-| postgresql_version | PostgreSQL major version (13, 14, 15, 16) | 16 |
-| sku_name | Flexible Server SKU | B_Standard_B1ms |
-| storage_mb | Storage in MB | 32768 |
-| storage_tier | Storage performance tier | P4 |
-| zone | Availability zone | null |
-
----
-
-### Backup Configuration
-
-| Name | Description | Default |
-|----|----|----|
-| backup_retention_days | Backup retention in days (7-35) | 7 |
-| geo_redundant_backup_enabled | Enable geo-redundant backups | false |
-
----
-
-### Authentication
-
-| Name | Description | Default |
-|----|----|----|
-| admin_username | Administrator login name | epicadmin |
-| admin_password | Administrator password (auto-generated if null) | null |
-
----
-
-### Database Configuration
-
-| Name | Description | Default |
-|----|----|----|
-| databases | List of databases to create (name, charset, collation) | [] |
-| firewall_rules | List of firewall rules (name, start_ip, end_ip) | [] |
-
----
-
-### Networking
-
-| Name | Description | Default |
-|----|----|----|
-| delegated_subnet_id | Subnet for private network access | null |
-| private_dns_zone_id | Private DNS zone for FQDN resolution | null |
-
----
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `postgresql_version` | `string` | `"16"` | PostgreSQL major version. One of `13`, `14`, `15`, `16` |
+| `sku_name` | `string` | `"B_Standard_B1ms"` | Flexible Server SKU (e.g. `B_Standard_B1ms`, `GP_Standard_D2s_v3`, `MO_Standard_E4s_v3`) |
+| `storage_mb` | `number` | `32768` | Storage in MB |
+| `storage_tier` | `string` | `"P4"` | Storage performance tier |
+| `backup_retention_days` | `number` | `7` | Backup retention in days (7–35) |
+| `geo_redundant_backup_enabled` | `bool` | `false` | Enable geo-redundant backups |
+| `zone` | `string` | `null` | Availability zone (`1`, `2`, or `3`) |
+| `admin_username` | `string` | `"epicadmin"` | Administrator login name |
+| `admin_password` | `string` | `null` | Administrator password. If null, a 24-character password is auto-generated |
+| `databases` | `list(object)` | `[]` | Databases to create. Each: `{ name, charset = "UTF8", collation = "en_US.utf8" }` |
+| `firewall_rules` | `list(object)` | `[]` | Public-access firewall rules. Each: `{ name, start_ip, end_ip }` |
+| `delegated_subnet_id` | `string` | `null` | Subnet ID for VNet integration |
+| `private_dns_zone_id` | `string` | `null` | Private DNS zone ID for FQDN resolution |
 
 ## Outputs
 
 | Name | Description |
-|----|----|
-| server_id | PostgreSQL Flexible Server resource ID |
-| server_name | PostgreSQL Flexible Server name |
-| server_fqdn | Fully qualified domain name |
-| admin_username | Administrator login name |
-| admin_password | Administrator password (sensitive) |
-| database_names | List of created database names |
+|------|-------------|
+| `server_id` | ID of the PostgreSQL Flexible Server |
+| `server_name` | Name of the PostgreSQL Flexible Server |
+| `server_fqdn` | Fully qualified domain name of the server |
+| `admin_username` | Administrator login name |
+| `admin_password` | Administrator password (sensitive) |
+| `database_names` | List of created database names |
 
----
+## Usage in a Terraform project
 
-## Example Usage (Direct Terraform)
+Consumed from `.infra/main.tf` in an application repo that uses EPIC. The module is referenced over HTTPS and pinned with `?ref=`.
 
-### Minimal (Public Access, Auto-Generated Password)
+No real consumer of this module exists in the workspace today; the example below is synthetic.
 
 ```hcl
 module "postgres" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-postgresql.git"
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-postgresql.git?ref=main"
 
-  tenant_id       = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  resource_group_name = "rg-my-app-dev"
+  azure_region        = "westus2"
+  server_name         = "psql-my-app-dev"
 
-  resource_group_name = "rg-example-dev"
-  azure_region        = "westus"
-
-  server_name = "psql-example-dev"
+  postgresql_version = "16"
+  sku_name           = "GP_Standard_D2s_v3"
+  storage_mb         = 65536
 
   databases = [
     { name = "appdb" }
   ]
 
   firewall_rules = [
-    { name = "allow-azure", start_ip = "0.0.0.0", end_ip = "0.0.0.0" }
+    { name = "allow-azure-services", start_ip = "0.0.0.0", end_ip = "0.0.0.0" }
   ]
 
   tags = {
-    owner = "team-x"
+    application = "my-app"
+    environment = "dev"
   }
+}
+
+output "app_db_fqdn" {
+  value = module.postgres.server_fqdn
 }
 ```
 
----
+## Usage from another module
 
-### Production (VNet Integration, Custom Password)
+Composable inside a higher-level wrapper (e.g. an app-stack module that also creates a resource group and App Service):
 
 ```hcl
 module "postgres" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-postgresql.git"
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-postgresql.git?ref=main"
 
-  tenant_id       = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  resource_group_name = azurerm_resource_group.this.name
+  azure_region        = azurerm_resource_group.this.location
+  server_name         = "${var.app_name}-psql-${var.environment}"
 
-  resource_group_name = "rg-example-prod"
-  azure_region        = "westus"
-
-  server_name        = "psql-example-prod"
-  postgresql_version = "16"
-  sku_name           = "GP_Standard_D2s_v3"
-  storage_mb         = 65536
-  storage_tier       = "P6"
-
-  backup_retention_days        = 35
-  geo_redundant_backup_enabled = true
-  zone                         = "1"
-
-  admin_password = var.db_admin_password
-
-  delegated_subnet_id = azurerm_subnet.postgres.id
+  delegated_subnet_id = azurerm_subnet.db.id
   private_dns_zone_id = azurerm_private_dns_zone.postgres.id
 
-  databases = [
-    { name = "appdb" },
-    { name = "analyticsdb", charset = "UTF8", collation = "en_US.utf8" }
-  ]
+  databases = [for db in var.databases : { name = db }]
 
-  tags = {
-    owner       = "team-y"
-    environment = "prod"
-  }
+  tags = var.tags
 }
 ```
 
----
+## Versions
 
-## EPIC Usage (resources.yml)
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
+| `hashicorp/azurerm` | `~> 3.100` |
+| `hashicorp/random` | `~> 3.5` |
 
-This module is intended for **direct use within EPIC**.
+## Notes
 
-```yaml
-parameters:
-  tenant_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  subscription_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  azure_region: "westus"
-  environment: "dev"
-
-modules:
-  - name: postgres
-    path: epic-pipeline-module-azure-postgresql
-    variables:
-      server_name: "psql-example-dev"
-      sku_name: GP_Standard_D2s_v3
-      databases:
-        - name: appdb
-      tags: module.tags.tags
-```
-
----
-
-## Module Composition Pattern
-
-Higher-level modules should follow this pattern:
-
-```hcl
-module "postgres" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-postgresql.git"
-
-  tenant_id           = var.tenant_id
-  subscription_id     = var.subscription_id
-  resource_group_name = var.resource_group_name
-  azure_region        = var.azure_region
-  server_name         = var.server_name
-}
-```
-
-Additional concerns (monitoring, networking, access) should be layered **outside** this module.
-
----
-
-## Naming Conventions
-
-This module does not enforce naming directly.
-
-Typical EPIC naming patterns resolve to:
-
-```text
-psql-<app>-<environment>
-```
-
-Example:
-
-```text
-psql-example-prod
-```
-
-Final naming decisions are owned by the EPIC pipeline or consuming module.
-
----
-
-## Terraform Compatibility
-
-- Terraform >= 1.5
-- AzureRM Provider >= 3.100
-
----
-
-## Why This Module Exists
-
-This module exists to:
-
-- Standardize Azure PostgreSQL Flexible Server deployments
-- Remove copy-paste infrastructure definitions
-- Enforce consistent security defaults
-- Enable flexible database provisioning without duplication
-- Serve as the canonical EPIC PostgreSQL primitive
-
-It is **infrastructure**, not deployment logic.
-
----
-
-## Ownership
-
-Maintained by:
-**PG&E Enterprise Cloud & DevSecOps**
-
-Part of the **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** ecosystem.
-
----
-
-## Final Notes
-
-If you need:
-
-- Read replicas
-- High availability with zone-redundant failover
-- Connection pooling (PgBouncer)
-- Advanced networking (private endpoints)
-- Monitoring and diagnostics
-
-Use or compose a **higher-level EPIC module** that builds on this foundation.
-
-This module should remain **clean, minimal, and database-focused**.
+- When `admin_password` is null, the module generates a 24-character password and exposes it via the `admin_password` output (sensitive). Capture it in a Terraform output or write it to a secret store — it cannot be recovered later.
+- Setting `delegated_subnet_id` and `private_dns_zone_id` switches the server to private networking. Public `firewall_rules` are not used in that mode.
+- `backup_retention_days` is validated to be between 7 and 35 inclusive.
+- The deploy stage does not consume any output of this module by convention. If the app needs the FQDN at deploy time, surface it via `outputs.tf` in `.infra/` so it lands in the `terraform-outputs` artifact.

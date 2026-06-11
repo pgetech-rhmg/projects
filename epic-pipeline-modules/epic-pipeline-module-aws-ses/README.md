@@ -1,85 +1,51 @@
-# EPIC AWS SES Module (Tier 0)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps
-**Module Name:** epic-pipeline-module-aws-ses
-**Module Type:** Tier 0 – Foundational Infrastructure Module
-
----
+# epic-pipeline-module-aws-ses
 
 ## Overview
 
-This repository provides the **foundational AWS SES Configuration Set Terraform module** used by PG&E's **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+Terraform module that provisions an AWS SES configuration set for applications running under EPIC (Enterprise Pipeline for Infrastructure and Cloud).
 
-The module creates a single SES configuration set with TLS-required delivery and an optional CloudWatch event destination. It is intentionally **outbound-only** and **policy-agnostic** — domain identity verification, sandbox removal, IAM grants, VPC endpoints, and template management are owned by higher-level modules or the central email team.
+The module creates a single configuration set with TLS-required delivery and an optional CloudWatch event destination. It is intentionally outbound-only: domain identity verification, IAM grants, template management, and bounce-handler plumbing live outside this module. Consumers wire those resources directly in their `.infra/` alongside the module call.
 
-> SES is **not approved for Confidential / Restricted / Privileged data** per PG&E SAF Item #9. Notification bodies must be metadata + deep link only.
-
-> SES configuration sets and event destinations do not support resource tags, so this module does not accept a `tags` input.
+The default configuration set name resolves to `pge-epic-<app_name>-<environment>-ses` and can be overridden with `custom_configuration_set_name`.
 
 ---
 
-## Design Principles
-
-- TLS required (cannot be disabled via this module)
-- Reputation metrics enabled by default
-- Outbound-only — no receipt rule sets, no inbound buckets
-- Naming convention enforced by default (`pge-epic-<app>-<env>-ses`)
-- Caller wires CloudWatch event destination as needed
-
----
-
-## SAF 2.0 Compliance
-
-| SAF # | Control | Enforcement |
-|---|---|---|
-| #3 / #25 | TLS ≥ 1.2 | `tls_policy=Require` hardcoded — not user-configurable |
-| #9 | Sensitivity classification | Per the SAF, SES is not approved for Confidential data — enforced by content discipline (notification body = metadata + deep link), not by this module |
-| #11 / #12 / #17 | Tags | SES configuration sets do not support tags — module deliberately does not accept a `tags` input |
-
-Out of module scope: domain identity verification (owned by the IT email team), bounce-handler queue (use `epic-pipeline-module-aws-sqs`), SES VPC endpoint, IAM `ses:SendEmail` grants on consumer roles.
-
----
-
-## What This Module Is (and Is Not)
-
-### This module IS
-- A foundational SES configuration set primitive
-- A TLS-required delivery surface
-- An optional CloudWatch event destination wiring
-
-### This module is NOT
-- A domain verification module (verification is owned by IT email team)
-- A receipt rule module (NFR Tool / EPIC consumers do not receive)
-- A template manager
-- A bounce-handler queue (use `epic-pipeline-module-aws-sqs` for that)
-
----
-
-## Resources Created
+## Resources
 
 - `aws_ses_configuration_set`
-- Optional: `aws_ses_event_destination` (CloudWatch destination)
+- `aws_ses_event_destination` (optional, CloudWatch destination only)
 
 ---
 
 ## Inputs
 
-### Required Inputs
+### Required
 
-| Name | Description |
-|---|---|
-| `app_name` | Application identifier |
-| `environment` | Deployment environment (dev, test, qa, prod) |
-
-### Optional Inputs
-
-| Name | Description | Default |
+| Name | Type | Description |
 |---|---|---|
-| `custom_configuration_set_name` | Full name override | `null` |
-| `reputation_metrics_enabled` | Emit bounce/complaint metrics | `true` |
-| `sending_enabled` | Enable email sending | `true` |
-| `custom_redirect_domain` | Click-tracking redirect domain | `""` |
-| `event_destination` | CloudWatch event destination object | `null` |
+| `app_name` | `string` | Application name used for naming the SES configuration set. |
+| `environment` | `string` | Deployment environment (`dev`, `test`, `qa`, `prod`). |
+
+### Optional
+
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `custom_configuration_set_name` | `string` | `null` | Full configuration set name override. Takes precedence over the auto-derived name. |
+| `reputation_metrics_enabled` | `bool` | `true` | Whether reputation metrics (bounce / complaint rates) are emitted to CloudWatch. |
+| `sending_enabled` | `bool` | `true` | Whether email sending is enabled for this configuration set. |
+| `custom_redirect_domain` | `string` | `""` | Custom domain used in click-tracking redirects. Empty disables custom tracking. |
+| `event_destination` | `object` | `null` | Optional CloudWatch event destination wired to this configuration set. See shape below. |
+
+`event_destination` object shape:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | yes | Event destination name. |
+| `enabled` | `bool` | no (default `true`) | Whether the destination is enabled. |
+| `matching_types` | `list(string)` | yes | Event types to forward, e.g. `["bounce", "complaint", "delivery", "send", "reject", "deliveryDelay"]`. |
+| `default_value` | `string` | yes | CloudWatch dimension default value. |
+| `dimension_name` | `string` | yes | CloudWatch dimension name. |
+| `value_source` | `string` | yes | Dimension value source: `messageTag`, `emailHeader`, or `linkTag`. |
 
 ---
 
@@ -87,20 +53,53 @@ Out of module scope: domain identity verification (owned by the IT email team), 
 
 | Name | Description |
 |---|---|
-| `configuration_set_name` | Configuration set name |
-| `configuration_set_arn` | Configuration set ARN |
-| `event_destination_name` | Event destination name when managed |
+| `configuration_set_name` | SES configuration set name. |
+| `configuration_set_arn` | SES configuration set ARN. |
+| `event_destination_name` | Name of the SES event destination if managed by this module, otherwise `null`. |
 
 ---
 
-## Example Usage (Direct Terraform)
+## Usage in a Terraform Project
+
+The canonical consumer is `projects/test-app/.infra/ses.tf`. The module manages only the configuration set; the sender domain identity and any SNS-routed event destinations are declared directly alongside the module call.
 
 ```hcl
 module "ses" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-ses.git"
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-ses.git?ref=main"
 
-  app_name    = "nfr-tool"
-  environment = "dev"
+  app_name    = var.project_tag
+  environment = var.environment
+
+  reputation_metrics_enabled = true
+  sending_enabled            = true
+}
+
+resource "aws_ses_domain_identity" "sender" {
+  domain = var.ses_sender_domain
+}
+
+resource "aws_ses_event_destination" "bounce_to_sns" {
+  name                   = "${var.project_tag}-bounce-to-sns-${var.environment}"
+  configuration_set_name = module.ses.configuration_set_name
+  enabled                = true
+  matching_types         = ["bounce", "complaint", "reject"]
+
+  sns_destination {
+    topic_arn = module.sns_ses_bounce.topic_arn
+  }
+}
+```
+
+`app_name` and `environment` are typically sourced from inputs the EPIC engine threads through to the application's `.infra/` Terraform run, driven by the `app` section of `.pipeline/epic.json`.
+
+To attach a CloudWatch event destination through the module instead of declaring one directly, pass the `event_destination` object:
+
+```hcl
+module "ses" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-ses.git?ref=main"
+
+  app_name    = var.project_tag
+  environment = var.environment
 
   event_destination = {
     name           = "cloudwatch-events"
@@ -112,43 +111,41 @@ module "ses" {
 }
 ```
 
-Resolves to configuration set `pge-epic-nfr-tool-dev-ses`.
-
 ---
 
-## EPIC Usage (resources.yml)
+## Usage from Another Module
 
-```yaml
-modules:
-  - name: ses
-    path: epic-pipeline-module-aws-ses
-    variables:
-      app_name: ${app_name}
-      environment: ${environment}
+```hcl
+module "ses" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-ses.git?ref=main"
+
+  app_name    = var.app_name
+  environment = var.environment
+}
+
+output "ses_configuration_set_name" {
+  value = module.ses.configuration_set_name
+}
+
+output "ses_configuration_set_arn" {
+  value = module.ses.configuration_set_arn
+}
 ```
 
 ---
 
-## Naming Conventions
+## Versions
 
-Default name resolves to:
-
-```text
-pge-epic-<app_name>-<environment>-ses
-```
-
----
-
-## Terraform Compatibility
-
-- Terraform >= 1.5
-- AWS Provider >= 5.x
+| Requirement | Version |
+|---|---|
+| Terraform | `>= 1.5.0` |
+| `hashicorp/aws` | `~> 5.90` |
 
 ---
 
-## Ownership
+## Notes
 
-Maintained by:
-**PG&E Enterprise Cloud & DevSecOps**
-
-Part of the **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** ecosystem.
+- TLS is hardcoded to `Require` in `delivery_options` and is not user-configurable.
+- SES configuration sets and event destinations do not support resource tags, so the module does not accept a `tags` input.
+- The module's `event_destination` block is CloudWatch-shaped only. SNS event destinations must be declared directly via `aws_ses_event_destination` and pointed at `module.ses.configuration_set_name`, as shown in `projects/test-app/.infra/ses.tf`.
+- Domain identity verification, IAM `ses:SendEmail` grants, sandbox removal, and bounce-handler queues are out of scope for this module.

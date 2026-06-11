@@ -1,179 +1,92 @@
-# EPIC AWS Deploy Static Site Module
-
-**Team:** PG&E Enterprise Cloud & DevSecOps  
-**Module Name:** epic-pipeline-module-aws-deploy-static-site  
-**Module Type:** Tier 2 – Workload / Application Deployment Module  
-**Last Updated:** 2025-12-17
-
----
+# epic-pipeline-module-aws-network
 
 ## Overview
 
-This repository provides the **AWS static website deployment Terraform module** used by PG&E’s **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+Terraform module that resolves an existing AWS network (VPC and private subnets) for EPIC workloads by reading SSM Parameter Store values populated by SAF 2.0.
 
-This module is **purpose-built for deploying static website assets** (HTML, CSS, JavaScript, images, etc.) to an **existing S3 bucket**.  
-It is intentionally **narrow in scope**, **pipeline-driven**, and **safe to re-run**.
+This module does not create a VPC, subnets, route tables, NAT Gateways, or Internet Gateways. Networking in PG&E AWS accounts is provisioned and managed centrally by SAF 2.0 — this module is the read-only adapter that exposes the resulting `vpc_id` and `private_subnet_ids` to downstream EPIC modules (compute, ALB, RDS, security groups, etc.) so workloads do not need to hardcode subnet IDs in `.pipeline/epic.json` or Terraform code.
 
-This module does **not** create infrastructure.  
-It **consumes** foundational infrastructure created by other EPIC modules, such as:
+## Resources
 
-- `pge-pipeline-module-aws-s3`
-- `pge-pipeline-module-aws-cloudfront`
+| Type | Name | Purpose |
+|------|------|---------|
+| `data.aws_ssm_parameter` | `vpc_id` | Reads VPC ID from SSM |
+| `data.aws_ssm_parameter` | `subnet_a` | Reads private subnet A ID from SSM |
+| `data.aws_ssm_parameter` | `subnet_b` | Reads private subnet B ID from SSM |
 
----
+No managed resources are created.
 
-## Design Principles
+## Inputs
 
-### Single Responsibility
+### Required
 
-This module performs **one job only**:
+| Name | Type | Description |
+|------|------|-------------|
+| `ssm_vpc_id_parameter` | `string` | SSM parameter name that stores the existing VPC ID |
+| `ssm_private_subnet_a_parameter` | `string` | SSM parameter name that stores private subnet A ID |
+| `ssm_private_subnet_b_parameter` | `string` | SSM parameter name that stores private subnet B ID |
 
-> Deterministically upload static website files to S3.
+### Optional
 
-It does **not**:
-- Build applications
-- Run npm / Angular / .NET builds
-- Zip or package artifacts
-- Modify bucket configuration
-- Manage CloudFront
-
-All build steps occur **outside Terraform**, typically in the EPIC pipeline.
-
----
-
-### Static-Site Specific (By Design)
-
-This module is **explicitly static-site focused**.
-
-Other delivery models (Angular, .NET, APIs, Lambdas, containers) are handled by **separate deploy modules** to avoid:
-- Conditional logic
-- Feature flags
-- Polymorphic Terraform modules
-
-This ensures clarity, scalability, and long-term maintainability.
-
----
-
-### EPIC Workspace Compatibility
-
-The module resolves website assets using the EPIC workspace layout:
-
-```hcl
-${path.root}/${app_name}/${app_path}
-```
-
-This allows:
-- Multi-app repositories
-- Environment isolation
-- Pipeline-driven builds
-- Zero hardcoded paths
-
----
-
-## What This Module Deploys
-
-- All files under the resolved website directory
-- Uploaded as individual `aws_s3_object` resources
-- Changes detected via file `etag` (MD5)
-- Content-Type automatically inferred by file extension
-- Optional `Cache-Control` header support
-
----
-
-## What This Module Does NOT Do
-
-- ❌ Create or configure S3 buckets  
-- ❌ Enable static website hosting  
-- ❌ Configure CloudFront  
-- ❌ Invalidate CloudFront caches  
-- ❌ Build or transpile code  
-
-Those responsibilities belong to other EPIC modules or pipeline steps.
-
----
-
-## Required Inputs
-
-| Variable Name | Description |
-|--------------|-------------|
-| `app_name` | Application name used to resolve workspace path |
-| `app_path` | Relative path to static site assets under the app folder |
-| `bucket_name` | Target S3 bucket name |
-
----
-
-## Optional Inputs
-
-| Variable Name | Description |
-|--------------|-------------|
-| `cache_control` | Cache-Control header applied to uploaded objects |
-| `content_type_overrides` | Map of file extension → MIME type overrides |
-
----
-
-## Example EPIC Usage (resources.yml)
-
-```yaml
-modules:
-  - name: deploy-static-site
-    path: epic-pipeline-module-aws-deploy-static-site
-    variables:
-       # Required but auto-injected by EPIC (can be omitted)
-      app_name: "${app_name}"
-      bucket_name: "${bucket_name}"
-
-      # Overrides
-      app_path: "/"
-      cache_control: "max-age=3600"
-```
-
----
+None.
 
 ## Outputs
 
-| Output Name | Description |
-|------------|-------------|
-| `deployed_bucket` | Name of the S3 bucket receiving website assets |
-| `file_count` | Number of files deployed |
+| Name | Type | Description |
+|------|------|-------------|
+| `vpc_id` | `string` | ID of the existing VPC resolved from SSM |
+| `private_subnet_ids` | `list(string)` | Two-element list of private subnet IDs (subnet A, subnet B) |
 
----
+## Usage in a Terraform project
 
-## Intended Consumers
+```hcl
+module "network" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-network.git?ref=main"
 
-This module is designed for:
-- Static HTML websites
-- Angular / React / Vue build outputs
-- Documentation sites
-- Lightweight front-end applications
+  ssm_vpc_id_parameter           = "/saf/network/vpc-id"
+  ssm_private_subnet_a_parameter = "/saf/network/private-subnet-a"
+  ssm_private_subnet_b_parameter = "/saf/network/private-subnet-b"
+}
 
-For other workloads, use the appropriate EPIC deploy module.
+output "vpc_id" {
+  value = module.network.vpc_id
+}
 
----
+output "private_subnet_ids" {
+  value = module.network.private_subnet_ids
+}
+```
 
-## EPIC Module Tiering
+## Usage from another module
 
-| Tier | Responsibility |
-|-----|---------------|
-| Tier 0 | Foundational infrastructure (S3, IAM, KMS) |
-| Tier 1 | Platform services (CloudFront, ALB, RDS) |
-| Tier 2 | Application deployment (this module) |
+```hcl
+module "network" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-network.git?ref=main"
 
----
+  ssm_vpc_id_parameter           = var.ssm_vpc_id_parameter
+  ssm_private_subnet_a_parameter = var.ssm_private_subnet_a_parameter
+  ssm_private_subnet_b_parameter = var.ssm_private_subnet_b_parameter
+}
 
-## Summary
+module "alb" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-alb.git?ref=main"
 
-This module completes the **static website delivery path** in EPIC:
+  vpc_id     = module.network.vpc_id
+  subnet_ids = module.network.private_subnet_ids
+  # ...
+}
+```
 
-Infrastructure:
-- `aws-s3`
-- `aws-cloudfront`
+## Versions
 
-Deployment:
-- `aws-deploy-static-site`
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
 
-Clear boundaries.  
-No hidden logic.  
-Pipeline-first by design.
+No provider version constraints are pinned by this module; the consuming project pins the AWS provider.
 
----
+## Notes
 
+- The SSM parameters are expected to be populated by SAF 2.0 in each PG&E AWS account. Parameter names vary by account and environment — pass them in via `.pipeline/epic.json` Terraform variables rather than hardcoding.
+- `private_subnet_ids` is always a two-element list. Workloads requiring more than two AZs are not supported by this module as written.
+- The IAM role used by EPIC Terraform runs must have `ssm:GetParameter` on the three parameters above.

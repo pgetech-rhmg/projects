@@ -1,212 +1,112 @@
-# EPIC Azure Tags Module (Tier 0)
+# epic-pipeline-module-azure-tags
 
-**Team:** PG&E Enterprise Cloud & DevSecOps
-**Module Name:** epic-pipeline-module-azure-tags
-**Module Type:** Tier 0 -- Foundational Governance Module
-**Last Updated:** 2026-03-25
+Standard EPIC tag set for Azure resources. The module assembles a single `tags` map from PG&E governance inputs (AppID, owner, compliance, CRIS, etc.) and exposes it for downstream Azure modules to attach to every resource they create.
 
----
+## Resources Created
 
-## Overview
+This module creates no Azure resources. It only computes a `tags` map from inputs and returns it via output.
 
-This repository provides the **Azure tags Terraform module** used by PG&E's **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+## Inputs
 
-This module is the **Azure equivalent** of `epic-pipeline-module-aws-tags`. Where the AWS module uses `AWSAccountID`, this module uses `SubscriptionID` to identify the Azure subscription associated with the resource.
+### Required
 
-This module is a **foundational governance building block** that standardizes and enforces **required enterprise tags** across all Azure resources deployed through EPIC.
+| Name | Type | Description |
+|------|------|-------------|
+| `subscription_id` | `string` | Azure Subscription ID where the resource is provisioned. |
+| `environment` | `string` | Deployment environment. One of: `dev`, `test`, `qa`, `prod`. |
+| `appid` | `number` | AMPS Application ID (numeric). Rendered as `APP-<appid>` in the `AppID` tag. |
+| `notify` | `list(string)` | Email addresses or DLs to notify on failure or maintenance. Each entry must be a valid email. |
+| `owner` | `list(string)` | Exactly three LAN IDs: AMPS Director, Client Owner, IT Lead. |
+| `order` | `number` | AMPS Order number. Must be 7 to 9 digits (1,000,000 to 999,999,999). |
 
-It does **not** create Azure resources.
-It exists solely to **centralize, normalize, and consistently apply tagging logic** across all modules.
+### Optional
 
----
-
-## Design Principles
-
-### Single Source of Truth for Tags
-
-All required enterprise tags are defined **once**, in one place.
-
-Downstream modules:
-- Consume the tag map
-- Apply it directly to Azure resources
-- Never reimplement tagging logic
-
-This prevents:
-- Drift
-- Misspellings
-- Missing tags
-- Inconsistent formats across teams
-
----
-
-### Tier 0 Governance Responsibility
-
-This module is classified as **Tier 0** because:
-- It applies to **all resources**
-- It enforces **enterprise policy**
-- It has no application context
-- It is stable, long-lived, and reused everywhere
-
-This module is expected to be consumed by:
-- Tier 0 modules (Storage Accounts, Key Vaults, Managed Identities)
-- Tier 1 modules (App Gateway, Front Door)
-- Tier 2 modules (application deploy modules)
-
----
-
-## What This Module Produces
-
-This module produces a **single normalized tag map** containing required enterprise metadata, including (but not limited to):
-
-- Application identification
-- Environment classification
-- Data classification
-- Compliance indicators
-- Ownership and billing metadata
-- Notification routing
-
-All formatting and normalization is handled internally.
-
----
-
-## Core Logic
-
-The module constructs the tag map as follows:
-
-```hcl
-locals {
-  tags = {
-    ManagedBy          = "EPIC"
-    Team               = "CCoE"
-    SubscriptionID     = var.subscription_id
-    AppID              = "APP-${var.appid}"
-    Environment        = var.environment
-    DataClassification = var.dataclassification
-    CRIS               = var.cris
-    Notify             = join("_", var.notify)
-    Owner              = join("_", var.owner)
-    Compliance         = join("_", var.compliance)
-    Order              = var.order
-  }
-}
-```
-
-This ensures:
-- Predictable tag keys
-- Consistent value formatting
-- No duplicated logic in consuming modules
-
----
-
-## Required Inputs
-
-| Variable Name | Description |
-|--------------|-------------|
-| `subscription_id` | Azure Subscription ID for the target subscription |
-| `environment` | Deployment environment (dev, test, qa, prod) |
-| `appid` | Application identifier (numeric portion only) |
-| `notify` | List of notification email addresses |
-| `owner` | List of exactly 3 owner identifiers |
-| `order` | Internal order or cost tracking reference (7-9 digits) |
-
-### Optional Inputs
-
-| Name | Description | Default |
-|----|----|----|
-| `dataclassification` | Data classification level | `Internal` |
-| `compliance` | List of compliance indicators | `["None"]` |
-| `cris` | Criticality rating | `Low` |
-
----
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `dataclassification` | `string` | `"Internal"` | One of `Public`, `Internal`, `Confidential`, `Restricted`, `Privileged`, `BCSI`, `BCSI-Confidential`, `BCSI-Restricted`. |
+| `compliance` | `list(string)` | `["None"]` | Subset of `SOX`, `HIPAA`, `CCPA`, `BCSI`, `None`. |
+| `cris` | `string` | `"Low"` | Cyber Risk Impact Score. One of `High`, `Medium`, `Low`. |
 
 ## Outputs
 
-| Output Name | Description |
-|------------|-------------|
-| `tags` | Standard EPIC tag map for Azure resources |
+| Name | Type | Description |
+|------|------|-------------|
+| `tags` | `map(string)` | Tag map with keys: `ManagedBy`, `Team`, `SubscriptionID`, `AppID`, `Environment`, `DataClassification`, `CRIS`, `Notify`, `Owner`, `Compliance`, `Order`. List inputs (`notify`, `owner`, `compliance`) are joined with `_`. |
 
----
+## Usage in a Terraform Project
 
-## Example EPIC Usage (resources.yml)
-
-```yaml
-modules:
-  - name: tags
-    path: epic-pipeline-module-azure-tags
-    variables:
-      # Required but auto-injected by EPIC (can be omitted)
-      environment: ${environment}
-
-      # Required
-      subscription_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-      appid: "2324"
-      notify:
-        - abcd@pge.com
-        - efgh@pge.com
-        - wxyz@pge.com
-      owner:
-        - abcd
-        - efgh
-        - wxyz
-      order: 123456789
-
-      # Overrides
-      dataclassification: "Restricted"
-```
-
----
-
-## Intended Usage Pattern
-
-This module is intended to be:
-- Declared **once** per EPIC deployment
-- Passed into all other modules as a `tags` input
-- Used consistently across all Azure resources
-
-Example consumption pattern:
+Standard pattern from a project's `.infra/main.tf`. The tag module is instantiated once and its output is fed into every other Azure module.
 
 ```hcl
-resource "azurerm_resource_group" "example" {
-  name     = var.resource_group_name
-  location = var.location
-  tags     = module.tags.tags
+module "tags" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-tags.git?ref=main"
+
+  subscription_id    = var.subscription_id
+  environment        = var.environment
+  appid              = var.appid
+  compliance         = var.compliance
+  cris               = var.cris
+  dataclassification = var.dataclassification
+  notify             = var.notify
+  order              = var.order
+  owner              = var.owner
+}
+
+module "app_service" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-app-service.git?ref=main"
+
+  app_name    = "${var.app_name}-web"
+  environment = var.environment
+  tags        = module.tags.tags
+  # ...
 }
 ```
 
----
+The governance inputs (`appid`, `owner`, `notify`, `order`, `compliance`, `cris`, `dataclassification`) are declared as variables in the project's `.infra/variables.tf` and supplied through `terraform.tfvars` or pipeline-injected `-var` flags. EPIC reads `.pipeline/epic.json` to resolve `subscription_id` and `environment` per run.
 
-## What This Module Does NOT Do
+When a resource needs a `Name` tag in addition to the standard set, merge inline:
 
-- Does not create Azure resources
-- Does not apply tags automatically
-- Does not validate business rules
-- Does not enforce policies directly
+```hcl
+tags = merge(module.tags.tags, { Name = "pge-epic-${var.app_name}-web-${var.environment}-app-service" })
+```
 
-Those responsibilities belong to consuming modules and platform governance controls.
+## Usage from Another Module
 
----
+When a higher-level composite module wraps this one, pass the governance variables through and re-export the resulting tag map so consumers of the composite still see a single `tags` output:
 
-## EPIC Module Tiering
+```hcl
+module "tags" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-azure-tags.git?ref=main"
 
-| Tier | Responsibility |
-|-----|---------------|
-| Tier 0 | Foundational governance and infrastructure |
-| Tier 1 | Platform and edge services |
-| Tier 2 | Application deployment |
+  subscription_id    = var.subscription_id
+  environment        = var.environment
+  appid              = var.appid
+  notify             = var.notify
+  owner              = var.owner
+  order              = var.order
+  compliance         = var.compliance
+  cris               = var.cris
+  dataclassification = var.dataclassification
+}
 
-This module is a **Tier 0 governance dependency** for all other EPIC Azure modules.
+# Attach module.tags.tags to every resource the composite creates,
+# then re-export:
+output "tags" {
+  value = module.tags.tags
+}
+```
 
----
+## Requirements
 
-## Summary
+| Component | Version |
+|-----------|---------|
+| Terraform | `>= 1.5.0` |
 
-This module exists to make tagging:
+No providers are required — this module is pure local computation.
 
-- Centralized
-- Predictable
-- Enforced by design
-- Invisible to application teams
+## Notes
 
-By separating tagging into its own Tier 0 module, EPIC ensures that **every resource is compliant by default**, without duplicating logic or relying on developer discipline.
-
----
+- The `Notify`, `Owner`, and `Compliance` tag values are joined with underscores because Azure tag values are single strings. The module does not validate underscore conflicts inside individual entries.
+- `appid` is a `number`; pass it as an unquoted integer, not a string. The `APP-` prefix is added by the module.
+- `order` is emitted as a string in the tag map (Azure tag values are strings), even though the input type is `number`.
+- The module only validates the inputs it owns. Resources still need to wire `tags = module.tags.tags` themselves; this module does not enforce attachment.

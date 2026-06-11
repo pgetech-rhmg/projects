@@ -1,210 +1,151 @@
-# EPIC AWS SQS Module (Tier 0)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps
-**Module Name:** epic-pipeline-module-aws-sqs
-**Module Type:** Tier 0 – Foundational Infrastructure Module
-
----
+# epic-pipeline-module-aws-sqs
 
 ## Overview
 
-This repository provides the **foundational AWS SQS Terraform module** used by PG&E's **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+Provisions an AWS SQS queue (standard or FIFO) with encryption, an attached resource policy, and optional dead-letter wiring. The module enforces SAF guardrails through `lifecycle` preconditions: encryption at rest is mandatory, a CMK is required when the `DataClassification` tag is `Confidential`, `Restricted`, or `Privileged`, and a queue policy must always resolve.
 
-This module creates a single SQS queue (Standard or FIFO) with sane defaults aligned to the PG&E SAF 2.0 SQS guardrails. It is intentionally **low-level and policy-agnostic** — VPC endpoints, IAM grants, and CloudWatch alarms are composed by higher-level modules or by the consuming application.
+Queue names are derived as `pge-epic-<app_name>-<environment>-<queue_name>`. For FIFO queues the `.fifo` suffix is appended automatically. Use `custom_queue_name` to override the full name.
 
----
+## Resources
 
-## Design Principles
-
-- Secure by default (SSE-required, long retention for DLQs)
-- One queue per module instance
-- Naming convention enforced by default (`pge-epic-<app>-<env>-<name>[.fifo]`)
-- Caller-owned access policy (no embedded `Principal: '*'` allowed)
-- Compatible with EPIC auto-wiring and orchestration
-
----
-
-## What This Module Is (and Is Not)
-
-### This module IS
-- A foundational SQS queue primitive
-- A consistent naming surface for queue resources
-- Suitable for direct use by experienced Terraform users
-
-### This module is NOT
-- A DLQ wiring layer (caller passes `redrive_policy` JSON to wire DLQs)
-- A VPC endpoint module
-- A CloudWatch alarm module
-- A place to embed organization-specific access rules
-
----
-
-## Resources Created
-
-- `aws_sqs_queue`
-- Optional: `aws_sqs_queue_policy` (only when provided by the caller)
-
----
-
-## Security Defaults
-
-- 14-day `message_retention_seconds` (matches SAF DLQ recommendation; override per-queue)
-- KMS CMK is the recommended encryption path; `sqs_managed_sse_enabled` available when only `Internal` data flows
-- Default queue policy synthesized to SAF shape (TLS-only Allow + DenyFromInternet) when `queue_policy_json` is null
-
----
-
-## SAF 2.0 Compliance
-
-Enforced via Terraform `lifecycle` preconditions and validations:
-
-| SAF # | Control | Enforcement |
-|---|---|---|
-| #1 | Encrypt data at rest | One of `kms_master_key_id` (CMK) or `sqs_managed_sse_enabled=true` is required |
-| #2 | PG&E-managed CMK | `kms_master_key_id` mandatory when `tags["DataClassification"]` is `Confidential`, `Restricted`, or `Privileged` |
-| #3 | TLS ≥ 1.2 | Default policy includes `aws:SecureTransport=true` Allow condition |
-| #19 / #21 | Internet segregation | Default policy includes `DenyFromInternet` deny statement scoped to PG&E CIDR space |
-| #29 | Least-privilege | `Principal: '*'` is forbidden by the default policy shape; caller passes specific role ARNs in `allowed_principal_arns` |
-
-Default policy is generated when `queue_policy_json` is null. Caller must supply at least one of `queue_policy_json` or `allowed_principal_arns`.
-
-Out of module scope: SQS VPC endpoint provisioning, IAM consumer-role grants, CloudWatch alarms (use `epic-pipeline-module-aws-cloudwatch-alarm`).
-
----
+- `aws_sqs_queue.this`
+- `aws_sqs_queue_policy.this`
+- `data.aws_iam_policy_document.saf_default` (synthesized when `queue_policy_json` is not supplied)
 
 ## Inputs
 
-### Required Inputs
+### Required
 
-| Name | Description |
-|---|---|
-| `app_name` | Application identifier |
-| `environment` | Deployment environment (dev, test, qa, prod) |
-| `tags` | Resource tags |
-| `queue_name` | Logical queue name suffix |
+| Name | Type | Description |
+|------|------|-------------|
+| `app_name` | `string` | Application name used in the queue name. Injected by EPIC. |
+| `environment` | `string` | Deployment environment (`dev`, `test`, `qa`, `prod`). Injected by EPIC. |
+| `tags` | `map(string)` | Common tags. `DataClassification` drives the CMK precondition. |
+| `queue_name` | `string` | Logical queue suffix combined into `pge-epic-<app_name>-<environment>-<queue_name>`. |
 
-### Optional Inputs
+### Optional
 
-| Name | Description | Default |
-|---|---|---|
-| `custom_queue_name` | Full queue name override | `null` |
-| `fifo_queue` | Create a FIFO queue (`.fifo` suffix appended) | `false` |
-| `content_based_deduplication` | Enable content-based dedup (FIFO only) | `false` |
-| `deduplication_scope` | `messageGroup` or `queue` (FIFO only) | `null` |
-| `fifo_throughput_limit` | `perQueue` or `perMessageGroupId` (FIFO only) | `null` |
-| `delay_seconds` | Delivery delay (0–900) | `0` |
-| `max_message_size` | Max bytes per message (1024–262144) | `262144` |
-| `message_retention_seconds` | Retention window (60–1209600) | `1209600` |
-| `receive_wait_time_seconds` | Long-polling wait (0–20) | `0` |
-| `visibility_timeout_seconds` | Visibility timeout (0–43200) | `30` |
-| `kms_master_key_id` | CMK for SSE-KMS | `null` |
-| `kms_data_key_reuse_period_seconds` | Data key reuse window | `300` |
-| `sqs_managed_sse_enabled` | AWS-managed SSE when no CMK provided | `false` |
-| `redrive_policy` | JSON redrive policy (DLQ wiring) | `null` |
-| `redrive_allow_policy` | JSON redrive allow policy | `null` |
-| `queue_policy_json` | Raw JSON access policy override | `null` |
-| `allowed_principal_arns` | Principal ARNs for the synthesized SAF default policy | `[]` |
-| `internal_cidr_blocks` | CIDRs allowed by the synthesized DenyFromInternet | PG&E ranges |
-
----
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `custom_queue_name` | `string` | `null` | Full queue name override. Takes precedence over the auto-derived name. |
+| `fifo_queue` | `bool` | `false` | Create a FIFO queue. The `.fifo` suffix is added automatically. |
+| `content_based_deduplication` | `bool` | `false` | Enable content-based deduplication. Only valid when `fifo_queue` is true. |
+| `deduplication_scope` | `string` | `null` | FIFO deduplication scope (`messageGroup` or `queue`). |
+| `fifo_throughput_limit` | `string` | `null` | FIFO throughput limit (`perQueue` or `perMessageGroupId`). |
+| `delay_seconds` | `number` | `0` | Delivery delay (0 to 900). |
+| `max_message_size` | `number` | `262144` | Maximum message size in bytes (1024 to 262144). |
+| `message_retention_seconds` | `number` | `1209600` | Retention period (60 to 1209600). DLQs default to 14 days per SAF guidance. |
+| `receive_wait_time_seconds` | `number` | `0` | Long-polling wait (0 to 20). Set to `20` for long polling. |
+| `visibility_timeout_seconds` | `number` | `30` | Visibility timeout in seconds (0 to 43200). |
+| `kms_master_key_id` | `string` | `null` | KMS Key ARN or alias for SSE-KMS. Required when `DataClassification` is high. |
+| `kms_data_key_reuse_period_seconds` | `number` | `300` | Data key reuse period (60 to 86400). |
+| `sqs_managed_sse_enabled` | `bool` | `false` | Enable SSE-SQS when no `kms_master_key_id` is provided. |
+| `redrive_policy` | `string` | `null` | JSON-encoded redrive policy (`deadLetterTargetArn` + `maxReceiveCount`). |
+| `redrive_allow_policy` | `string` | `null` | JSON-encoded redrive allow policy. |
+| `queue_policy_json` | `string` | `null` | Raw JSON queue policy. When omitted, a SAF-aligned default is synthesized. |
+| `allowed_principal_arns` | `list(string)` | `[]` | Principal ARNs for the synthesized SAF default policy. Required when `queue_policy_json` is null. |
+| `internal_cidr_blocks` | `list(string)` | PG&E internal ranges | CIDR blocks used by the synthesized `DenyFromInternet` condition. |
 
 ## Outputs
 
 | Name | Description |
-|---|---|
-| `queue_id` | Queue URL (ID) |
-| `queue_url` | Queue URL |
-| `queue_arn` | Queue ARN |
-| `queue_name` | Queue name |
+|------|-------------|
+| `queue_id` | Queue URL (also serves as the resource ID). |
+| `queue_url` | Queue URL. |
+| `queue_arn` | Queue ARN. |
+| `queue_name` | Resolved queue name. |
 
----
+## Usage in a Terraform project
 
-## Example Usage (Direct Terraform)
+This module is consumed from an application's `.infra/` directory. EPIC injects `app_name`, `environment`, and `tags` via Terraform variables wired up by the engine.
 
 ```hcl
-module "aggregator_dlq" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-sqs.git"
+module "ingest_queue" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-sqs.git?ref=main"
 
-  app_name    = "nfr-tool"
-  environment = "dev"
-  queue_name  = "aggregator-dlq"
+  app_name    = var.app_name
+  environment = var.environment
+  tags        = var.tags
 
-  kms_master_key_id          = module.kms.key_arn
-  message_retention_seconds  = 1209600
+  queue_name                 = "ingest"
   visibility_timeout_seconds = 60
+  receive_wait_time_seconds  = 20
+  message_retention_seconds  = 345600
 
-  allowed_principal_arns = [aws_iam_role.aggregator.arn]
+  kms_master_key_id      = aws_kms_key.queues.arn
+  allowed_principal_arns = [aws_iam_role.consumer.arn]
+}
 
-  tags = module.tags.tags
+module "ingest_dlq" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-sqs.git?ref=main"
+
+  app_name    = var.app_name
+  environment = var.environment
+  tags        = var.tags
+
+  queue_name             = "ingest-dlq"
+  kms_master_key_id      = aws_kms_key.queues.arn
+  allowed_principal_arns = [aws_iam_role.consumer.arn]
 }
 ```
 
-Wire a primary queue to that DLQ:
+To wire the DLQ, set `redrive_policy` on the source queue:
 
 ```hcl
-module "primary_queue" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-sqs.git"
+redrive_policy = jsonencode({
+  deadLetterTargetArn = module.ingest_dlq.queue_arn
+  maxReceiveCount     = 5
+})
+```
 
-  app_name    = "nfr-tool"
-  environment = "dev"
-  queue_name  = "ingest"
+The matching `.pipeline/epic.json` declares the application and points at the infra directory:
 
-  kms_master_key_id = module.kms.key_arn
-
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = module.aggregator_dlq.queue_arn
-    maxReceiveCount     = 5
-  })
-
-  tags = module.tags.tags
+```json
+{
+  "app": {
+    "appName": "my-api",
+    "appType": "python",
+    "codePath": "/",
+    "infraPath": ".infra"
+  },
+  "cloud": {
+    "awsAccountId": "999999999999",
+    "awsRegion": "us-west-2"
+  }
 }
 ```
 
----
+## Usage from another module
 
-## EPIC Usage (resources.yml)
+```hcl
+module "events_queue" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-sqs.git?ref=main"
 
-```yaml
-modules:
-  - name: aggregator-dlq
-    path: epic-pipeline-module-aws-sqs
-    variables:
-      app_name: ${app_name}
-      environment: ${environment}
-      queue_name: aggregator-dlq
-      kms_master_key_id: ${module.kms.key_arn}
-      tags: module.tags.tags
+  app_name    = var.app_name
+  environment = var.environment
+  tags        = var.tags
+
+  queue_name                  = "events"
+  fifo_queue                  = true
+  content_based_deduplication = true
+  deduplication_scope         = "messageGroup"
+  fifo_throughput_limit       = "perMessageGroupId"
+
+  kms_master_key_id      = var.kms_key_arn
+  allowed_principal_arns = var.consumer_role_arns
+}
 ```
 
----
+## Versions
 
-## Naming Conventions
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
+| `hashicorp/aws` | `~> 5.90` |
 
-Default name resolves to:
+## Notes
 
-```text
-pge-epic-<app_name>-<environment>-<queue_name>[.fifo]
-```
-
-Example:
-
-```text
-pge-epic-nfr-tool-prod-aggregator-dlq
-pge-epic-nfr-tool-prod-ingest.fifo
-```
-
----
-
-## Terraform Compatibility
-
-- Terraform >= 1.5
-- AWS Provider >= 5.x
-
----
-
-## Ownership
-
-Maintained by:
-**PG&E Enterprise Cloud & DevSecOps**
-
-Part of the **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** ecosystem.
+- When `queue_policy_json` is null, the module synthesizes a policy that grants `allowed_principal_arns` queue access over TLS and denies any non-AWS-service traffic from outside `internal_cidr_blocks`. Supplying `queue_policy_json` replaces this entirely.
+- Setting `kms_master_key_id` selects SSE-KMS; setting `sqs_managed_sse_enabled = true` (with no key) selects SSE-SQS. One of the two must be true or the precondition fails.
+- When `DataClassification` in `tags` is `Confidential`, `Restricted`, or `Privileged`, `kms_master_key_id` is mandatory and `sqs_managed_sse_enabled` is not sufficient.
+- FIFO-only inputs (`content_based_deduplication`, `deduplication_scope`, `fifo_throughput_limit`) are ignored when `fifo_queue` is false.

@@ -1,266 +1,156 @@
-# EPIC AWS CloudFront Module (Tier 0)
+# epic-pipeline-module-aws-cloudfront
 
-**Team:** PG&E Enterprise Cloud & DevSecOps  
-**Module Name:** epic-pipeline-module-aws-cloudfront  
-**Module Type:** Tier 1 – Platform / Edge Infrastructure Module  
-**Last Updated:** 2025-12-17
-
----
-
-## Overview
-
-This repository provides the **foundational AWS CloudFront Terraform module** used by PG&E’s **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
-
-This module is intentionally **low-level, edge-focused, and policy-agnostic**.  
-It is designed to act as a **Tier 0 building block** upon which higher-level, purpose-specific delivery modules are built (for example: `s3-web`, `static-site`, `cdn-with-waf`).
-
-While most application teams will consume CloudFront through higher-level EPIC modules, **this module may be used directly by advanced users** who understand CloudFront behavior, S3 origin access patterns, and TLS configuration.
-
----
-
-## Design Principles
-
-This module follows strict enterprise standards:
-
-- Secure by default
-- Origin Access Control (OAC) enforced
-- No public S3 access
-- No embedded org or ownership policies
-- No application assumptions
-- Optional ACM integration
-- Explicit provider aliasing (`us-east-1`)
-- Compatible with EPIC auto-wiring and orchestration
-
-This ensures:
-- Clear separation of responsibilities
-- Safe composition with S3 and WAF modules
-- Reusability across many delivery patterns
-- Predictable edge behavior
-
----
-
-## What This Module Is (and Is Not)
-
-### ✅ This module **IS**
-- A foundational CloudFront distribution implementation
-- An edge delivery primitive
-- A reusable Tier 0 building block
-- Suitable for direct use by experienced Terraform users
-
-### ❌ This module is **NOT**
-- A website module
-- An S3 module
-- A WAF module
-- A DNS module
-- A place to embed org-wide security or ownership rules
+Provisions a CloudFront distribution in front of an S3 origin for SPA hosting. Creates the OAC, origin/response policies, the distribution, and replaces the backing bucket policy with one that allows CloudFront read access while preserving the CCOE-TFE org-wide and TLS-only deny guardrails.
 
 ---
 
 ## Resources Created
 
-This module creates the following AWS resources:
-
-- `aws_cloudfront_distribution`
-- `aws_cloudfront_origin_access_control`
-- `aws_s3_bucket_policy` (CloudFront read access only)
-
-It also consumes **AWS-managed CloudFront policies**:
-
-- Managed cache policy (`Managed-CachingOptimized`)
-- Managed origin request policy (`Managed-CORS-S3Origin`)
-
----
-
-## Security Defaults
-
-The following security controls are enforced automatically:
-
-- S3 origin access via **Origin Access Control (OAC)**
-- No public S3 access
-- HTTPS enforced at the edge
-- Modern AWS-managed cache policies
-
-⚠️ **Important:**  
-This module does **not** enforce:
-
-- Org-based S3 access restrictions
-- TLS-only bucket policies
-- Ownership or compliance tagging
-
-Those concerns belong to the **S3 Tier 0 module** or higher-level composed modules.
+- `aws_cloudfront_origin_access_control.oac` — SigV4 OAC for the S3 origin
+- `aws_cloudfront_origin_request_policy.spa_origin_policy` — SPA-friendly origin request policy (forwards `Origin` and CORS preflight headers, no cookies, no query strings)
+- `aws_cloudfront_response_headers_policy.cors` — CORS response headers policy driven by `cors_allowed_origins`
+- `aws_cloudfront_distribution.cdn` — The distribution itself: `index.html` default root, HTTPS redirect, AWS-managed `CachingOptimized` cache policy, 403/404 rewrites to `200 /index.html` for SPA routing, optional WAF and ACM custom-domain wiring
+- `aws_s3_bucket_policy.cloudfront_access` — Bucket policy on `var.bucket_name` granting CloudFront read access and enforcing `aws:PrincipalOrgID` and `aws:SecureTransport` denies
 
 ---
 
 ## Inputs
 
-### Required Inputs
+### Required
 
-| Name | Description |
-|----|----|
-| `app_name` | Application identifier |
-| `environment` | Deployment environment (dev, test, qa, prod) |
-| `bucket_name` | Name of the S3 origin bucket |
-| `bucket_arn` | ARN of the S3 origin bucket |
-| `bucket_regional_domain_name` | Regional domain name of the S3 bucket |
-| `tags` | Resource tags (provided by module.tags.tags) |
+| Name | Type | Description |
+|---|---|---|
+| `app_name` | `string` | Application name used in CloudFront resource names. |
+| `environment` | `string` | Deployment environment (`dev`, `test`, `qa`, `prod`). |
+| `principal_orgid` | `string` | AWS Organization ID enforced in the bucket policy `Deny` (CCOE-TFE guardrail). |
+| `bucket_name` | `string` | Name of the S3 bucket backing CloudFront. |
+| `bucket_arn` | `string` | ARN of the S3 bucket backing CloudFront. |
+| `bucket_regional_domain_name` | `string` | Regional domain name of the S3 bucket (not the website endpoint). |
+| `tags` | `map(string)` | Common tags applied to taggable resources. |
 
-### Optional Inputs
+### Optional
 
-| Name | Description | Default |
-|----|----|----|
-| `price_class` | CloudFront price class | `PriceClass_100` |
-| `custom_domain_aliases` | Custom domain aliases | `[]` |
-| `custom_acm_certificate_arn` | ACM cert ARN (us-east-1) | `null` |
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `price_class` | `string` | `"PriceClass_100"` | One of `PriceClass_All`, `PriceClass_100`, `PriceClass_200`. |
+| `custom_domain_aliases` | `list(string)` | `[]` | CNAME aliases on the distribution. Requires `custom_acm_certificate_arn`. |
+| `custom_acm_certificate_arn` | `string` | `null` | ACM cert ARN in `us-east-1`. When set, distribution uses SNI + `TLSv1.2_2021`; when null, the CloudFront default cert is used. |
+| `cors_allowed_origins` | `list(string)` | `["*"]` | Origins allowed by the response headers CORS policy. |
+| `web_acl_id` | `string` | `null` | WAFv2 WebACL ARN in `us-east-1` (scope `CLOUDFRONT`) to associate with the distribution. |
 
 ---
 
 ## Outputs
 
 | Name | Description |
-|----|----|
-| `distribution_id` | CloudFront distribution ID |
-| `distribution_arn` | CloudFront distribution ARN |
-| `distribution_domain_name` | CloudFront domain name |
+|---|---|
+| `distribution_id` | CloudFront distribution ID. |
+| `distribution_arn` | CloudFront distribution ARN. |
+| `distribution_domain_name` | CloudFront distribution domain name (e.g. `dxxxx.cloudfront.net`). |
 
 ---
 
-## Example Usage (Direct Terraform)
+## Provider Requirements
 
-> **For advanced users or EPIC module authors**
+Defined in `versions.tf`:
 
-This example creates a **secure CloudFront distribution** in front of an existing private S3 bucket.
+- `terraform >= 1.5.0`
+- `hashicorp/aws ~> 5.90` with a configuration alias for `aws.us_east_1`
+
+CloudFront itself is global, but ACM certs and WAFv2 WebACLs attached to a CloudFront distribution must live in `us-east-1`. This module declares an `aws.us_east_1` configuration alias so the consumer can pass through a regional provider for those upstream resources. The consumer must supply both providers explicitly:
+
+```hcl
+providers = {
+  aws           = aws
+  aws.us_east_1 = aws.us_east_1
+}
+```
+
+---
+
+## Usage from a Terraform Project (`.infra/`)
+
+Direct consumption from an EPIC application's `.infra/main.tf`. This is the canonical pattern from `epic-web/.infra/main.tf`:
 
 ```hcl
 module "cloudfront" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-cloudfront.git"
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-cloudfront.git?ref=main"
 
-  app_name    = "example-app"
-  environment = "dev"
-
-  bucket_name                 = module.s3.bucket_name
-  bucket_arn                  = module.s3.bucket_arn
-  bucket_regional_domain_name = module.s3.bucket_regional_domain_name
-
-  tags = {
-    delivery = "cdn"
-    owner    = "team-x"
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
   }
+
+  app_name                    = "${var.app_name}-web"
+  environment                 = var.environment
+  principal_orgid             = var.principal_orgid
+  bucket_name                 = module.s3_web.bucket_name
+  bucket_arn                  = module.s3_web.bucket_arn
+  bucket_regional_domain_name = module.s3_web.bucket_regional_domain_name
+  price_class                 = var.price_class
+  custom_domain_aliases       = var.custom_domain_aliases
+  custom_acm_certificate_arn  = module.acm_web.certificate_arn
+  cors_allowed_origins        = var.cors_allowed_origins
+  web_acl_id                  = aws_wafv2_web_acl.web.arn
+
+  tags = merge(module.tags.tags, { Name = "pge-epic-${var.app_name}-web-${var.environment}-cloudfront" })
 }
 ```
 
----
+The S3 origin is provisioned by `epic-pipeline-module-aws-s3`, the ACM cert by `epic-pipeline-module-aws-certificate` (with `aws.us_east_1`), and the WAFv2 WebACL is created in `us-east-1` directly in the project. CloudFront then composes them.
 
-## EPIC Usage (resources.yml)
-
-This module **may be used directly** in EPIC when explicit control of CloudFront behavior is required.
-
-```yaml
-modules:
-  - name: cloudfront
-    path: epic-pipeline-module-aws-cloudfront
-    variables:
-      # Required but auto-injected by EPIC (can be omitted)
-      principal_orgid: ${principal_orgid}
-      app_name: ${app_name}
-      environment: ${environment}
-      tags: module.tags.tags
-      bucket_name: module.s3.bucket_name
-      bucket_arn: module.s3.bucket_arn
-      bucket_regional_domain_name: module.s3.bucket_regional_domain_name
-
-      # Overrides
-      price_class: "PriceClass_200"
-```
-
-In most cases, EPIC applications will instead use higher-level "super" modules such as:
-
-- `pge-pipeline-module-aws-s3-web`
-- `pge-pipeline-module-aws-static-site`
-- `pge-pipeline-module-aws-cdn-with-waf`
+The application repo's `.pipeline/epic.json` is what selects this `.infra/` directory and triggers `terraform apply` through the EPIC engine; the module itself has no awareness of `epic.json`.
 
 ---
 
-## Module Composition Pattern
+## Usage from Another Module (Composition)
 
-Higher-level modules should follow this pattern:
+When wrapping `cloudfront` inside a higher-level module (e.g. a "static SPA" composite module), the wrapper must also declare the `aws.us_east_1` configuration alias and forward both providers:
 
 ```hcl
-module "cdn" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-cloudfront.git"
+# wrapper module's versions.tf
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source                = "hashicorp/aws"
+      version               = "~> 5.90"
+      configuration_aliases = [aws.us_east_1]
+    }
+  }
+}
 
-  app_name    = var.app_name
-  environment = var.environment
+# wrapper module's main.tf
+module "cloudfront" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-cloudfront.git?ref=main"
 
-  bucket_name                 = module.bucket.bucket_name
-  bucket_arn                  = module.bucket.bucket_arn
-  bucket_regional_domain_name = module.bucket.bucket_regional_domain_name
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  app_name                    = var.app_name
+  environment                 = var.environment
+  principal_orgid             = var.principal_orgid
+  bucket_name                 = var.bucket_name
+  bucket_arn                  = var.bucket_arn
+  bucket_regional_domain_name = var.bucket_regional_domain_name
+  custom_acm_certificate_arn  = var.custom_acm_certificate_arn
+  custom_domain_aliases       = var.custom_domain_aliases
+  web_acl_id                  = var.web_acl_id
+  cors_allowed_origins        = var.cors_allowed_origins
+  tags                        = var.tags
 }
 ```
 
-Access control and compliance must be layered **outside** this module.
+The root module must instantiate two AWS providers (one default, one aliased to `us-east-1`) and pass both into the wrapper.
 
 ---
 
-## Naming Conventions
+## Notes
 
-This module does not enforce naming directly.
-
-Typical EPIC naming patterns resolve to:
-
-```text
-<prefix>-<app>-<environment>-<purpose>
-```
-
-Example:
-
-```text
-pge-example-dev-cdn
-```
-
-Final naming decisions are owned by the consuming module or EPIC pipeline.
-
----
-
-## Terraform Compatibility
-
-- Terraform >= 1.5
-- AWS Provider >= 5.x
-
----
-
-## Why This Module Exists
-
-This module exists to:
-
-- Eliminate copy-paste CloudFront implementations
-- Standardize secure edge delivery
-- Enforce OAC-based S3 access
-- Enable safe, repeatable CDN composition
-- Scale consistently across the enterprise
-
-It is a **foundation**, not a feature.
-
----
-
-## Ownership
-
-Maintained by:  
-**PG&E Enterprise Cloud & DevSecOps**
-
-Part of the **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** ecosystem.
-
----
-
-## Final Notes
-
-If you need:
-- Website hosting
-- Custom domains + DNS
-- WAF protection
-- Logging and monitoring
-- Org or cross-account security controls
-
-👉 Use or create a **higher-level EPIC module** that composes this Tier 0 module with the appropriate policies and integrations.
-
-This module should remain **clean, minimal, and edge-focused**.
-
+- The module owns the bucket policy on `bucket_name`. Any other writer of that bucket policy will conflict — keep policy authorship here so the CloudFront read-allow and the CCOE-TFE `PrincipalOrgID` / `SecureTransport` denies stay in sync.
+- 403 and 404 responses from the origin are rewritten to `200 /index.html` to support client-side routing in SPAs.
+- The default cache policy is the AWS-managed `CachingOptimized` (`658327ea-f89d-4fab-a63d-7e88639e58f6`).
+- Setting `custom_domain_aliases` without a matching `custom_acm_certificate_arn` will fail at apply — CloudFront requires a cert in `us-east-1` for any alias.
+- `web_acl_id` expects a WAFv2 WebACL ARN with `scope = CLOUDFRONT`, which means it must have been created against the `aws.us_east_1` provider.

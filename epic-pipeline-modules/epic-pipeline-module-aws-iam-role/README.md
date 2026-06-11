@@ -1,239 +1,161 @@
-# EPIC AWS IAM Role Module (Tier 0)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps  
-**Module Name:** epic-pipeline-module-aws-iam-role  
-**Module Type:** Tier 0 – Foundational Infrastructure Module  
-**Last Updated:** 2025-12-18
-
----
+# EPIC AWS IAM Role Module
 
 ## Overview
 
-This repository provides the **foundational AWS IAM Role Terraform module** used by PG&E’s **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+A Terraform module that provisions a single AWS IAM role with a trust policy, optional managed policy attachments, and optional inline policies. It supports both EPIC-generated trust relationships (driven by `role_type` and `capabilities`) and an explicit escape hatch (`custom_trust` + `trusted_principals`) for service-trust roles such as RDS Proxy, EventBridge Scheduler, or Lambda execution roles declared outside the Lambda module.
 
-This module is **one of the most critical security components in EPIC**.  
-It must be **correct, consistent, and simple to consume**.
-
-To achieve this, EPIC deliberately separates:
-
-- **User intent** (what the role is for)
-- **Enterprise policy** (how the role is implemented)
-- **Terraform mechanics** (how AWS IAM works)
-
-Most users will **never interact with IAM or Terraform concepts directly**.
+This module is consumed from application infrastructure declared under the repository's `app.infraPath` (default `.infra`) and resolved by EPIC at runtime via `.pipeline/epic.json`.
 
 ---
 
-## Core EPIC Principle (Read This First)
+## Resources
 
-> **Application teams should never need to understand IAM, Terraform, or AWS trust policies.**
-
-EPIC exists to abstract those details away while enforcing enterprise-grade security.
-
-This module supports **three clearly defined usage levels**, ensuring simplicity by default and power only when explicitly needed.
-
----
-
-## Usage Levels (Critical Concept)
-
-| Level | Audience | Purpose |
-|----|--------|--------|
-| Level 1 | Application teams | Simple intent-based roles |
-| Level 2 | Advanced users | Capability-based customization |
-| Level 3 | Platform / Security | Full IAM control (escape hatch) |
-
-Most users should **never go beyond Level 1**.
+- `aws_iam_role` — the role itself
+- `aws_iam_role_policy_attachment` — one per managed policy ARN in `policy_arns`
+- `aws_iam_role_policy` — one per entry in `inline_policies`
+- `data.aws_iam_policy_document.epic_trust` — generated trust policy (default path)
+- `data.aws_iam_policy_document.custom_trust` — explicit trust policy (escape hatch)
 
 ---
 
-## Level 1 — Simple Intent-Based Roles (Default)
+## Inputs
 
-### Who this is for
-- Application teams
-- Developers
-- Anyone who does not want to think about IAM
+### Required
 
-### What the user provides
-Only **intent**, not implementation.
+| Name | Type | Description |
+|------|------|-------------|
+| `role_name` | `string` | Name of the IAM role to create. |
 
-Example:
+### Optional
 
-```yaml
-modules:
-  - name: iam_role
-    path: epic-pipeline-module-aws-iam-role
-    variables:
-      role_name: "deploy"
-      role_type: terraform
-```
-
-### What EPIC does automatically
-Based on `role_type`, EPIC:
-- Generates the trust policy
-- Selects the correct authentication method (OIDC, service principal, etc.)
-- Attaches enterprise-approved policies
-- Applies required tags
-- Ensures least-privilege defaults
-
-### Common `role_type` values
-
-| role_type | Intended Use |
-|---------|--------------|
-| terraform | EPIC Terraform execution roles |
-| cicd | CI/CD pipelines |
-| lambda | Lambda execution |
-| ecs | ECS task execution |
-| readonly | Read-only access roles |
-
-Users **do not** need to know how these are implemented.
-
----
-
-## Level 2 — Advanced Capability-Based Roles
-
-### Who this is for
-- Power users
-- Platform-adjacent teams
-- Advanced application scenarios
-
-Still **no IAM syntax required**.
-
-### Example
-
-```yaml
-modules:
-  - name: iam_role
-    path: epic-pipeline-module-aws-iam-role
-    variables:
-      role_name: "app-runtime"
-      role_type: lambda
-      capabilities:
-        - s3_read
-        - logs_write
-```
-
-### What EPIC does
-- Maps capabilities to approved policy sets
-- Combines multiple permissions safely
-- Enforces policy boundaries
-- Prevents over-privileged access
-
-### Example capability catalog (enterprise-defined)
-
-| Capability | Description |
-|----------|-------------|
-| s3_read | Read-only S3 access |
-| s3_write | Write access to specific buckets |
-| logs_write | CloudWatch Logs write access |
-| secrets_read | Read access to Secrets Manager |
-| dynamodb_rw | Read/write DynamoDB |
-
-Capabilities are **named, documented, and reviewed** by the platform team.
-
----
-
-## Level 3 — Expert / Escape Hatch Mode
-
-### Who this is for
-- Platform engineers
-- Security teams
-- Rare edge cases
-
-⚠️ **This level should be used sparingly and reviewed carefully.**
-
-### Example
-
-```yaml
-modules:
-  - name: iam_role
-    path: epic-pipeline-module-aws-iam-role
-    variables:
-      role_name: "special-case"
-      custom_trust: true
-      trusted_principals:
-        - type: oidc
-          provider: ado
-          subject: "repo:pgetech/legacy-app"
-      policy_arns:
-        - arn:aws:iam::aws:policy/ReadOnlyAccess
-```
-
-### Important notes
-- IAM knowledge is required at this level
-- EPIC still enforces tagging and naming standards
-- This mode is typically restricted to approved repos
-
----
-
-## What This Module Does
-
-This module:
-- Creates a single IAM role
-- Applies a generated or user-defined trust policy
-- Attaches managed and/or inline policies
-- Enforces enterprise tagging standards
-
----
-
-## What This Module Does NOT Do
-
-This module intentionally does **not**:
-- Define application-specific logic
-- Hard-code permissions
-- Embed environment branching
-- Assume deployment tooling
-- Create IAM users or access keys
-
-Those responsibilities belong to EPIC orchestration or higher-tier modules.
-
----
-
-## Inputs (Terraform-Level)
-
-These inputs exist primarily for EPIC and advanced users.
-
-| Name | Description |
-|----|------------|
-| role_name | IAM role name |
-| trusted_principals | Trust relationships (advanced) |
-| policy_arns | Managed policies to attach |
-| inline_policies | Optional inline policies |
-| tags | Resource tags |
-
-Most users **will not supply these directly**.
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `role_type` | `string` | `null` | High-level intent for the role (e.g. `terraform`, `cicd`, `lambda`, `ecs`, `readonly`). Interpreted by EPIC to generate trust, auth, default permissions, and security boundaries. |
+| `capabilities` | `list(string)` | `[]` | Named capabilities that map to approved policy sets (e.g. `s3_read`, `logs_write`, `secrets_read`). |
+| `custom_trust` | `bool` | `false` | When `true`, disables EPIC-generated trust and uses `trusted_principals` directly. Required for service-trust roles. |
+| `trusted_principals` | `list(object)` | `[]` | Explicit trust entries. Each entry: `type` (`oidc`, `service`, `aws`), `provider` (e.g. `rds.amazonaws.com`, `github`), `subject` (OIDC subject, optional), `account` (AWS account ID or role ARN, optional). |
+| `policy_arns` | `list(string)` | `[]` | Managed policy ARNs to attach. Typically generated by EPIC from `role_type` and `capabilities`. |
+| `inline_policies` | `map(string)` | `{}` | Map of inline policy name to JSON-encoded policy document. Use for tightly-scoped, role-specific grants. |
+| `tags` | `map(string)` | `{}` | Tags applied to the IAM role. |
 
 ---
 
 ## Outputs
 
 | Name | Description |
-|----|------------|
-| role_name | IAM role name |
-| role_arn | IAM role ARN |
+|------|-------------|
+| `role_name` | Name of the IAM role. |
+| `role_arn` | ARN of the IAM role. |
 
 ---
 
-## Security Model
+## Usage in a Terraform project
 
-IAM roles created through EPIC are:
+Service-trust roles consumed from application infrastructure (`.infra/iam.tf`):
 
-- Explicitly trusted
-- Least-privileged by default
-- Centrally auditable
-- Consistent across accounts
-- Resistant to configuration drift
+```hcl
+# RDS Proxy assumes this role to read the cluster master-user secret.
+module "rds_proxy_role" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-iam-role.git?ref=main"
 
-This module is the **foundation of EPIC’s security posture**.
+  role_name    = "${var.project_tag}-rds-proxy-role-${var.environment}"
+  custom_trust = true
+  trusted_principals = [{
+    type     = "service"
+    provider = "rds.amazonaws.com"
+  }]
+
+  inline_policies = {
+    read_master_secret = jsonencode({
+      Version = "2012-10-17"
+      Statement = [{
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret",
+        ]
+        Resource = module.aurora_postgresql.master_user_secret_arn
+      }]
+    })
+  }
+
+  tags = module.tags.tags
+}
+
+# EventBridge Scheduler invoke role — assumed by EventBridge to invoke
+# the scheduled Lambdas.
+module "scheduler_invoke_role" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-iam-role.git?ref=main"
+
+  role_name    = "${var.project_tag}-scheduler-role-${var.environment}"
+  custom_trust = true
+  trusted_principals = [{
+    type     = "service"
+    provider = "scheduler.amazonaws.com"
+  }]
+
+  inline_policies = {
+    invoke_scheduled_lambdas = jsonencode({
+      Version = "2012-10-17"
+      Statement = [{
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = [for fn in local.scheduled_function_names : module.lambda[fn].function_arn]
+      }]
+    })
+  }
+
+  tags = module.tags.tags
+}
+```
 
 ---
 
-## Summary (Read This If Nothing Else)
+## Usage from another module
 
-- This role **cannot be wrong**
-- This role **must not be complicated**
-- Simplicity is enforced at the EPIC layer
-- Power exists, but is hidden by default
-- Most users only declare *intent*
+When composed from another EPIC module, pass the consuming module's outputs into `inline_policies` or `policy_arns` so grants stay scoped to the resources that exist in the same plan:
 
-If IAM is done correctly here, **everything built on EPIC is safer by default**.
+```hcl
+module "lambda_invoke_role" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-iam-role.git?ref=main"
 
+  role_name    = "${var.project_tag}-invoke-role-${var.environment}"
+  custom_trust = true
+  trusted_principals = [{
+    type     = "service"
+    provider = "scheduler.amazonaws.com"
+  }]
+
+  inline_policies = {
+    invoke = jsonencode({
+      Version = "2012-10-17"
+      Statement = [{
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = module.lambda["worker"].function_arn
+      }]
+    })
+  }
+
+  tags = module.tags.tags
+}
+```
+
+Per-function Lambda execution roles are not declared with this module — `epic-pipeline-module-aws-lambda` owns its function's role and exports `role_arn`. Use this module for service-trust roles (RDS Proxy, EventBridge Scheduler, etc.) and for roles shared across multiple consumers.
+
+---
+
+## Versions
+
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
+| AWS provider | Inherited from the calling project |
+
+---
+
+## Notes
+
+- `custom_trust = true` requires `trusted_principals` to be non-empty; the module fails the plan otherwise.
+- The generated trust path (`custom_trust = false`) emits `sts:AssumeRoleWithWebIdentity` for `type = "oidc"` entries and `sts:AssumeRole` for everything else, with `Federated` principals. The explicit path always emits `sts:AssumeRole` and uses `AWS` or `Service` principals.
+- Inline policies must be JSON strings — wrap policy documents with `jsonencode(...)` as shown above.

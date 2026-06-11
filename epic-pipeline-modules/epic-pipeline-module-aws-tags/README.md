@@ -1,205 +1,111 @@
-# EPIC AWS Tags Module
+# epic-pipeline-module-aws-tags
 
-**Team:** PG&E Enterprise Cloud & DevSecOps  
-**Module Name:** epic-pipeline-module-aws-tags  
-**Module Type:** Tier 0 – Foundational Governance Module  
-**Last Updated:** 2025-12-17
+Standard EPIC tag set for AWS resources. The module assembles a single `tags` map from PG&E governance inputs (AppID, owner, compliance, CRIS, etc.) and exposes it for downstream modules to attach to every resource they create.
 
----
+## Resources Created
 
-## Overview
+This module creates no AWS resources. It only computes a `tags` map from inputs and returns it via output.
 
-This repository provides the **AWS tags Terraform module** used by PG&E’s **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+## Inputs
 
-This module is a **foundational governance building block** that standardizes and enforces **required enterprise tags** across all AWS resources deployed through EPIC.
+### Required
 
-It does **not** create AWS resources.  
-It exists solely to **centralize, normalize, and consistently apply tagging logic** across all modules.
+| Name | Type | Description |
+|------|------|-------------|
+| `aws_account_id` | `string` | AWS account where the resource is provisioned. |
+| `environment` | `string` | Deployment environment. One of: `dev`, `test`, `qa`, `prod`. |
+| `appid` | `number` | AMPS Application ID (numeric). Rendered as `APP-<appid>` in the `AppID` tag. |
+| `notify` | `list(string)` | Email addresses or DLs to notify on failure or maintenance. Each entry must be a valid email. |
+| `owner` | `list(string)` | Exactly three LAN IDs: AMPS Director, Client Owner, IT Lead. |
+| `order` | `number` | AMPS Order number. Must be 7 to 9 digits (1,000,000 to 999,999,999). |
 
----
+### Optional
 
-## Design Principles
-
-### Single Source of Truth for Tags
-
-All required enterprise tags are defined **once**, in one place.
-
-Downstream modules:
-- Consume the tag map
-- Apply it directly to AWS resources
-- Never reimplement tagging logic
-
-This prevents:
-- Drift
-- Misspellings
-- Missing tags
-- Inconsistent formats across teams
-
----
-
-### Tier 0 Governance Responsibility
-
-This module is classified as **Tier 0** because:
-- It applies to **all resources**
-- It enforces **enterprise policy**
-- It has no application context
-- It is stable, long-lived, and reused everywhere
-
-This module is expected to be consumed by:
-- Tier 0 modules (S3, IAM, KMS)
-- Tier 1 modules (CloudFront, ALB)
-- Tier 2 modules (application deploy modules)
-
----
-
-## What This Module Produces
-
-This module produces a **single normalized tag map** containing required enterprise metadata, including (but not limited to):
-
-- Application identification
-- Environment classification
-- Data classification
-- Compliance indicators
-- Ownership and billing metadata
-- Notification routing
-
-All formatting and normalization is handled internally.
-
----
-
-## Core Logic
-
-The module constructs the tag map as follows:
-
-```hcl
-locals {
-  tags = {
-    AppID              = "APP-${var.appid}"
-    Environment        = var.environment
-    DataClassification = var.dataclassification
-    CRIS               = var.cris
-    Notify             = join("_", var.notify)
-    Owner              = join("_", var.owner)
-    Compliance         = join("_", var.compliance)
-    Order              = var.order
-  }
-}
-```
-
-This ensures:
-- Predictable tag keys
-- Consistent value formatting
-- No duplicated logic in consuming modules
-
----
-
-## Required Inputs
-
-| Variable Name | Description |
-|--------------|-------------|
-| `environment` | Deployment environment (dev, test, qa, prod) |
-| `appid` | Application identifier (numeric portion only) |
-| `notify` | List of notification identifiers |
-| `owner` | List of owner identifiers |
-| `order` | Internal order or cost tracking reference |
-
-### Optional Inputs
-
-| Name | Description | Default |
-|----|----|----|
-| `dataclassification` | Data classification level | `Internal` |
-| `compliance` | List of compliance indicators | ["None"] |
-| `cris` | Criticality rating | `Low` |
-
----
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `dataclassification` | `string` | `"Internal"` | One of `Public`, `Internal`, `Confidential`, `Restricted`, `Privileged`, `Confidential-BCSI`, `Restricted-BCSI`. |
+| `compliance` | `list(string)` | `["None"]` | Subset of `SOX`, `HIPAA`, `CCPA`, `BCSI`, `None`. |
+| `cris` | `string` | `"Low"` | Cyber Risk Impact Score. One of `High`, `Medium`, `Low`. |
 
 ## Outputs
 
-| Output Name | Description |
-|------------|-------------|
-| `tags` | Normalized map of required enterprise tags |
+| Name | Type | Description |
+|------|------|-------------|
+| `tags` | `map(string)` | Tag map with keys: `ManagedBy`, `Team`, `AWSAccountID`, `AppID`, `Environment`, `DataClassification`, `CRIS`, `Notify`, `Owner`, `Compliance`, `Order`. List inputs (`notify`, `owner`, `compliance`) are joined with `_`. |
 
----
+## Usage in a Terraform Project
 
-## Example EPIC Usage (resources.yml)
-
-```yaml
-modules:
-  - name: tags
-    path: epic-pipeline-module-aws-tags
-    variables:
-      # Required but auto-injected by EPIC (can be omitted)
-      environment: ${environment}
-
-      # Required
-      appid: "2324"
-      notify:
-        - abcd@pge.com
-        - efgh@pge.com
-        - wxyz@pge.com
-      owner:
-        - abcd
-        - efgh
-        - wxyz
-      order: 123456789
-
-      # Overrides
-      dataclassification: "Restricted"
-```
-
----
-
-## Intended Usage Pattern
-
-This module is intended to be:
-- Declared **once** per EPIC deployment
-- Passed into all other modules as a `tags` input
-- Used consistently across all AWS resources
-
-Example consumption pattern:
+Standard pattern from a project's `.infra/main.tf`. The tag module is instantiated once and its output is fed into every other module.
 
 ```hcl
-resource "aws_s3_bucket" "example" {
-  bucket = var.bucket_name
-  tags   = module.tags.tags
+module "tags" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-tags.git?ref=main"
+
+  aws_account_id     = var.aws_account_id
+  environment        = var.environment
+  appid              = var.appid
+  compliance         = var.compliance
+  cris               = var.cris
+  dataclassification = var.dataclassification
+  notify             = var.notify
+  order              = var.order
+  owner              = var.owner
+}
+
+module "s3_web" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-s3.git?ref=main"
+
+  app_name    = "${var.app_name}-web"
+  environment = var.environment
+  tags        = module.tags.tags
+  # ...
 }
 ```
 
----
+The governance inputs (`appid`, `owner`, `notify`, `order`, `compliance`, `cris`, `dataclassification`) are declared as variables in the project's `.infra/variables.tf` and supplied through `terraform.tfvars` or pipeline-injected `-var` flags. EPIC reads `.pipeline/epic.json` to resolve `aws_account_id` and `environment` per run.
 
-## What This Module Does NOT Do
+When a resource needs a `Name` tag in addition to the standard set, merge inline:
 
-- ❌ Create AWS resources  
-- ❌ Apply tags automatically  
-- ❌ Validate business rules  
-- ❌ Enforce policies directly  
+```hcl
+tags = merge(module.tags.tags, { Name = "pge-epic-${var.app_name}-web-${var.environment}-cloudfront" })
+```
 
-Those responsibilities belong to consuming modules and platform governance controls.
+## Usage from Another Module
 
----
+When a higher-level composite module wraps this one, pass the governance variables through and re-export the resulting tag map so consumers of the composite still see a single `tags` output:
 
-## EPIC Module Tiering
+```hcl
+module "tags" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-tags.git?ref=main"
 
-| Tier | Responsibility |
-|-----|---------------|
-| Tier 0 | Foundational governance and infrastructure |
-| Tier 1 | Platform and edge services |
-| Tier 2 | Application deployment |
+  aws_account_id     = var.aws_account_id
+  environment        = var.environment
+  appid              = var.appid
+  notify             = var.notify
+  owner              = var.owner
+  order              = var.order
+  compliance         = var.compliance
+  cris               = var.cris
+  dataclassification = var.dataclassification
+}
 
-This module is a **Tier 0 governance dependency** for all other EPIC modules.
+# Attach module.tags.tags to every resource the composite creates,
+# then re-export:
+output "tags" {
+  value = module.tags.tags
+}
+```
 
----
+## Requirements
 
-## Summary
+| Component | Version |
+|-----------|---------|
+| Terraform | `>= 1.5.0` |
 
-This module exists to make tagging:
+No providers are required — this module is pure local computation.
 
-- Centralized
-- Predictable
-- Enforced by design
-- Invisible to application teams
+## Notes
 
-By separating tagging into its own Tier 0 module, EPIC ensures that **every resource is compliant by default**, without duplicating logic or relying on developer discipline.
-
----
-
+- The `Notify`, `Owner`, and `Compliance` tag values are joined with underscores because AWS tag values are single strings. The module does not validate underscore conflicts inside individual entries.
+- `appid` is a `number`; pass it as an unquoted integer, not a string. The `APP-` prefix is added by the module.
+- The module only validates the inputs it owns. Resources still need to wire `tags = module.tags.tags` themselves; this module does not enforce attachment.

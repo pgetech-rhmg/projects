@@ -1,186 +1,138 @@
-# EPIC AWS RDS Proxy Module (Tier 0)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps
-**Module Name:** epic-pipeline-module-aws-rds-proxy
-**Module Type:** Tier 0 – Foundational Infrastructure Module
-
----
+# EPIC AWS RDS Proxy Module
 
 ## Overview
 
-This repository provides the **foundational AWS RDS Proxy Terraform module** used by PG&E's **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+This module provisions an AWS RDS Proxy used by EPIC-managed applications to broker database connections between application compute (typically Lambda) and an Aurora cluster or RDS instance. The proxy authenticates to the database via Secrets Manager and accepts IAM-authenticated client connections.
 
-The module creates a single RDS Proxy with a default target group registered against an Aurora cluster (or a single RDS instance). Per PG&E SAF 2.0 RDS Proxy guardrails, this module enforces:
+The module is intentionally low-level: callers supply the secrets, IAM role, subnets, and security groups. Higher-level modules compose `rds-db:connect` grants and route application traffic through the proxy endpoint.
 
-- `require_tls=true` (the SAF's TLS requirement)
-- `iam_auth=REQUIRED` by default (clients authenticate via IAM database authentication; the proxy authenticates to the database via the secret ARN)
-- Caller-supplied secrets, IAM role, subnets, and security groups (no embedded org-specific identity)
+PG&E SAF guardrails are enforced as preconditions:
 
-This module is intentionally **low-level and policy-agnostic** — Lambda IAM grants for `rds-db:connect` are composed by higher-level modules.
+- `require_tls = true`
+- `iam_auth = REQUIRED`
+- `debug_logging = false` (enhanced logging captures full SQL; AWS auto-disables it after 24h regardless)
+- At least one Secrets Manager ARN must be supplied
+- Exactly one of `target_db_cluster_identifier` or `target_db_instance_identifier` must be supplied
 
----
+## Resources
 
-## Design Principles
-
-- TLS required (cannot be disabled via this module)
-- IAM authentication enforced
-- Debug logging forbidden
-- Single proxy per module instance (per Aurora cluster / per environment)
-- Caller composes the secret + role
-- Naming convention enforced (`pge-epic-<app>-<env>-proxy`)
-
----
-
-## SAF 2.0 Compliance
-
-Enforced via Terraform `lifecycle` preconditions:
-
-| SAF # | Control | Enforcement |
-|---|---|---|
-| #3 | TLS ≥ 1.2 | `require_tls=true` enforced |
-| #6 | Logging discipline | `debug_logging=false` enforced (enhanced logging captures full SQL statement text) |
-| #8 | Access controls | `iam_auth=REQUIRED` enforced; `secret_arns` must contain ≥ 1 entry |
-
-Out of module scope: IAM role for the proxy (caller passes `role_arn`), `rds-db:connect` grants on Lambda roles, security group ingress (caller manages on the SG passed via `vpc_security_group_ids`), VPC endpoints.
-
----
-
-## What This Module Is (and Is Not)
-
-### This module IS
-- A foundational RDS Proxy primitive
-- A target-group + target binding
-- A SAF-aligned secure-by-default proxy
-
-### This module is NOT
-- An IAM role module (caller passes `role_arn`)
-- A Secrets Manager module
-- A read-replica routing layer (single target per default group)
-- An Aurora cluster module (use [epic-pipeline-module-aws-aurora-postgresql](../epic-pipeline-module-aws-aurora-postgresql/))
-
----
-
-## Resources Created
-
-- `aws_db_proxy`
-- `aws_db_proxy_default_target_group`
-- `aws_db_proxy_target`
-
----
+- `aws_db_proxy` — the proxy itself, with one `auth` block per supplied secret ARN
+- `aws_db_proxy_default_target_group` — default target group with caller-tunable connection pool config
+- `aws_db_proxy_target` — registers the Aurora cluster or RDS instance against the default target group
 
 ## Inputs
 
-### Required Inputs
+### Required
 
-| Name | Description |
-|---|---|
-| `app_name` | Application identifier |
-| `environment` | Deployment environment |
-| `tags` | Resource tags |
-| `engine_family` | `POSTGRESQL`, `MYSQL`, or `SQLSERVER` |
-| `secret_arns` | List of Secrets Manager ARNs (≥ 1) |
-| `role_arn` | IAM role the proxy assumes |
-| `vpc_subnet_ids` | Private subnet IDs (≥ 2) |
-| `vpc_security_group_ids` | SGs assigned to the proxy |
+| Name | Type | Description |
+|------|------|-------------|
+| `app_name` | `string` | Application name used for naming the proxy. Injected by EPIC. |
+| `environment` | `string` | Deployment environment (`dev`, `test`, `qa`, `prod`). Injected by EPIC. |
+| `tags` | `map(string)` | Common tags applied to the proxy. |
+| `engine_family` | `string` | Engine family for the proxy. One of `POSTGRESQL`, `MYSQL`, `SQLSERVER`. |
+| `secret_arns` | `list(string)` | Secrets Manager secret ARNs holding database credentials the proxy uses to connect to the target. Must contain at least one ARN. |
+| `role_arn` | `string` | IAM role ARN the proxy uses to access secrets and CloudWatch. |
+| `vpc_subnet_ids` | `list(string)` | Private subnet IDs the proxy attaches to. Must contain at least 2 subnets across distinct AZs. |
+| `vpc_security_group_ids` | `list(string)` | Security group IDs assigned to the proxy. |
 
-Plus exactly one of `target_db_cluster_identifier` / `target_db_instance_identifier`.
+### Optional
 
-### Optional Inputs
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `custom_proxy_name` | `string` | `null` | Full proxy name override. When unset, the proxy is named `pge-epic-<app_name>-<environment>-proxy`. |
+| `require_tls` | `bool` | `true` | Require TLS on connections to the proxy. SAF requires `true`. |
+| `iam_auth` | `string` | `REQUIRED` | IAM authentication mode for client connections. One of `REQUIRED`, `DISABLED`, `ENABLED`. SAF requires `REQUIRED`. |
+| `client_password_auth_type` | `string` | `null` | Client password auth type (e.g. `POSTGRES_SCRAM_SHA_256`, `POSTGRES_MD5`). |
+| `auth_description` | `string` | `null` | Description of the authentication entry. |
+| `username` | `string` | `null` | Username for the proxy auth block. When `null`, the proxy reads username from the secret. |
+| `idle_client_timeout` | `number` | `1800` | Seconds a client connection can be inactive before being dropped. |
+| `debug_logging` | `bool` | `false` | Enable enhanced debug logging. SAF requires `false`. |
+| `target_db_cluster_identifier` | `string` | `null` | Aurora cluster identifier the proxy targets. Mutually exclusive with `target_db_instance_identifier`. |
+| `target_db_instance_identifier` | `string` | `null` | RDS DB instance identifier the proxy targets. Mutually exclusive with `target_db_cluster_identifier`. |
+| `connection_pool_config` | `object` | `{}` | Connection pool configuration for the default target group. See shape below. |
 
-| Name | Description | Default |
-|---|---|---|
-| `custom_proxy_name` | Full proxy name override | `null` |
-| `require_tls` | Enforce TLS on client connections | `true` |
-| `iam_auth` | `REQUIRED`, `ENABLED`, or `DISABLED` | `REQUIRED` |
-| `client_password_auth_type` | Client auth type | `null` |
-| `auth_description` | Description on the auth block | `null` |
-| `username` | Username override (defaults to secret) | `null` |
-| `idle_client_timeout` | Client idle timeout (seconds) | `1800` |
-| `debug_logging` | Enable enhanced logging (auto-disables 24h) | `false` |
-| `connection_pool_config` | Pool config object | sensible defaults |
+`connection_pool_config` object shape:
 
----
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `max_connections_percent` | `number` | `100` | Max connections to the target as a percent of the target's max connections. |
+| `max_idle_connections_percent` | `number` | `50` | Max idle connections retained in the pool. |
+| `connection_borrow_timeout` | `number` | `120` | Seconds a client waits for a connection from the pool before failing. |
+| `init_query` | `string` | `null` | SQL run on each new database connection. |
+| `session_pinning_filters` | `list(string)` | `[]` | Session state pinning filters. |
 
 ## Outputs
 
 | Name | Description |
-|---|---|
-| `proxy_name` | Proxy name |
-| `proxy_arn` | Proxy ARN |
-| `proxy_endpoint` | Proxy hostname (clients connect here) |
-| `target_group_name` | Default target group name |
-| `target_group_arn` | Default target group ARN |
-| `target_endpoint` | Endpoint of the registered target |
+|------|-------------|
+| `proxy_name` | RDS Proxy name. |
+| `proxy_arn` | RDS Proxy ARN. |
+| `proxy_endpoint` | RDS Proxy endpoint hostname. |
+| `target_group_name` | Default target group name. |
+| `target_group_arn` | Default target group ARN. |
+| `target_endpoint` | Endpoint of the registered target. |
 
----
-
-## Example Usage (Direct Terraform)
+## Usage in a Terraform Project
 
 ```hcl
-module "aurora_proxy" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-rds-proxy.git"
+module "rds_proxy" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-rds-proxy.git?ref=main"
 
-  app_name    = "nfr-tool"
-  environment = "dev"
+  app_name      = var.project_tag
+  environment   = var.environment
+  engine_family = "POSTGRESQL"
+  secret_arns   = [module.aurora_postgresql.master_user_secret_arn]
+  role_arn      = module.rds_proxy_role.role_arn
 
-  engine_family          = "POSTGRESQL"
-  role_arn               = aws_iam_role.rds_proxy.arn
-  secret_arns            = [module.aurora.master_user_secret_arn]
-  vpc_subnet_ids         = [data.aws_ssm_parameter.s1.value, data.aws_ssm_parameter.s2.value, data.aws_ssm_parameter.s3.value]
-  vpc_security_group_ids = [module.aurora.security_group_id]
+  vpc_subnet_ids         = local.private_subnet_ids
+  vpc_security_group_ids = [module.aurora_proxy_security_group.aws_security_group_id]
 
-  target_db_cluster_identifier = module.aurora.cluster_identifier
+  connection_pool_config = {
+    max_connections_percent      = 100
+    max_idle_connections_percent = 50
+    connection_borrow_timeout    = 120
+    require_tls                  = true
+  }
+
+  iam_auth                     = "REQUIRED"
+  require_tls                  = true
+  target_db_cluster_identifier = module.aurora_postgresql.cluster_identifier
 
   tags = module.tags.tags
 }
 ```
 
-Resolves to proxy name `pge-epic-nfr-tool-dev-proxy`.
+## Usage From Another Module
 
----
+When composed inside another EPIC module, source the same Git ref and forward `app_name`, `environment`, and `tags` from the parent module's variables so naming and tagging stay consistent across the stack:
 
-## EPIC Usage (resources.yml)
+```hcl
+module "rds_proxy" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-rds-proxy.git?ref=main"
 
-```yaml
-modules:
-  - name: aurora-proxy
-    path: epic-pipeline-module-aws-rds-proxy
-    variables:
-      app_name: ${app_name}
-      environment: ${environment}
-      engine_family: POSTGRESQL
-      role_arn: ${aws_iam_role.rds_proxy.arn}
-      secret_arns:
-        - ${module.aurora.master_user_secret_arn}
-      vpc_subnet_ids: ${data.private_subnet_ids}
-      vpc_security_group_ids:
-        - ${module.aurora.security_group_id}
-      target_db_cluster_identifier: ${module.aurora.cluster_identifier}
-      tags: module.tags.tags
+  app_name      = var.app_name
+  environment   = var.environment
+  tags          = var.tags
+  engine_family = "POSTGRESQL"
+
+  secret_arns            = var.secret_arns
+  role_arn               = var.role_arn
+  vpc_subnet_ids         = var.vpc_subnet_ids
+  vpc_security_group_ids = var.vpc_security_group_ids
+
+  target_db_cluster_identifier = var.aurora_cluster_identifier
+}
 ```
 
----
+## Versions
 
-## Naming Conventions
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
+| AWS Provider | `~> 5.90` |
 
-Default proxy name resolves to:
+## Notes
 
-```text
-pge-epic-<app_name>-<environment>-proxy
-```
-
----
-
-## Terraform Compatibility
-
-- Terraform >= 1.5
-- AWS Provider >= 5.x
-
----
-
-## Ownership
-
-Maintained by:
-**PG&E Enterprise Cloud & DevSecOps**
-
-Part of the **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** ecosystem.
+- The module does not export the proxy resource ID directly. Callers needing it for `rds-db:connect` IAM grants can parse it from `proxy_arn`: `element(split(":", module.rds_proxy.proxy_arn), 6)`.
+- Applications integrate with this module through their own `.infra/` Terraform — the EPIC pipeline runs `terraform apply` against the app's `.infra/` directory based on the `app.infraPath` field in `.pipeline/epic.json`.
+- The `auth` block is generated dynamically — one per entry in `secret_arns` — so multi-secret rotation scenarios are supported without changing the module.

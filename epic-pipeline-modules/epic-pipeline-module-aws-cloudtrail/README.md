@@ -1,175 +1,133 @@
-# EPIC AWS CloudTrail Module (Tier 0)
-
-**Team:** PG&E Enterprise Cloud & DevSecOps
-**Module Name:** epic-pipeline-module-aws-cloudtrail
-**Module Type:** Tier 0 – Foundational Infrastructure Module
-
----
+# EPIC AWS CloudTrail Module
 
 ## Overview
 
-This repository provides the **foundational AWS CloudTrail Terraform module** used by PG&E's **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** platform.
+Provisions an AWS CloudTrail trail for an EPIC-managed application. The module produces a single multi-region trail wired to a caller-supplied S3 bucket, with optional CloudWatch Logs integration, SNS notifications, KMS encryption, and event/data selectors.
 
-> **Important — most CloudTrail controls are centralized.** Per the PG&E SAF 2.0 CloudTrail guardrail, the organization trail, log-archive S3 bucket, KMS key, MFA-Delete, lifecycle policy, and CloudWatch metric filters are owned by the **account bootstrap**, not by application stacks. Most EPIC consumers should NOT provision their own trail — the org-level trail already captures every API call any application resource makes.
->
-> This module exists for the rare cases where an application-specific trail is required (tenant-scoped audit, narrow event-selector data-event capture, etc.). When you reach for it, re-read the guardrail and confirm a duplicate trail is actually warranted.
+The trail name defaults to `pge-epic-{app_name}-{environment}` and can be overridden via `custom_trail_name`. SAF (Security Architecture Framework) preconditions enforce multi-region coverage, log file integrity validation, global service event capture, and a customer-managed KMS key when the `DataClassification` tag is `Confidential`, `Restricted`, or `Privileged`.
 
-This module is intentionally **low-level and policy-agnostic** — the destination S3 bucket, its bucket policy, CloudWatch Logs role, and KMS key are inputs the caller has already composed.
+This module is intended to be consumed from an application's `.infra/` Terraform configuration. EPIC reads `.pipeline/epic.json` and runs `terraform apply` against `.infra/` during the DeployInfra stage.
 
----
+## Resources
 
-## Design Principles
-
-- Multi-region enforced
-- Log file validation enforced
-- Global service events captured
-- Caller owns the destination S3 bucket and its policy
-- Caller owns the KMS CMK (when used)
-- Caller owns the CloudWatch Logs role + group (when CloudWatch integration is desired)
-
----
-
-## SAF 2.0 Compliance
-
-Enforced via Terraform `lifecycle` preconditions:
-
-| SAF # | Control | Enforcement |
-|---|---|---|
-| #2 | PG&E-managed CMK | `kms_key_id` mandatory when `tags["DataClassification"]` is `Confidential`, `Restricted`, or `Privileged` |
-| #6 | Centralize logging | `is_multi_region_trail=true`, `enable_log_file_validation=true`, `include_global_service_events=true` enforced |
-
-Out of module scope (caller composes): destination S3 bucket and bucket policy (use `epic-pipeline-module-aws-s3`), KMS CMK (use `epic-pipeline-module-aws-kms`), CloudWatch Logs role + group (use `epic-pipeline-module-aws-cloudwatch`), CloudTrail VPC endpoint.
-
----
-
-## What This Module Is (and Is Not)
-
-### This module IS
-- A foundational application-specific trail primitive
-- A surface for narrow event-selector configuration
-
-### This module is NOT
-- A log-archive S3 bucket module (use `epic-pipeline-module-aws-s3`)
-- A KMS module (use `epic-pipeline-module-aws-kms`)
-- A CloudWatch log group module (use `epic-pipeline-module-aws-cloudwatch`)
-- A replacement for the centrally-managed org trail
-
----
-
-## Resources Created
-
-- `aws_cloudtrail`
-
----
+| Resource | Type |
+|----------|------|
+| `aws_cloudtrail.this` | `aws_cloudtrail` |
 
 ## Inputs
 
-### Required Inputs
+### Required
 
-| Name | Description |
-|---|---|
-| `app_name` | Application identifier |
-| `environment` | Deployment environment (dev, test, qa, prod) |
-| `tags` | Resource tags |
-| `s3_bucket_name` | Destination bucket (must already have a CloudTrail-friendly bucket policy) |
+| Name | Type | Description |
+|------|------|-------------|
+| `app_name` | `string` | Application name used to derive the trail name. |
+| `environment` | `string` | Deployment environment (`dev`, `test`, `qa`, `prod`). |
+| `tags` | `map(string)` | Common tags applied to the trail. `DataClassification` is inspected to enforce CMK requirements. |
+| `s3_bucket_name` | `string` | S3 bucket where trail logs are written. The bucket must already have a CloudTrail-friendly bucket policy. |
 
-### Optional Inputs
+### Optional
 
-| Name | Description | Default |
-|---|---|---|
-| `custom_trail_name` | Full trail name override | `null` |
-| `s3_key_prefix` | S3 key prefix for log files | `null` |
-| `include_global_service_events` | Capture IAM / CloudFront / etc. events | `true` |
-| `is_multi_region_trail` | Capture events from all regions | `true` |
-| `is_organization_trail` | Treat as an org-level trail | `false` |
-| `enable_log_file_validation` | Enable log integrity validation | `true` |
-| `enable_logging` | Start logging on create | `true` |
-| `kms_key_id` | KMS key ARN for log encryption | `null` |
-| `sns_topic_name` | SNS topic for delivery notifications | `null` |
-| `cloudwatch_logs_group_arn` | CloudWatch Logs group ARN | `null` |
-| `cloudwatch_logs_role_arn` | Role ARN CloudTrail uses to write to CloudWatch | `null` |
-| `event_selectors` | Classic event selector objects | `[]` |
-| `advanced_event_selectors` | Advanced event selectors (mutually exclusive) | `[]` |
-
----
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `custom_trail_name` | `string` | `null` | Full trail name override. Takes precedence over the auto-derived name. |
+| `s3_key_prefix` | `string` | `null` | Optional key prefix for trail logs in the destination bucket. |
+| `include_global_service_events` | `bool` | `true` | Capture global service events (IAM, CloudFront, etc.). Must remain `true` to satisfy SAF Item #6. |
+| `is_multi_region_trail` | `bool` | `true` | Capture events from all regions. Must remain `true` to satisfy SAF Item #6. |
+| `is_organization_trail` | `bool` | `false` | Whether the trail is an organization trail. Almost always `false` at the application level. |
+| `enable_log_file_validation` | `bool` | `true` | Enable log file integrity validation. Must remain `true` to satisfy SAF Item #6. |
+| `enable_logging` | `bool` | `true` | Whether the trail starts logging on creation. |
+| `kms_key_id` | `string` | `null` | KMS key ARN used to encrypt log files. Required when `tags["DataClassification"]` is `Confidential`, `Restricted`, or `Privileged`. |
+| `sns_topic_name` | `string` | `null` | SNS topic name for log file delivery notifications. |
+| `cloudwatch_logs_group_arn` | `string` | `null` | CloudWatch Logs group ARN. Both this and `cloudwatch_logs_role_arn` must be set to enable CloudWatch integration. |
+| `cloudwatch_logs_role_arn` | `string` | `null` | IAM role ARN CloudTrail assumes when delivering logs to CloudWatch. |
+| `event_selectors` | `list(object)` | `[]` | Basic event selectors. Each item: `read_write_type` (`All`/`ReadOnly`/`WriteOnly`), `include_management_events` (`bool`), `data_resources` (optional list of `{ type, values }`). |
+| `advanced_event_selectors` | `any` | `[]` | Advanced event selectors. Mutually exclusive with `event_selectors`. Pass-through to `aws_cloudtrail`. |
 
 ## Outputs
 
 | Name | Description |
-|---|---|
-| `trail_id` | Trail ID |
-| `trail_arn` | Trail ARN |
-| `trail_name` | Resolved trail name |
-| `trail_home_region` | Home region |
+|------|-------------|
+| `trail_id` | CloudTrail ID. |
+| `trail_arn` | CloudTrail ARN. |
+| `trail_name` | CloudTrail name. |
+| `trail_home_region` | Home region for the trail. |
 
----
+## Usage in a Terraform Project
 
-## Example Usage (Direct Terraform)
+Consumed from an application's `.infra/main.tf`. Inputs `app_name`, `environment`, and `tags` typically come from `.pipeline/epic.json`-derived locals or `terraform.auto.tfvars`.
 
 ```hcl
 module "cloudtrail" {
-  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-cloudtrail.git"
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-cloudtrail.git?ref=main"
 
-  app_name       = "nfr-tool"
-  environment    = "dev"
-  s3_bucket_name = module.trail_bucket.bucket_name
-  kms_key_id     = module.trail_key.key_arn
+  app_name       = var.app_name
+  environment    = var.environment
+  s3_bucket_name = "pge-epic-${var.app_name}-trail-logs-${var.environment}"
 
-  cloudwatch_logs_group_arn = module.trail_logs.log_group_arn
-  cloudwatch_logs_role_arn  = aws_iam_role.cloudtrail_to_cloudwatch.arn
+  kms_key_id = aws_kms_key.trail.arn
 
-  event_selectors = [{
-    read_write_type           = "All"
-    include_management_events = true
-    data_resources = [{
-      type   = "AWS::S3::Object"
-      values = ["arn:aws:s3:::sensitive-bucket/"]
-    }]
-  }]
+  cloudwatch_logs_group_arn = aws_cloudwatch_log_group.trail.arn
+  cloudwatch_logs_role_arn  = aws_iam_role.cloudtrail_to_cwl.arn
 
-  tags = module.tags.tags
+  event_selectors = [
+    {
+      read_write_type           = "All"
+      include_management_events = true
+      data_resources = [
+        {
+          type   = "AWS::S3::Object"
+          values = ["arn:aws:s3:::pge-epic-${var.app_name}-${var.environment}/"]
+        }
+      ]
+    }
+  ]
+
+  tags = {
+    Application        = var.app_name
+    Environment        = var.environment
+    DataClassification = "Confidential"
+    ManagedBy          = "EPIC"
+  }
 }
 ```
 
-Resolves to trail name `pge-epic-nfr-tool-dev`.
+## Usage From Another Module
 
----
+Compose this module inside a higher-level account-baseline or secure-landing-zone module that wires CloudTrail to a shared logging bucket and KMS key:
 
-## EPIC Usage (resources.yml)
+```hcl
+module "audit_trail" {
+  source = "git::https://github.com/pgetech/epic-pipeline-module-aws-cloudtrail.git?ref=main"
 
-```yaml
-modules:
-  - name: app-trail
-    path: epic-pipeline-module-aws-cloudtrail
-    variables:
-      app_name: ${app_name}
-      environment: ${environment}
-      s3_bucket_name: ${module.trail_bucket.bucket_name}
-      tags: module.tags.tags
+  app_name       = local.account_baseline_name
+  environment    = var.environment
+  s3_bucket_name = module.log_archive_bucket.bucket_name
+  s3_key_prefix  = "cloudtrail/${var.environment}"
+
+  kms_key_id = module.audit_kms.key_arn
+
+  is_organization_trail = false
+
+  tags = merge(var.tags, {
+    DataClassification = "Restricted"
+  })
+}
+
+output "audit_trail_arn" {
+  value = module.audit_trail.trail_arn
+}
 ```
 
----
+## Versions
 
-## Naming Conventions
+| Requirement | Version |
+|-------------|---------|
+| Terraform | `>= 1.5.0` |
+| `hashicorp/aws` | `~> 5.90` |
 
-Default trail name resolves to:
+## Notes
 
-```text
-pge-epic-<app_name>-<environment>
-```
-
----
-
-## Terraform Compatibility
-
-- Terraform >= 1.5
-- AWS Provider >= 5.x
-
----
-
-## Ownership
-
-Maintained by:
-**PG&E Enterprise Cloud & DevSecOps**
-
-Part of the **EPIC (Enterprise Pipeline for Infrastructure & Cloud)** ecosystem.
+- `is_multi_region_trail`, `enable_log_file_validation`, and `include_global_service_events` are guarded by lifecycle preconditions and cannot be disabled.
+- CloudWatch integration is all-or-nothing: both `cloudwatch_logs_group_arn` and `cloudwatch_logs_role_arn` must be supplied, otherwise neither is wired.
+- `event_selectors` and `advanced_event_selectors` are mutually exclusive at the AWS API level; supply only one.
+- The destination S3 bucket and any KMS key, CloudWatch log group, IAM role, or SNS topic are not created by this module and must exist before `apply`.
