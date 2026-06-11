@@ -127,6 +127,7 @@ module "cloudfront" {
 
   app_name                    = "${var.app_name}-web"
   environment                 = var.environment
+  principal_orgid             = var.principal_orgid
   bucket_name                 = module.s3_web.bucket_name
   bucket_arn                  = module.s3_web.bucket_arn
   bucket_regional_domain_name = module.s3_web.bucket_regional_domain_name
