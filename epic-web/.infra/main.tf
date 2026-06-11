@@ -125,6 +125,11 @@ module "s3_web" {
 module "cloudfront" {
   source = "git::https://github.com/pgetech/epic-pipeline-module-aws-cloudfront.git?ref=main"
 
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
   app_name                    = "${var.app_name}-web"
   environment                 = var.environment
   principal_orgid             = var.principal_orgid
