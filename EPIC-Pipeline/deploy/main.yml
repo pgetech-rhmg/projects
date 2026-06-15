@@ -146,3 +146,19 @@ jobs:
         parameters:
           ${{ insert }}: ${{ parameters }}
           terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+
+
+    ###########################################################################
+    # ═════════════════════════════════════════════════════════════════════════
+    # SAP BTP — Cloud Foundry
+    # ═════════════════════════════════════════════════════════════════════════
+    ###########################################################################
+    - ${{ if eq(parameters.cloudProvider, 'btp') }}:
+
+      #########################################################################
+      # BTP — CAP (Cloud Application Programming) → cf deploy MTA
+      #########################################################################
+      - ${{ if eq(parameters.appType, 'cap') }}:
+        - template: btp/cap.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}

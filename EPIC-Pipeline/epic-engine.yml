@@ -105,6 +105,8 @@ variables:
       value: "17"
     ${{ elseif eq(parameters.appType, 'php') }}:
       value: "8.3"
+    ${{ elseif eq(parameters.appType, 'cap') }}:
+      value: "22"
     ${{ else }}:
       value: ""
 

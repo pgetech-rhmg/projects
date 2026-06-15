@@ -1,0 +1,92 @@
+###############################################################################
+# Steps — SAP CAP (Cloud Application Programming) build
+#
+# Builds a CAP project into a deployable Multi-Target Application archive
+# (.mtar) using the SAP toolchain:
+#
+#   npm install          → resolve dependencies
+#   cds build --production → compile CDS models / services
+#   mbt build            → package every module declared in mta.yaml into a
+#                          single archive.mtar
+#
+# The resulting archive.mtar is copied into .build/ so the engine publishes it
+# as the `epic-build` artifact, which the BTP deploy stage then pushes to
+# Cloud Foundry via `cf deploy`.
+###############################################################################
+steps:
+
+  #############################################################################
+  # Use Node Version
+  #############################################################################
+  - task: NodeTool@0
+    displayName: "Use Node ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+    inputs:
+      versionSpec: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+
+
+  #############################################################################
+  # Verify Node
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      node --version
+      npm --version
+    displayName: "Verify Node"
+
+
+  #############################################################################
+  # Install SAP toolchain (cds-dk + Cloud MTA Build Tool)
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo ">> Installing @sap/cds-dk and mbt globally"
+      npm install -g @sap/cds-dk mbt
+
+      echo ">> Tool versions"
+      cds --version
+      mbt --version
+    displayName: "Install SAP toolchain"
+
+
+  #############################################################################
+  # Install Dependencies
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Installing dependencies"
+      npm install --package-lock-only
+    displayName: "Install dependencies"
+
+
+  #############################################################################
+  # Build MTA Archive
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Compiling CDS models (production profile)"
+      npx cds build --production
+
+      echo ">> Building MTA archive"
+      mbt build --mtar archive
+
+      MTAR=$(find mta_archives -name "*.mtar" | head -1)
+
+      if [ -z "$MTAR" ]; then
+        echo "ERROR: no .mtar produced under mta_archives/ — build may have failed"
+        exit 1
+      fi
+
+      echo ">> Built archive: $MTAR"
+
+      rm -rf .build
+      mkdir -p .build
+      cp "$MTAR" .build/archive.mtar
+    displayName: "Build app"

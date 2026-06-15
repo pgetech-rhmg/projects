@@ -68,6 +68,16 @@ steps:
 
       esac
 
+      # Coverage and test-execution reports only exist when build tests actually ran.
+      # For a build+scan run with tests off, do pure static analysis — never point
+      # SonarQube at test/coverage report files that were never produced (doing so
+      # makes the scanner fail trying to parse a missing/wrong-format report).
+      tests='${{ lower(parameters.tests) }}'
+      if [ "$tests" != 'true' ]; then
+        coverageProperty=''
+        testExecutionProperty=''
+      fi
+
       echo "##vso[task.setvariable variable=scannerMode]$scannerMode"
       echo "##vso[task.setvariable variable=testFiles]$testFiles"
       echo "##vso[task.setvariable variable=exclusions]$exclusions"

@@ -534,6 +534,7 @@
                 <option value="java">Java</option>
                 <option value="html">HTML / Static</option>
                 <option value="php">PHP</option>
+                <option value="cap">SAP CAP</option>
                 <option value="ami">AMI</option>
                 <option value="btp">SAP BTP</option>
                 <option value="infra">Infrastructure</option>
@@ -602,7 +603,7 @@
                 <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
               </select>
             </div>
-            @if (builderAppType === 'btp' || builderAppType === 'infra') {
+            @if (builderAppType === 'btp' || builderAppType === 'infra' || builderAppType === 'cap') {
               <div class="form-field">
                 <label for="builder-secrets-name">Secrets Manager Name <span class="form-required">*</span></label>
                 <input id="builder-secrets-name" type="text" placeholder="e.g. my-btp-secrets" [(ngModel)]="builderSecretsManagerName" [ngModelOptions]="{ standalone: true }" />
@@ -1351,8 +1352,8 @@
                   <input type="checkbox" [(ngModel)]="newRunTests" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunConfig" />
                   Run Build Tests
                 </label>
-                <label class="checkbox-label checkbox-label--disabled" title="Requires self-hosted agents (coming soon)">
-                  <input type="checkbox" [ngModel]="false" [ngModelOptions]="{ standalone: true }" [disabled]="true" />
+                <label class="checkbox-label" [class.checkbox-label--disabled]="!newRunConfig">
+                  <input type="checkbox" [(ngModel)]="newRunScan" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunConfig" />
                   Scan App
                 </label>
                 <label class="checkbox-label" [class.checkbox-label--disabled]="deployDisabled">
@@ -1448,9 +1449,9 @@
             </thead>
             <tbody>
               <tr><td><code>app.appName</code></td><td>Yes</td><td>Unique name for your application in EPIC</td></tr>
-              <tr><td><code>app.appType</code></td><td>Yes</td><td>angular, react, dotnet, python, java, html, php, ami, btp, or infra</td></tr>
+              <tr><td><code>app.appType</code></td><td>Yes</td><td>angular, react, dotnet, python, java, html, php, cap, ami, btp, or infra</td></tr>
               <tr><td><code>app.codePath</code></td><td>No</td><td>Path to source code relative to repo root (default: <code>/</code>)</td></tr>
-              <tr><td><code>app.runtimeVersion</code></td><td>No</td><td>Runtime version override — defaults per appType: angular/react/html <code>18</code>, dotnet <code>9.x</code>, python <code>3.11</code>, java <code>17</code>, php <code>8.3</code></td></tr>
+              <tr><td><code>app.runtimeVersion</code></td><td>No</td><td>Runtime version override — defaults per appType: angular/react/html <code>18</code>, dotnet <code>9.x</code>, python <code>3.11</code>, java <code>17</code>, php <code>8.3</code>, cap <code>22</code></td></tr>
               <tr><td><code>app.scanTool</code></td><td>No</td><td>Code scan tool (e.g., <code>sonarqube</code>)</td></tr>
               <tr><td><code>app.buildTestTool</code></td><td>No</td><td>Test runner: jest, vitest, pytest, junit, xunit, phpunit</td></tr>
               <tr><td><code>cloud.awsAccountId</code></td><td>Yes</td><td>Target AWS account ID</td></tr>
@@ -1471,6 +1472,7 @@
               <option value="java">Java</option>
               <option value="html">HTML / Static</option>
               <option value="php">PHP</option>
+              <option value="cap">SAP CAP</option>
               <option value="ami">AMI</option>
               <option value="btp">SAP BTP</option>
               <option value="infra">Infrastructure</option>

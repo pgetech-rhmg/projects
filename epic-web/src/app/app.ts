@@ -503,6 +503,27 @@ export class App implements OnInit, OnDestroy {
     "awsAccountId": "123456789012",
     "awsRegion": "us-west-2"
   }
+}`,
+    cap: `{
+  "app": {
+    "appName": "my-cap-app",
+    "appType": "cap",
+    "codePath": "/"
+  },
+  "cloud": {
+    "awsAccountId": "123456789012",
+    "awsRegion": "us-west-2",
+    "cfApi": "https://api.cf.us10.hana.ondemand.com",
+    "cfOrg": "my-cf-org",
+    "cfSpace": "my-cf-space",
+    "secretsManager": {
+      "name": "my-secrets-manager-name",
+      "keys": [
+        "CF_USER",
+        "CF_PASSWORD"
+      ]
+    }
+  }
 }`
   };
 
@@ -923,10 +944,18 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected get deployDisabled(): boolean {
+    // CAP apps deploy to a pre-existing BTP/CF space, so they have no `.infra`
+    // folder and must not be gated on it.
+    if (this.newRunConfigAppType() === 'cap') {
+      return !this.newRunConfig || !this.newRunBuild;
+    }
     return !this.newRunConfig || !this.newRunBuild || this.newRunConfigAppType() === 'btp' || this.newRunConfigAppType() === 'infra' || this.infraDisabled;
   }
 
   protected get integrationTestsDisabled(): boolean {
+    if (this.newRunConfigAppType() === 'cap') {
+      return !this.newRunConfig;
+    }
     return !this.newRunConfig || this.infraDisabled;
   }
 
@@ -1097,11 +1126,11 @@ export class App implements OnInit, OnDestroy {
   protected builderSecretsManagerKeys = signal<string[]>(['']);
 
   protected readonly builderRuntimePlaceholders: Record<string, string> = {
-    angular: '20 (default)', react: '20 (default)', dotnet: '10.x (default)', python: '3.11 (default)', java: '17 (default)', html: '18 (default)', php: '8.3 (default)', ami: '', btp: '', infra: ''
+    angular: '20 (default)', react: '20 (default)', dotnet: '10.x (default)', python: '3.11 (default)', java: '17 (default)', html: '18 (default)', php: '8.3 (default)', cap: '22 (default)', ami: '', btp: '', infra: ''
   };
 
   protected readonly builderUnitTestOptions: Record<string, string[]> = {
-    angular: ['jest'], react: ['jest', 'vitest'], dotnet: ['xunit', 'nunit'], python: ['pytest'], java: ['junit'], php: ['phpunit'], html: [], ami: [], btp: [], infra: []
+    angular: ['jest'], react: ['jest', 'vitest'], dotnet: ['xunit', 'nunit'], python: ['pytest'], java: ['junit'], php: ['phpunit'], cap: ['jest'], html: [], ami: [], btp: [], infra: []
   };
 
   protected onBuilderAppTypeChange(): void {
@@ -1191,7 +1220,15 @@ export class App implements OnInit, OnDestroy {
     if (this.builderUnitTestTool) app['buildTestTool'] = this.builderUnitTestTool;
 
     const cloud: Record<string, any> = { awsAccountId: this.builderAwsAccountId, awsRegion: this.builderAwsRegion };
-    if (this.builderAppType === 'btp' || this.builderAppType === 'infra') {
+    if (this.builderAppType === 'cap') {
+      // CAP deploys to a pre-existing Cloud Foundry space — stub the target and
+      // the Secrets Manager entry holding the CF credentials.
+      cloud['cfApi'] = '';
+      cloud['cfOrg'] = '';
+      cloud['cfSpace'] = '';
+      const keys = this.builderSecretsManagerKeys().filter(k => k.trim());
+      cloud['secretsManager'] = { name: this.builderSecretsManagerName, keys };
+    } else if (this.builderAppType === 'btp' || this.builderAppType === 'infra') {
       const keys = this.builderSecretsManagerKeys().filter(k => k.trim());
       if (this.builderSecretsManagerName || keys.length) {
         cloud['secretsManager'] = { name: this.builderSecretsManagerName, keys };

@@ -197,7 +197,7 @@ stages:
 
               # Detect cloud provider from epic.json cloud section
               CLOUD_PROVIDER=$(jq -r \
-                'if .app.appType == "btp" then "btp"
+                'if .app.appType == "btp" or .app.appType == "cap" then "btp"
                 elif .cloud.awsAccountId then "aws"
                 elif .cloud.azureSubscriptionId then "azure"
                 else "aws"

@@ -998,6 +998,17 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(ct);
+
+            // Cancelling a build that has already completed (or doesn't exist) is a no-op,
+            // not an error — ADO returns 400/404 in that case. This keeps cancel idempotent
+            // so we can safely cancel both the orchestrator and engine builds even when one
+            // of them has already finished (e.g. the fire-and-forget orchestrator).
+            if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.NotFound)
+            {
+                logger.LogInformation("Cancel no-op for build {BuildId}: ADO returned {Status} (already completed or not found)", buildId, (int)response.StatusCode);
+                return;
+            }
+
             throw new InvalidOperationException($"ADO API returned {(int)response.StatusCode}: {body}");
         }
     }

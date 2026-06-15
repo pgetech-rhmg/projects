@@ -379,6 +379,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         "hcl" => "Terraform",
         "ami" => "AMI",
         "btp" => "SAP",
+        "cap" => "SAP",
         "infra" => "Terraform",
         _ => appType
     };
@@ -432,11 +433,35 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == appName, ct)
             ?? throw new KeyNotFoundException($"App '{appName}' not found");
 
-        await ado.CancelBuildAsync(runId, ct);
+        // A logical run is two ADO builds: a fire-and-forget orchestrator that triggers an
+        // engine build. The id the UI shows (runId) is the engine build in steady state, or
+        // the orchestrator build while the engine hasn't been triggered yet. To cancel
+        // reliably — and to close the race where the user clicks during the orchestrator→engine
+        // transition — we resolve the orchestrator/engine pair from fresh ADO state and cancel
+        // both. CancelBuildAsync is idempotent, so cancelling an already-finished build is a no-op.
+        var buildIds = new HashSet<int> { runId };
+        try
+        {
+            var page = await ado.GetRunsPageAsync(entity.GithubRepo, 1, 50, ct);
+            var match = page.Runs.FirstOrDefault(r => r.Id == runId || r.OrchestratorId == runId);
+            if (match is not null)
+            {
+                buildIds.Add(match.Id);
+                if (match.OrchestratorId.HasValue) buildIds.Add(match.OrchestratorId.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            // ADO unavailable — fall back to cancelling just the id we were given.
+            logger.LogWarning(ex, "Could not resolve orchestrator/engine pair for run {RunId}; cancelling that build only", runId);
+        }
 
-        // Update local DB record if we have it
+        foreach (var buildId in buildIds)
+            await ado.CancelBuildAsync(buildId, ct);
+
+        // Update local DB record if we have it (match on either build id of the pair)
         var run = await db.Set<PipelineRunEntity>()
-            .FirstOrDefaultAsync(r => r.Id == runId && r.AppId == entity.Id, ct);
+            .FirstOrDefaultAsync(r => buildIds.Contains(r.Id) && r.AppId == entity.Id, ct);
         if (run is not null)
         {
             run.Status = "Canceled";

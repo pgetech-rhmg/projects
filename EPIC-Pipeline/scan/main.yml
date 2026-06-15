@@ -26,13 +26,21 @@ jobs:
 
 
     ###########################################################################
-    # Download Test Artifact
+    # Download Test Artifact (coverage for SonarQube)
+    #
+    # The test artifact only feeds code coverage into SonarQube; Wiz never uses
+    # it. It is only published when build tests actually run (see the BuildTest
+    # stage guard in epic-engine.yml). So download it only when SonarQube is the
+    # tool AND tests ran with a buildTestTool — otherwise the artifact does not
+    # exist and the scan should still proceed (just without coverage).
     ###########################################################################
-    - task: DownloadPipelineArtifact@2
-      displayName: "Download test artifact"
-      inputs:
-        artifactName: epic-build-tests
-        targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports
+    - ${{ if and(eq(parameters.scanTool, 'sonarqube'), eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
+      - task: DownloadPipelineArtifact@2
+        displayName: "Download test artifact"
+        continueOnError: true
+        inputs:
+          artifactName: epic-build-tests
+          targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports
 
 
     ###########################################################################
