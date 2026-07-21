@@ -12,6 +12,7 @@ It is intended to be consumed from an application's `.infra/` Terraform director
 
 - `azurerm_storage_account`
 - `azurerm_storage_container` (zero or more, driven by the `containers` input)
+- `azurerm_storage_account_static_website` (optional, when `static_website` is set)
 
 No networking, diagnostic, or monitoring resources are created.
 
@@ -44,6 +45,7 @@ No networking, diagnostic, or monitoring resources are created.
 | `container_soft_delete_days` | `number` | `7` | Retention in days for soft-deleted containers. |
 | `containers` | `list(object({ name = string, access_type = string }))` | `[]` | Containers to create. `access_type` should be `"private"` for EPIC workloads. |
 | `network_rules` | `object({ default_action = string, ip_rules = list(string), virtual_network_subnet_ids = list(string) })` | `null` | Network ACLs. When `null`, no network rules are configured. |
+| `static_website` | `object({ index_document = string, error_404_document = string })` | `null` | Enable static website hosting (serves from `$web`). When `null`, static hosting is off. For SPA client-side routing, both default to `index.html`. |
 
 ---
 
@@ -56,6 +58,9 @@ No networking, diagnostic, or monitoring resources are created.
 | `primary_blob_endpoint` | No | Primary blob service endpoint URL. |
 | `primary_access_key` | Yes | Primary access key for the storage account. |
 | `primary_connection_string` | Yes | Primary connection string for the storage account. |
+| `primary_web_endpoint` | No | Static website endpoint URL (null when static hosting disabled). |
+| `primary_web_host` | No | Static website host with no scheme — use as an Application Gateway backend pool FQDN. |
+| `static_website_enabled` | No | Whether static website hosting was enabled. |
 
 ---
 
@@ -143,7 +148,7 @@ Compose additional resources outside this module — keep this one focused on th
 | Requirement | Version |
 |-------------|---------|
 | Terraform | `>= 1.5.0` |
-| `hashicorp/azurerm` | `~> 3.100` |
+| `hashicorp/azurerm` | `~> 4.0` |
 
 ---
 
@@ -152,3 +157,4 @@ Compose additional resources outside this module — keep this one focused on th
 - Storage account names must be globally unique across Azure, 3-24 characters, lowercase alphanumeric only. The module does not generate or mutate the name — callers are responsible for resolving it.
 - `primary_access_key` and `primary_connection_string` outputs are marked `sensitive`. Consumers must propagate the sensitive flag if re-exporting them.
 - When `network_rules` is set with `default_action = "Deny"`, ensure the executing pipeline agent's egress IP or subnet is included in `ip_rules` / `virtual_network_subnet_ids`, or subsequent Terraform operations against the account may fail.
+- **Static website hosting** (`static_website`) serves content from the implicit `$web` container. Uploading the built SPA (`dist/`) to `$web` is a deploy-time step (`az storage blob upload-batch`), not a Terraform concern — this module only enables hosting and exposes `primary_web_host` for wiring into an Application Gateway. Static hosting on a general-purpose account cannot itself enforce HTTPS-only for the `$web` endpoint; front it with Application Gateway/Front Door to satisfy the SECURITY-03 (TLS) control intent.

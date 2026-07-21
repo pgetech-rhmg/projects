@@ -10,10 +10,27 @@ parameters:
   - name: repo
     type: string
     default: ""
+  - name: owner
+    type: string
+    default: "pgetech"
+  - name: githubHost
+    type: string
+    default: "github.com"
   - name: branch
     type: string
     default: ""
   - name: environment
+    type: string
+    default: ""
+
+  - name: triggeredBy
+    type: string
+    default: ""
+
+  # Head commit SHA for GitHub commit-status reporting. Non-empty only on
+  # webhook-push (CI) runs; empty for manual/epic-api runs, which skip the
+  # status stages entirely.
+  - name: commitSha
     type: string
     default: ""
 
@@ -43,6 +60,14 @@ parameters:
     type: string
     default: "aws"
 
+  # Azure DevOps service connection used for Azure deploys. Defaults to 'Azure';
+  # an app targeting a different Azure tenant sets cloud.azureServiceConnection
+  # in epic.json to the name of a service connection whose SPN lives in that
+  # tenant. Ignored for non-Azure clouds.
+  - name: azureServiceConnection
+    type: string
+    default: "Azure"
+
   # Tools
   - name: scanTool
     type: string
@@ -58,6 +83,9 @@ parameters:
     default: ""
 
   # Pipeline stages
+  - name: review
+    type: boolean
+    default: true
   - name: build
     type: boolean
     default: true
@@ -79,6 +107,16 @@ parameters:
     type: string
     default: "none"
 
+  - name: forceStateCopy
+    type: boolean
+    default: false
+
+  # True when the repo hosts multiple epic.json apps; namespaces the Terraform
+  # state key with the repo name to avoid cross-repo collisions.
+  - name: multiConfig
+    type: boolean
+    default: false
+
   # Approval gate
   - name: requireApproval
     type: boolean
@@ -95,18 +133,18 @@ variables:
     value: "pgetech"
 
   - name: defaultRuntimeVersion
-    ${{ if or(eq(parameters.appType, 'angular'), eq(parameters.appType, 'react'), eq(parameters.appType, 'html')) }}:
-      value: "18"
+    ${{ if or(eq(parameters.appType, 'angular'), eq(parameters.appType, 'react'), eq(parameters.appType, 'html'), eq(parameters.appType, 'cap')) }}:
+      value: "20"
     ${{ elseif or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')) }}:
       value: "9.x"
     ${{ elseif eq(parameters.appType, 'python') }}:
       value: "3.11"
     ${{ elseif eq(parameters.appType, 'java') }}:
       value: "17"
+    ${{ elseif eq(parameters.appType, 'go') }}:
+      value: "1.23"
     ${{ elseif eq(parameters.appType, 'php') }}:
       value: "8.3"
-    ${{ elseif eq(parameters.appType, 'cap') }}:
-      value: "22"
     ${{ else }}:
       value: ""
 
@@ -126,6 +164,8 @@ stages:
       - template: /common/download.yml
         parameters:
           repo: ${{ parameters.repo }}
+          owner: ${{ parameters.owner }}
+          githubHost: ${{ parameters.githubHost }}
           branch: ${{ parameters.branch }}
 
       - job: TagBuild
@@ -173,18 +213,46 @@ stages:
 
 
   #############################################################################
+  # Review App (PG&E Compliance Gate)
+  #
+  # Runs after Download and before Build. Verifies the checked-out repo against
+  # PG&E's AIDLC steering docs via the epic-compliance CLI (pulled from S3).
+  # The CLI's exit code gates the pipeline: a non-compliant repo fails this
+  # stage, and because Build/BuildTest dependsOn Review, everything downstream
+  # is blocked. Distinct scope from Wiz (cloud posture) and SonarQube (quality).
+  #############################################################################
+  - ${{ if eq(parameters.review, 'true') }}:
+    - stage: Review
+      displayName: "Review App"
+      dependsOn:
+        - Download
+
+      jobs:
+        - template: /review/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            complianceVersion: $(COMPLIANCE_REVIEWER_VERSION)
+
+
+  #############################################################################
   # Build App
   #############################################################################
   - ${{ if eq(parameters.build, 'true') }}:
     - stage: Build
       displayName: "Build App"
-      dependsOn: 
+      dependsOn:
         - Download
+        - ${{ if eq(parameters.review, 'true') }}:
+          - Review
 
       jobs:
         - template: /build/main.yml
           parameters:
             ${{ insert }}: ${{ parameters }}
+            # variables.defaultRuntimeVersion is only in scope here (engine
+            # level), not inside included templates. Pass it down so the
+            # templates can coalesce it with parameters.runtimeVersion.
+            defaultRuntimeVersion: ${{ variables.defaultRuntimeVersion }}
 
 
   #############################################################################
@@ -193,13 +261,16 @@ stages:
   - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
     - stage: BuildTest
       displayName: "Build Tests"
-      dependsOn: 
+      dependsOn:
         - Download
+        - ${{ if eq(parameters.review, 'true') }}:
+          - Review
 
       jobs:
         - template: /test/main.yml
           parameters:
             ${{ insert }}: ${{ parameters }}
+            defaultRuntimeVersion: ${{ variables.defaultRuntimeVersion }}
             testType: "Build"
 
 
@@ -209,17 +280,20 @@ stages:
   - ${{ if and(eq(parameters.scan, 'true'), ne(parameters.scanTool, '')) }}:
     - stage: Scan
       displayName: "Scan App"
-      dependsOn: 
+      dependsOn:
         - Download
+        - ${{ if eq(parameters.review, 'true') }}:
+          - Review
         - ${{ if eq(parameters.build, 'true') }}:
           - Build
-        - ${{ if eq(parameters.tests, 'true') }}:
+        - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
           - BuildTest
 
       jobs:
         - template: /scan/main.yml
           parameters:
             ${{ insert }}: ${{ parameters }}
+            defaultRuntimeVersion: ${{ variables.defaultRuntimeVersion }}
 
 
   #############################################################################
@@ -228,8 +302,10 @@ stages:
   - ${{ if ne(parameters.terraformAction, 'none') }}:
     - stage: DeployInfra
       displayName: "Deploy Infrastructure"
-      dependsOn: 
+      dependsOn:
         - Download
+        - ${{ if eq(parameters.review, 'true') }}:
+          - Review
         - ${{ if eq(parameters.build, 'true') }}:
           - Build
         - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
@@ -252,9 +328,9 @@ stages:
       dependsOn:
         - Download
         - Build
-        - ${{ if eq(parameters.tests, 'true') }}:
+        - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
           - BuildTest
-        - ${{ if eq(parameters.scan, 'true') }}:
+        - ${{ if and(eq(parameters.scan, 'true'), ne(parameters.scanTool, '')) }}:
           - Scan
         - ${{ if ne(parameters.terraformAction, 'none') }}:
           - DeployInfra
@@ -286,9 +362,9 @@ stages:
       dependsOn:
         - Download
         - Build
-        - ${{ if eq(parameters.tests, 'true') }}:
+        - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
           - BuildTest
-        - ${{ if eq(parameters.scan, 'true') }}:
+        - ${{ if and(eq(parameters.scan, 'true'), ne(parameters.scanTool, '')) }}:
           - Scan
         - ${{ if ne(parameters.terraformAction, 'none') }}:
           - DeployInfra
@@ -318,4 +394,96 @@ stages:
         - template: /test/main.yml
           parameters:
             ${{ insert }}: ${{ parameters }}
+            defaultRuntimeVersion: ${{ variables.defaultRuntimeVersion }}
             testType: "Integration"
+
+
+  #############################################################################
+  # GitHub Commit Status (CI runs only)
+  #
+  # On webhook-push runs the orchestrator supplies commitSha (the pushed head
+  # commit). These stages POST a single rollup "EPIC" status back to that commit
+  # so GitHub branch protection can require it as a check and block PR merges.
+  # Manual / epic-api runs leave commitSha empty and none of these are emitted.
+  #
+  #   • ReportPending — runs immediately (no dependsOn), posts state=pending.
+  #   • ReportSuccess — dependsOn every created stage; condition succeeded()
+  #     means the whole run passed → state=success.
+  #   • ReportFailure — same dependsOn; condition not(succeeded()) fires when any
+  #     stage failed or was skipped by a failed dependency → state=failure.
+  #############################################################################
+  - ${{ if ne(parameters.commitSha, '') }}:
+    - stage: ReportPending
+      displayName: "GitHub Status: Pending"
+      dependsOn: []
+      jobs:
+        - template: /common/github-status.yml
+          parameters:
+            repo: ${{ parameters.repo }}
+            owner: ${{ parameters.owner }}
+            githubHost: ${{ parameters.githubHost }}
+            commitSha: ${{ parameters.commitSha }}
+            state: "pending"
+            description: "EPIC pipeline running"
+
+    - stage: ReportSuccess
+      displayName: "GitHub Status: Success"
+      condition: succeeded()
+      dependsOn:
+        - Download
+        - ${{ if eq(parameters.review, 'true') }}:
+          - Review
+        - ${{ if eq(parameters.build, 'true') }}:
+          - Build
+        - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
+          - BuildTest
+        - ${{ if and(eq(parameters.scan, 'true'), ne(parameters.scanTool, '')) }}:
+          - Scan
+        - ${{ if ne(parameters.terraformAction, 'none') }}:
+          - DeployInfra
+        - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true'), eq(parameters.requireApproval, 'true')) }}:
+          - Approval
+        - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true')) }}:
+          - Deploy
+        - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true'), eq(parameters.integrations, 'true'), ne(parameters.integrationTestTool, '')) }}:
+          - IntegrationTest
+      jobs:
+        - template: /common/github-status.yml
+          parameters:
+            repo: ${{ parameters.repo }}
+            owner: ${{ parameters.owner }}
+            githubHost: ${{ parameters.githubHost }}
+            commitSha: ${{ parameters.commitSha }}
+            state: "success"
+            description: "EPIC pipeline passed"
+
+    - stage: ReportFailure
+      displayName: "GitHub Status: Failure"
+      condition: not(succeeded())
+      dependsOn:
+        - Download
+        - ${{ if eq(parameters.review, 'true') }}:
+          - Review
+        - ${{ if eq(parameters.build, 'true') }}:
+          - Build
+        - ${{ if and(eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
+          - BuildTest
+        - ${{ if and(eq(parameters.scan, 'true'), ne(parameters.scanTool, '')) }}:
+          - Scan
+        - ${{ if ne(parameters.terraformAction, 'none') }}:
+          - DeployInfra
+        - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true'), eq(parameters.requireApproval, 'true')) }}:
+          - Approval
+        - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true')) }}:
+          - Deploy
+        - ${{ if and(eq(parameters.build, 'true'), eq(parameters.deploy, 'true'), eq(parameters.integrations, 'true'), ne(parameters.integrationTestTool, '')) }}:
+          - IntegrationTest
+      jobs:
+        - template: /common/github-status.yml
+          parameters:
+            repo: ${{ parameters.repo }}
+            owner: ${{ parameters.owner }}
+            githubHost: ${{ parameters.githubHost }}
+            commitSha: ${{ parameters.commitSha }}
+            state: "failure"
+            description: "EPIC pipeline failed"

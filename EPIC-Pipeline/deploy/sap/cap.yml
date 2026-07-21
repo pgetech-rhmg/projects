@@ -1,0 +1,172 @@
+###############################################################################
+# Steps — SAP CAP deploy to Cloud Foundry
+#
+# Deploys a pre-built MTA archive (.build/archive.mtar, produced by
+# build/cap/main.yml) to a pre-existing Cloud Foundry org/space on SAP.
+#
+# Credentials follow the same pattern as infra/sap.yml: an AWS deployment role
+# is assumed in the target account, Cloud Foundry credentials are pulled from
+# AWS Secrets Manager (keys declared in epic.json's cloud.secretsManager.keys),
+# and the MTA is pushed with the Cloud Foundry `multiapps` plugin (cf deploy).
+#
+# Infrastructure (the SAP subaccount / CF space and its entitlements) is assumed
+# to already exist — this stage does not provision it. The managed services the
+# app needs (xsuaa, hana hdi-shared, html5-apps-repo, destination) are declared
+# in the project's mta.yaml and created by `cf deploy` at deploy time.
+###############################################################################
+steps:
+
+  ###########################################################################
+  # Read SAP Cloud Config
+  ###########################################################################
+  - bash: |
+      set -euo pipefail
+
+      CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
+
+      echo ">> Reading SAP cloud config"
+
+      AWS_ACCOUNT_ID=$(jq -r '.cloud.awsAccountId' "$CONFIG")
+      AWS_REGION=$(jq -r '.cloud.awsRegion // "us-west-2"' "$CONFIG")
+      SECRETS_MANAGER_NAME=$(jq -r '.cloud.secretsManager.name // empty' "$CONFIG")
+      SECRETS_MANAGER_KEYS=$(jq -r '.cloud.secretsManager.keys // empty | join(",")' "$CONFIG")
+      CF_API=$(jq -r '.cloud.cfApi // empty' "$CONFIG")
+      CF_ORG=$(jq -r '.cloud.cfOrg // empty' "$CONFIG")
+      CF_SPACE=$(jq -r '.cloud.cfSpace // empty' "$CONFIG")
+      CF_ORIGIN=$(jq -r '.cloud.cfOrigin // empty' "$CONFIG")
+
+      if [ -z "$AWS_ACCOUNT_ID" ] || [ "$AWS_ACCOUNT_ID" = "null" ]; then
+        echo "##vso[task.logissue type=error]cloud.awsAccountId is required in epic.json"
+        exit 1
+      fi
+
+      if [ -z "$SECRETS_MANAGER_NAME" ]; then
+        echo "##vso[task.logissue type=error]cloud.secretsManager.name is required in epic.json"
+        exit 1
+      fi
+
+      if [ -z "$SECRETS_MANAGER_KEYS" ]; then
+        echo "##vso[task.logissue type=error]cloud.secretsManager.keys is required in epic.json"
+        exit 1
+      fi
+
+      if [ -z "$CF_API" ] || [ -z "$CF_ORG" ] || [ -z "$CF_SPACE" ] || [ -z "$CF_ORIGIN" ]; then
+        echo "##vso[task.logissue type=error]cloud.cfApi, cloud.cfOrg, cloud.cfSpace, and cloud.cfOrigin are required in epic.json"
+        exit 1
+      fi
+
+      echo "##vso[task.setvariable variable=CLOUD_AWS_ACCOUNT_ID]$AWS_ACCOUNT_ID"
+      echo "##vso[task.setvariable variable=CLOUD_AWS_REGION]$AWS_REGION"
+      echo "##vso[task.setvariable variable=SECRETS_MANAGER_NAME]$SECRETS_MANAGER_NAME"
+      echo "##vso[task.setvariable variable=SECRETS_MANAGER_KEYS]$SECRETS_MANAGER_KEYS"
+      echo "##vso[task.setvariable variable=CF_API]$CF_API"
+      echo "##vso[task.setvariable variable=CF_ORG]$CF_ORG"
+      echo "##vso[task.setvariable variable=CF_SPACE]$CF_SPACE"
+      echo "##vso[task.setvariable variable=CF_ORIGIN]$CF_ORIGIN"
+    displayName: "Read SAP cloud config"
+
+  ###########################################################################
+  # Assume Deployment Role
+  ###########################################################################
+  - task: AWSShellScript@1
+    displayName: "Assume Target Account Role"
+    inputs:
+      awsCredentials: "AWS"
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: "inline"
+      inlineScript: |
+        set -euo pipefail
+
+        aws sts assume-role \
+          --role-arn "arn:aws:iam::$(CLOUD_AWS_ACCOUNT_ID):role/pge-epic-deployment-role" \
+          --role-session-name "epic-cap-deploy" \
+          --duration-seconds 3600 \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text \
+        | while read -r key secret token; do
+            echo "##vso[task.setvariable variable=AWS.AccessKeyID;issecret=true]$key"
+            echo "##vso[task.setvariable variable=AWS.SecretAccessKey;issecret=true]$secret"
+            echo "##vso[task.setvariable variable=AWS.SessionToken;issecret=true]$token"
+          done
+
+  ###########################################################################
+  # Retrieve Cloud Foundry secrets from AWS Secrets Manager
+  ###########################################################################
+  - task: AWSShellScript@1
+    displayName: "Retrieve SAP secrets"
+    inputs:
+      regionName: $(CLOUD_AWS_REGION)
+      scriptType: "inline"
+      inlineScript: |
+        set -euo pipefail
+
+        echo ">> Retrieving secrets from: $(SECRETS_MANAGER_NAME)"
+
+        SECRET_JSON=$(aws secretsmanager get-secret-value \
+          --secret-id "$(SECRETS_MANAGER_NAME)" \
+          --query 'SecretString' \
+          --output text)
+
+        : > $(Agent.TempDirectory)/sap-secrets.env
+
+        IFS=',' read -ra KEYS <<< "$(SECRETS_MANAGER_KEYS)"
+        for KEY in "${KEYS[@]}"; do
+          VALUE=$(echo "$SECRET_JSON" | jq -r --arg k "$KEY" '.[$k] // empty')
+          if [ -z "$VALUE" ]; then
+            echo "##vso[task.logissue type=error]Key '$KEY' not found in secret $(SECRETS_MANAGER_NAME)"
+            exit 1
+          fi
+          echo "export ${KEY}='${VALUE//\'/\'\\\'\'}'" >> $(Agent.TempDirectory)/sap-secrets.env
+        done
+
+        echo ">> All secrets retrieved successfully"
+
+  ###########################################################################
+  # Install Cloud Foundry CLI + multiapps plugin
+  ###########################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo ">> Installing Cloud Foundry CLI v8"
+      curl -sL "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github" | tar -xz
+      sudo mv cf8 /usr/local/bin/cf
+      cf version
+
+      echo ">> Installing multiapps (MTA) plugin"
+      cf install-plugin -f multiapps
+    displayName: "Install Cloud Foundry CLI"
+
+  ###########################################################################
+  # Authenticate + target the pre-existing org/space
+  ###########################################################################
+  - bash: |
+      set -euo pipefail
+
+      source $(Agent.TempDirectory)/sap-secrets.env
+
+      echo ">> Targeting Cloud Foundry API: $(CF_API)"
+      cf api "$(CF_API)"
+
+      echo ">> Authenticating with origin: $(CF_ORIGIN)"
+      cf auth "$CF_USER" "$CF_PASSWORD" --origin "$(CF_ORIGIN)"
+
+      echo ">> Targeting org=$(CF_ORG) space=$(CF_SPACE)"
+      cf target -o "$(CF_ORG)" -s "$(CF_SPACE)"
+    displayName: "Authenticate to Cloud Foundry"
+
+  ###########################################################################
+  # Deploy MTA archive
+  ###########################################################################
+  - bash: |
+      set -euo pipefail
+
+      MTAR="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build/archive.mtar"
+
+      if [ ! -f "$MTAR" ]; then
+        echo "##vso[task.logissue type=error]MTA archive not found at $MTAR — was the build stage run?"
+        exit 1
+      fi
+
+      echo ">> Deploying $MTAR"
+      cf deploy "$MTAR" -f
+    displayName: "Deploy MTA archive"

@@ -137,7 +137,7 @@ module "function_app" {
 | Requirement | Version |
 |-------------|---------|
 | `terraform` | `>= 1.5.0` |
-| `azurerm` | `~> 3.100` |
+| `azurerm` | `~> 4.0` |
 
 ---
 

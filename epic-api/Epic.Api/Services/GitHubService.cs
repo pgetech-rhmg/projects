@@ -1,23 +1,45 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Epic.Api.Services;
 
-public sealed class GitHubService(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubService> logger) : IGitHubService
+public sealed class GitHubService(HttpClient httpClient, IConfiguration configuration, IGitHubSourceRegistry sources, ILogger<GitHubService> logger, IMemoryCache cache) : IGitHubService
 {
-    private string OrgName => new Uri(
-        configuration["GITHUB_BASE_URL"]
-        ?? throw new InvalidOperationException("GITHUB_BASE_URL not configured.")
-    ).AbsolutePath.Trim('/');
+    // GitHub reads here back UI previews (config discovery + infra check) and the
+    // periodic app refresh — never the actual pipeline trigger, which passes the
+    // branch/config straight to ADO and lets the agent re-read epic.json at run
+    // time. A short TTL therefore only dedupes bursts (a single branch selection
+    // fires getConfigs + checkConfigInfra back-to-back, and the recursive tree is
+    // requested by both) without changing what any run does. Matches the 30s
+    // volatile-data TTL AdoService uses.
+    private static readonly TimeSpan ApiCacheTtl = TimeSpan.FromSeconds(30);
 
-    private string Token =>
-        configuration["GITHUB_TOKEN"]
-        ?? throw new InvalidOperationException("GITHUB_TOKEN not configured.");
+    // Resolves the PAT for a source from configuration by its TokenKey.
+    private string TokenFor(GitHubSource source) =>
+        configuration[source.TokenKey]
+        ?? throw new InvalidOperationException($"GitHub token '{source.TokenKey}' for source '{source.Name}' not configured.");
 
-    public async Task<GitHubRepoInfo> GetRepoAsync(string repo, CancellationToken ct = default)
+    // Builds the repo API root for a source, e.g. https://api.github.com/repos/pgetech/foo
+    // or https://github.pge.com/api/v3/repos/PGEDigitalCatalyst/foo.
+    private static string RepoBase(GitHubSource source, string repo) =>
+        $"{source.ApiBase}/repos/{source.Org}/{EscapeSegment(repo)}";
+
+    // Repo/branch/path segments originate from user input (repo name, selected
+    // branch, config path). Percent-encode them before splicing into the GitHub
+    // API URL so a crafted value can't traverse to a different path/host
+    // (defends the SSRF/path-injection hotspot — SonarQube S7044). A repo name
+    // has no path separators, so it escapes as a single segment; a file path may
+    // contain '/', so each segment is escaped individually with the slashes kept.
+    private static string EscapeSegment(string value) => Uri.EscapeDataString(value);
+    private static string EscapePath(string path) =>
+        string.Join('/', path.Split('/').Select(Uri.EscapeDataString));
+
+    public async Task<GitHubRepoInfo> GetRepoAsync(string repo, string? source = null, CancellationToken ct = default)
     {
-        var repoJson = await CallApiAsync($"https://api.github.com/repos/{OrgName}/{repo}", ct);
+        var src = sources.Resolve(source);
+        var repoJson = await CallApiAsync(src, $"{RepoBase(src, repo)}", ct);
 
         if (repoJson is null)
             return new GitHubRepoInfo { Exists = false };
@@ -31,7 +53,7 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         // If no primary language, try the languages endpoint for more detail
         if (string.IsNullOrEmpty(language))
         {
-            var languagesJson = await CallApiAsync($"https://api.github.com/repos/{OrgName}/{repo}/languages", ct);
+            var languagesJson = await CallApiAsync(src, $"{RepoBase(src, repo)}/languages", ct);
             if (languagesJson is not null)
             {
                 // Languages come as { "TypeScript": 45000, "SCSS": 8000, "HTML": 3000 }
@@ -64,17 +86,29 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         };
     }
 
-    public async Task<bool> PathExistsAsync(string repo, string path, string branch, CancellationToken ct = default)
+    public async Task<bool> PathExistsAsync(string repo, string path, string branch, string? source = null, CancellationToken ct = default)
     {
-        var url = $"https://api.github.com/repos/{OrgName}/{repo}/contents/{path}?ref={Uri.EscapeDataString(branch)}";
-        var json = await CallApiAsync(url, ct);
+        var src = sources.Resolve(source);
+        return await PathExistsAsync(src, repo, path, branch, ct);
+    }
+
+    private async Task<bool> PathExistsAsync(GitHubSource src, string repo, string path, string branch, CancellationToken ct)
+    {
+        var url = $"{RepoBase(src, repo)}/contents/{EscapePath(path)}?ref={Uri.EscapeDataString(branch)}";
+        var json = await CallApiAsync(src, url, ct);
         return json is not null;
     }
 
-    public async Task<string?> GetFileContentAsync(string repo, string path, string branch, CancellationToken ct = default)
+    public async Task<string?> GetFileContentAsync(string repo, string path, string branch, string? source = null, CancellationToken ct = default)
     {
-        var url = $"https://api.github.com/repos/{OrgName}/{repo}/contents/{path}?ref={Uri.EscapeDataString(branch)}";
-        var json = await CallApiAsync(url, ct);
+        var src = sources.Resolve(source);
+        return await GetFileContentAsync(src, repo, path, branch, ct);
+    }
+
+    private async Task<string?> GetFileContentAsync(GitHubSource src, string repo, string path, string branch, CancellationToken ct)
+    {
+        var url = $"{RepoBase(src, repo)}/contents/{EscapePath(path)}?ref={Uri.EscapeDataString(branch)}";
+        var json = await CallApiAsync(src, url, ct);
         if (json is null) return null;
 
         var encoding = json.Value.TryGetProperty("encoding", out var enc) ? enc.GetString() : null;
@@ -86,10 +120,11 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         return content;
     }
 
-    public async Task<List<string>> FindEpicConfigsAsync(string repo, string branch, CancellationToken ct = default)
+    public async Task<List<string>> FindEpicConfigsAsync(string repo, string branch, string? source = null, CancellationToken ct = default)
     {
-        var url = $"https://api.github.com/repos/{OrgName}/{repo}/git/trees/{Uri.EscapeDataString(branch)}?recursive=1";
-        var json = await CallApiAsync(url, ct);
+        var src = sources.Resolve(source);
+        var url = $"{RepoBase(src, repo)}/git/trees/{Uri.EscapeDataString(branch)}?recursive=1";
+        var json = await CallApiAsync(src, url, ct);
         if (json is null) return [];
 
         var results = new List<string>();
@@ -110,39 +145,155 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         return results;
     }
 
-    public async Task<ConfigCheckResult> CheckInfraAsync(string repo, string branch, string configPath, CancellationToken ct = default)
+    // The subset of epic.json CheckInfraAsync cares about.
+    private readonly record struct EpicConfig(
+        string InfraPath, string? AppType, string? BuildTestTool,
+        string? ScanTool, string? IntegrationTestTool, bool HasInfraParams);
+
+    public async Task<ConfigCheckResult> CheckInfraAsync(string repo, string branch, string configPath, string? source = null, CancellationToken ct = default)
     {
-        var infraPath = ".infra";
-        string? appType = null;
-        var hasInfraParams = false;
+        var src = sources.Resolve(source);
+        var cfg = await ReadEpicConfigAsync(src, repo, branch, configPath, ct);
+
+        var resolved = cfg.InfraPath.TrimStart('/');
+        var hasInfra = await PathExistsAsync(src, repo, resolved, branch, ct);
+        // Only worth scanning the Terraform sources when an infra folder exists.
+        var (hasS3Backend, hasTfState) = hasInfra
+            ? await ScanInfraTerraformAsync(src, repo, branch, resolved, ct)
+            : (false, false);
+        return new ConfigCheckResult
+        {
+            HasInfra = hasInfra,
+            HasInfraParams = cfg.HasInfraParams,
+            AppType = cfg.AppType,
+            BuildTestTool = cfg.BuildTestTool,
+            ScanTool = cfg.ScanTool,
+            IntegrationTestTool = cfg.IntegrationTestTool,
+            HasS3Backend = hasS3Backend,
+            HasTfState = hasTfState
+        };
+    }
+
+    // Fetches + parses the fields CheckInfraAsync needs from epic.json, returning
+    // safe defaults if the file is missing or unparseable.
+    // Default infra folder when epic.json doesn't specify one.
+    private const string DefaultInfraPath = ".infra";
+
+    private async Task<EpicConfig> ReadEpicConfigAsync(GitHubSource src, string repo, string branch, string configPath, CancellationToken ct)
+    {
         try
         {
-            var content = await GetFileContentAsync(repo, configPath, branch, ct);
+            var content = await GetFileContentAsync(src, repo, configPath, branch, ct);
             if (content is not null)
-            {
-                var doc = System.Text.Json.JsonDocument.Parse(content).RootElement;
-                if (doc.TryGetProperty("app", out var app))
-                {
-                    if (app.TryGetProperty("infraPath", out var ip))
-                        infraPath = ip.GetString() ?? ".infra";
-                    if (app.TryGetProperty("appType", out var at))
-                        appType = at.GetString();
-                }
-                else if (doc.TryGetProperty("infraPath", out var ipRoot))
-                    infraPath = ipRoot.GetString() ?? ".infra";
-
-                if (doc.TryGetProperty("cloud", out var cloud))
-                    hasInfraParams = HasInfraParamsForAppType(cloud, appType);
-            }
+                return ParseEpicConfig(System.Text.Json.JsonDocument.Parse(content).RootElement);
         }
         catch (Exception ex)
         {
             logger.LogDebug(ex, "Failed to parse epic.json for {Repo}@{Branch} — using defaults", repo, branch);
         }
+        return new EpicConfig(DefaultInfraPath, null, null, null, null, false);
+    }
 
-        var resolved = infraPath.TrimStart('/');
-        var hasInfra = await PathExistsAsync(repo, resolved, branch, ct);
-        return new ConfigCheckResult { HasInfra = hasInfra, HasInfraParams = hasInfraParams, AppType = appType };
+    // Reads the fields CheckInfraAsync cares about out of a parsed epic.json.
+    private static EpicConfig ParseEpicConfig(JsonElement doc)
+    {
+        string? appType = null, buildTestTool = null, scanTool = null, integrationTestTool = null;
+        string? infraPath;
+
+        if (doc.TryGetProperty("app", out var app))
+        {
+            infraPath = GetStringProp(app, "infraPath");
+            appType = GetStringProp(app, "appType");
+            buildTestTool = GetStringProp(app, "buildTestTool");
+            scanTool = GetStringProp(app, "scanTool");
+            integrationTestTool = GetStringProp(app, "integrationTestTool");
+        }
+        else
+        {
+            infraPath = GetStringProp(doc, "infraPath");
+        }
+
+        var hasInfraParams = doc.TryGetProperty("cloud", out var cloud)
+            && HasInfraParamsForAppType(cloud, appType);
+
+        return new EpicConfig(infraPath ?? DefaultInfraPath, appType, buildTestTool, scanTool, integrationTestTool, hasInfraParams);
+    }
+
+    private static string? GetStringProp(JsonElement obj, string name) =>
+        obj.TryGetProperty(name, out var v) ? v.GetString() : null;
+
+    // Cap regex execution so a pathological input can never hang the request
+    // thread (defends against catastrophic backtracking — SonarQube S6444).
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
+
+    // Matches a `backend "s3" { ... }` declaration (which is only valid inside a
+    // `terraform {}` block). Tolerant of arbitrary whitespace between tokens.
+    private static readonly System.Text.RegularExpressions.Regex S3BackendRegex =
+        new("backend\\s+\"s3\"\\s*\\{", System.Text.RegularExpressions.RegexOptions.Compiled, RegexTimeout);
+
+    /// <summary>
+    /// Scans the Terraform project under <paramref name="infraPath"/> for two signals:
+    /// whether any <c>.tf</c> file declares an S3 remote backend, and whether a
+    /// committed <c>*.tfstate</c> file exists (which would trigger Terraform's
+    /// interactive state-migration prompt on init). One tree fetch covers both.
+    /// </summary>
+    private async Task<(bool HasS3Backend, bool HasTfState)> ScanInfraTerraformAsync(GitHubSource src, string repo, string branch, string infraPath, CancellationToken ct)
+    {
+        var url = $"{RepoBase(src, repo)}/git/trees/{Uri.EscapeDataString(branch)}?recursive=1";
+        var json = await CallApiAsync(src, url, ct);
+        if (json is null || !json.Value.TryGetProperty("tree", out var tree))
+            return (false, false);
+
+        var (tfFiles, hasTfState) = ClassifyInfraTree(tree, infraPath.Trim('/'));
+
+        // Fetch every .tf file concurrently rather than one-at-a-time: the result
+        // (S3 backend declared in ANY file) is order-independent, so we trade the
+        // first-match short-circuit for parallelism — a large infra folder no
+        // longer serializes N round-trips behind a single branch selection.
+        var contents = await Task.WhenAll(
+            tfFiles.Select(file => GetFileContentAsync(src, repo, file, branch, ct)));
+        var hasS3Backend = contents.Any(
+            content => content is not null && S3BackendRegex.IsMatch(StripHclComments(content)));
+
+        return (hasS3Backend, hasTfState);
+    }
+
+    // Walks a recursive git tree, confined to the infra folder, returning the
+    // .tf file paths and whether any committed *.tfstate exists.
+    private static (List<string> TfFiles, bool HasTfState) ClassifyInfraTree(JsonElement tree, string prefix)
+    {
+        var tfFiles = new List<string>();
+        var hasTfState = false;
+        foreach (var item in tree.EnumerateArray())
+        {
+            var type = item.TryGetProperty("type", out var t) ? t.GetString() : null;
+            var path = item.TryGetProperty("path", out var p) ? p.GetString() : null;
+            if (type != "blob" || path is null)
+                continue;
+            // Confine the scan to the resolved infra folder.
+            if (path != prefix && !path.StartsWith(prefix + "/", StringComparison.Ordinal))
+                continue;
+            if (path.EndsWith(".tf", StringComparison.OrdinalIgnoreCase))
+                tfFiles.Add(path);
+            else if (path.EndsWith(".tfstate", StringComparison.OrdinalIgnoreCase))
+                hasTfState = true;
+        }
+        return (tfFiles, hasTfState);
+    }
+
+    // Comment-stripping patterns, compiled once with an execution timeout.
+    private static readonly System.Text.RegularExpressions.Regex BlockCommentRegex =
+        new("/\\*.*?\\*/", System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.Compiled, RegexTimeout);
+    private static readonly System.Text.RegularExpressions.Regex LineCommentRegex =
+        new("(#|//).*?$", System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.Compiled, RegexTimeout);
+
+    // Strips HCL/Terraform comments so a commented-out backend block doesn't
+    // register as a real one. Handles `#`, `//` line comments and `/* */` blocks.
+    private static string StripHclComments(string hcl)
+    {
+        hcl = BlockCommentRegex.Replace(hcl, string.Empty);
+        hcl = LineCommentRegex.Replace(hcl, string.Empty);
+        return hcl;
     }
 
     private static bool HasInfraParamsForAppType(System.Text.Json.JsonElement cloud, string? appType)
@@ -161,10 +312,18 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         return false;
     }
 
-    private async Task<JsonElement?> CallApiAsync(string url, CancellationToken ct)
+    private async Task<JsonElement?> CallApiAsync(GitHubSource source, string url, CancellationToken ct)
     {
+        // The URL fully identifies a GitHub GET (host + repo + path/tree + ?ref=branch),
+        // so it is a safe cache key — and the host/org prefix keeps two sources'
+        // same-named repos distinct. The recursive-tree URL built by
+        // FindEpicConfigsAsync and ScanInfraTerraformAsync is byte-identical, so
+        // the second tree fetch in a branch selection resolves from cache.
+        if (cache.TryGetValue<JsonElement>(url, out var cached))
+            return cached;
+
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TokenFor(source));
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("EPIC-API", "1.0"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
 
@@ -180,6 +339,16 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         }
 
         var body = await response.Content.ReadAsStringAsync(ct);
-        return JsonDocument.Parse(body).RootElement;
+        var element = JsonDocument.Parse(body).RootElement;
+
+        // Cache only successful responses. Missing files/branches (404 → null) stay
+        // live so a just-created repo, branch, or .infra folder is picked up at once.
+        cache.Set(url, element, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = ApiCacheTtl,
+            Size = 1
+        });
+
+        return element;
     }
 }

@@ -7,10 +7,10 @@ steps:
   # Use .NET SDK
   #############################################################################
   - task: UseDotNet@2
-    displayName: "Use .NET SDK ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+    displayName: "Use .NET SDK ${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
     inputs:
       packageType: "sdk"
-      version: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+      version: "${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
 
 
   #############################################################################
@@ -24,14 +24,40 @@ steps:
 
 
   #############################################################################
+  # Resolve test target
+  #
+  # Test projects usually live in a SEPARATE project from the app (codePath) —
+  # e.g. an <App> project plus a sibling <App>.Tests project, with a solution at
+  # the repo root that references both. Running `dotnet test` inside codePath
+  # alone would silently discover ZERO tests (and emit no coverage).
+  #
+  # So we prefer a solution file (repo root or one level down) as the target —
+  # it pulls in the app and every test project it references. Apps with no
+  # solution fall back to codePath, preserving the original single-project
+  # behavior. Both paths are driven entirely by the generic appName/codePath
+  # parameters — nothing here is specific to any one app.
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      ROOT="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}"
+      CODE="$ROOT/${{ parameters.codePath }}"
+
+      SLN="$(find "$ROOT" -maxdepth 2 -name '*.sln' | head -n 1 || true)"
+      TARGET="${SLN:-$CODE}"
+
+      echo ">> Test target: $TARGET"
+      echo "##vso[task.setvariable variable=DOTNET_TEST_TARGET]$TARGET"
+    displayName: "Resolve test target"
+
+
+  #############################################################################
   # Restore
   #############################################################################
   - bash: |
       set -euo pipefail
 
-      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
-
-      dotnet restore
+      dotnet restore "$(DOTNET_TEST_TARGET)"
     displayName: "Restore"
 
 
@@ -41,28 +67,29 @@ steps:
   - bash: |
       set -euo pipefail
 
-      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
-
-      dotnet build -c Release --no-restore
+      dotnet build "$(DOTNET_TEST_TARGET)" -c Release --no-restore
     displayName: "Build"
 
 
   #############################################################################
   # Test with coverage
+  #
+  # Coverage + TRX are written under codePath/.reports regardless of the test
+  # target, because that's where the SonarQube prepare step and the test-artifact
+  # publish expect them (sonar.cs.opencover.reportsPaths / .vstest.reportsPaths).
   #############################################################################
   - bash: |
       set -euo pipefail
 
-      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+      REPORTS="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports"
+      mkdir -p "$REPORTS"
 
-      mkdir -p .reports
-
-      dotnet test -c Release \
+      dotnet test "$(DOTNET_TEST_TARGET)" -c Release \
         /p:CollectCoverage=true \
         /p:CoverletOutputFormat=opencover \
-        /p:CoverletOutput=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/coverage.xml \
+        /p:CoverletOutput="$REPORTS/coverage.xml" \
         /p:DeterministicSourcePath=true \
         --no-build \
         --logger "trx;LogFileName=tests.trx" \
-        --results-directory .reports
+        --results-directory "$REPORTS"
     displayName: "Execute tests with coverage"

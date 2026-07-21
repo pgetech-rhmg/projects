@@ -169,7 +169,10 @@ out-tsc/
 # =========================
 .angular/
 .angular/cache/
-**/package-lock.json
+
+# package-lock.json is intentionally committed for epic-web: SonarQube rule
+# text:S8564 (MAJOR, Security) requires the dependency lock file in source
+# control for reproducible installs. Do NOT re-ignore it.
 
 # =========================
 # Logs

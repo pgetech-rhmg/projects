@@ -86,7 +86,7 @@ jobs:
             terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
 
       #########################################################################
-      # AWS — EC2 (dotnet, python, java) → S3 + SSM
+      # AWS — EC2 (dotnet, python, java, go) → S3 + SSM
       #########################################################################
       - ${{ if eq(parameters.appType, 'dotnet') }}:
         - template: aws/ec2/dotnet.yml
@@ -102,6 +102,12 @@ jobs:
 
       - ${{ if eq(parameters.appType, 'java') }}:
         - template: aws/ec2/java.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+
+      - ${{ if eq(parameters.appType, 'go') }}:
+        - template: aws/ec2/go.yml
           parameters:
             ${{ insert }}: ${{ parameters }}
             terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
@@ -140,25 +146,35 @@ jobs:
         displayName: "Read Azure cloud config"
 
       #########################################################################
-      # Azure — App Service (any appType)
+      # Azure — Static (html, angular, react) → Storage $web
       #########################################################################
-      - template: azure/app-service/main.yml
-        parameters:
-          ${{ insert }}: ${{ parameters }}
-          terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+      - ${{ if or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular'), eq(parameters.appType, 'react')) }}:
+        - template: azure/static/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
+
+      #########################################################################
+      # Azure — App Service (all other appTypes)
+      #########################################################################
+      - ${{ if not(or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular'), eq(parameters.appType, 'react'))) }}:
+        - template: azure/app-service/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
 
 
     ###########################################################################
     # ═════════════════════════════════════════════════════════════════════════
-    # SAP BTP — Cloud Foundry
+    # SAP CAP — Cloud Foundry
     # ═════════════════════════════════════════════════════════════════════════
     ###########################################################################
-    - ${{ if eq(parameters.cloudProvider, 'btp') }}:
+    - ${{ if eq(parameters.cloudProvider, 'sap') }}:
 
       #########################################################################
-      # BTP — CAP (Cloud Application Programming) → cf deploy MTA
+      # SAP CAP (Cloud Application Programming) → cf deploy MTA
       #########################################################################
       - ${{ if eq(parameters.appType, 'cap') }}:
-        - template: btp/cap.yml
+        - template: sap/cap.yml
           parameters:
             ${{ insert }}: ${{ parameters }}

@@ -7,7 +7,7 @@ resource "azurerm_storage_account" "this" {
   account_replication_type = var.account_replication_type
   account_kind             = var.account_kind
 
-  min_tls_version           = var.min_tls_version
+  min_tls_version                 = var.min_tls_version
   allow_nested_items_to_be_public = var.allow_blob_public_access
 
   blob_properties {
@@ -38,6 +38,16 @@ resource "azurerm_storage_container" "this" {
   for_each = { for c in var.containers : c.name => c }
 
   name                  = each.value.name
-  storage_account_name  = azurerm_storage_account.this.name
+  storage_account_id    = azurerm_storage_account.this.id
   container_access_type = each.value.access_type
+}
+
+# Static website hosting (serves content from the implicit $web container).
+# Enable for frontend SPA hosting; leave disabled for plain blob storage.
+resource "azurerm_storage_account_static_website" "this" {
+  count = var.static_website != null ? 1 : 0
+
+  storage_account_id = azurerm_storage_account.this.id
+  index_document     = var.static_website.index_document
+  error_404_document = var.static_website.error_404_document
 }

@@ -18,23 +18,17 @@ module "tags" {
 
 
 ###############################################################################
-# AMI — latest Amazon Linux 2023 (x86_64)
+# AMI — PINNED (Amazon Linux 2023, x86_64)
+#
+# This is a hand-built, stateful box: the scan toolchain and ADO agent are
+# installed by hand over SSM (see documents/scan-agent-setup.md), NOT baked
+# into the AMI. A `most_recent = true` lookup is therefore a landmine — the
+# moment Amazon publishes a newer AL2023 AMI, any `terraform apply` (even an
+# unrelated one like an instance-type resize) plans to REPLACE the instance and
+# wipe the toolchain + agent registration. We pin the AMI to the one the box was
+# built on so applies stay in-place. Bump var.ami_id deliberately only when you
+# intend to rebuild the box from the runbook.
 ###############################################################################
-
-data "aws_ami" "al2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-2023.*-x86_64"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-}
 
 
 ###############################################################################
@@ -110,7 +104,7 @@ module "scan_agent" {
 
   app_name      = "scan-agent"
   environment   = var.environment
-  ami           = data.aws_ami.al2023.id
+  ami           = var.ami_id
   instance_type = var.instance_type
 
   network = {

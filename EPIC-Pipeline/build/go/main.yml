@@ -1,0 +1,81 @@
+###############################################################################
+# Go Build
+#
+# Compiles a Go module into a single static binary and stages it in .build/.
+# The binary is named after the app (parameters.appName) so the deploy stage
+# and the pre-provisioned systemd unit can reference a stable path.
+#
+# CGO is disabled so the result is a fully static linux/amd64 binary with no
+# libc dependency — it runs on the EC2 host (or Azure App Service) as-is.
+###############################################################################
+steps:
+
+  #############################################################################
+  # Install Go
+  #############################################################################
+  - task: GoTool@0
+    displayName: "Use Go ${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
+    inputs:
+      version: "${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
+
+
+  #############################################################################
+  # Verify Go
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo ">> Go version"
+      go version
+
+      echo ">> Go env"
+      go env GOROOT GOPATH
+    displayName: "Verify Go"
+
+
+  #############################################################################
+  # Download Modules
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      if [ -f go.mod ]; then
+        echo ">> Downloading modules"
+        go mod download
+      else
+        echo "##vso[task.logissue type=error]go.mod not found in codePath — a Go app must be a Go module"
+        exit 1
+      fi
+    displayName: "Download modules"
+
+
+  #############################################################################
+  # Build Static Binary
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Preparing .build output"
+      rm -rf .build
+      mkdir -p .build
+
+      # buildType selects the entrypoint package:
+      #   (default)  build the module root (main package at codePath root)
+      #   <path>     build a specific main package, e.g. buildType: "cmd/server"
+      PKG="."
+      if [ -n "${{ parameters.buildType }}" ]; then
+        PKG="./${{ parameters.buildType }}"
+      fi
+
+      echo ">> Building static binary from $PKG"
+      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+        go build -trimpath -ldflags="-s -w" \
+        -o ".build/${{ parameters.appName }}" "$PKG"
+
+      echo ">> Build output"
+      ls -la .build
+    displayName: "Build (go build)"

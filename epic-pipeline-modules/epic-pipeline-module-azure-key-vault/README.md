@@ -133,7 +133,7 @@ module "app_service" {
 | Requirement | Version |
 |-------------|---------|
 | Terraform | `>= 1.5.0` |
-| `hashicorp/azurerm` | `~> 3.100` |
+| `hashicorp/azurerm` | `~> 4.0` |
 
 ## Notes
 

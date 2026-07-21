@@ -7,10 +7,14 @@ import { InteractionStatus } from '@azure/msal-browser';
 import { filter, takeUntil } from 'rxjs/operators';
 import { Subject } from 'rxjs';
 
-import { AppDetail, AppLookup, ManagedApp, PipelineRun, PipelineRunPage, RunStatus, StageDetail, StageStep } from './models/app.model';
+import { AppDetail, AppLookup, ComplianceFinding, ComplianceReport, ComplianceSummary, GitHubSourceOption, ManagedApp, PipelineRun, RunStatus, StageDetail, StageStep } from './models/app.model';
 import { AppService } from './services/app.service';
 import {
+  APP_NAME_PATTERN,
+  APP_NAME_RULE,
   APP_TYPE_LABELS,
+  AWS_ACCOUNT_ID_PATTERN,
+  AZURE_SUBSCRIPTION_ID_PATTERN,
   AppType,
   BUILD_TEST_TOOL_OPTIONS,
   CloudProvider,
@@ -22,11 +26,21 @@ import {
   StorageKind,
   WizardAnswers,
   appTypesForCloud,
+  defaultBuildTestTool,
+  defaultScanTool,
   emptyAnswers,
   emptyDeployTarget,
+  normalizeAppName,
+  normalizeAwsAccountId,
+  normalizeAzureSubscriptionId,
   relevantDeployTargetKeys,
 } from './wizard/wizard.model';
 import { renderEpicMd } from './wizard/wizard.template';
+
+/** Step index for the 3-step config builder modal. */
+type BuilderStep = 1 | 2 | 3;
+/** Step index for the 5-step create-app wizard. */
+type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 @Component({
   selector: 'app-root',
@@ -50,15 +64,19 @@ export class App implements OnInit, OnDestroy {
   protected readonly apps = signal<ManagedApp[]>([]);
   protected readonly loading = signal(false);
   protected readonly dataLoading = signal(true);
+  // Backend availability — probed once at startup. When offline we show a message in the
+  // table area and make no further API calls until the user refreshes the page (which
+  // re-runs ngOnInit and re-checks). null = check not yet completed.
+  protected readonly backendOnline = signal<boolean | null>(null);
 
   // Track apps with locally-set pending state until ADO picks up the new run
-  private pendingApps = new Map<string, ManagedApp>();
+  private readonly pendingApps = new Map<string, ManagedApp>();
 
   // Track cancelled run IDs until ADO confirms the cancellation
-  private cancelledRuns = new Set<number>();
+  private readonly cancelledRuns = new Set<number>();
 
   // Track pending runs until API returns them (keyed by runId, value includes app name for filtering)
-  private pendingRuns = new Map<number, { run: PipelineRun; appName: string }>();
+  private readonly pendingRuns = new Map<number, { run: PipelineRun; appName: string }>();
 
   private readonly refreshInterval = 5000;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -88,15 +106,24 @@ export class App implements OnInit, OnDestroy {
         this.authState.set('authenticated');
         this.loadUserPhoto();
 
-        if (!this.refreshTimer) {
-          this.appService.getApps().subscribe({
-            next: (data) => {
-              this.apps.set(data);
+        if (!this.refreshTimer && this.backendOnline() !== true) {
+          // Probe the API before loading anything. If it's down, surface the offline
+          // message and make no further calls until a page refresh re-checks.
+          this.appService.checkHealth().subscribe((online) => {
+            this.backendOnline.set(online);
+            if (!online) {
               this.dataLoading.set(false);
-            },
-            error: () => this.dataLoading.set(false),
+              return;
+            }
+            this.appService.getApps().subscribe({
+              next: (data) => {
+                this.apps.set(data);
+                this.dataLoading.set(false);
+              },
+              error: () => this.dataLoading.set(false),
+            });
+            this.startAutoRefresh();
           });
-          this.startAutoRefresh();
         }
       });
   }
@@ -110,7 +137,8 @@ export class App implements OnInit, OnDestroy {
 
   @HostListener('document:keydown.escape')
   protected onEscapeKey(): void {
-    if (this.showBuilderModal()) this.closeBuilder();
+    if (this.showReportModal()) this.closeReportModal();
+    else if (this.showBuilderModal()) this.closeBuilder();
     else if (this.showHowToModal()) this.closeHowTo();
     else if (this.showNewRunModal()) this.closeNewRunModal();
     else if (this.showAddModal()) this.closeAddModal();
@@ -118,38 +146,43 @@ export class App implements OnInit, OnDestroy {
     else if (this.showCreateAppWizard()) this.closeCreateAppWizard();
   }
 
+  /** Overlay a cancelling-run marker on an app while ADO catches up. */
+  private applyCancelOverride(app: ManagedApp): ManagedApp {
+    if (app.runId && this.cancelledRuns.has(app.runId)) {
+      if (app.runStatus === 'Canceled') {
+        this.cancelledRuns.delete(app.runId);
+        return app;
+      }
+      return { ...app, runStatus: 'Canceling' as const };
+    }
+    return app;
+  }
+
+  /** Keep the optimistic pending overlay until the API reports a newer run. */
+  private applyPendingOverride(app: ManagedApp): ManagedApp {
+    const pending = this.pendingApps.get(app.name);
+    if (!pending) return app;
+    // ADO has caught up if the API's last run is newer than when we triggered
+    if (app.lastPipelineRun && new Date(app.lastPipelineRun) > new Date(pending.lastPipelineRun!)) {
+      this.pendingApps.delete(app.name);
+      return app;
+    }
+    // Still stale — keep our pending overlay
+    return { ...app, runStatus: 'Pending' as const, branch: pending.branch, environment: pending.environment, triggeredBy: pending.triggeredBy, lastPipelineRun: pending.lastPipelineRun };
+  }
+
+  /** Merge freshly fetched apps with local optimistic (pending/cancelling) state. */
+  private reconcileApps(data: ManagedApp[]): void {
+    const withPending =
+      this.pendingApps.size === 0 ? data : data.map(app => this.applyPendingOverride(app));
+    this.apps.set(withPending.map(app => this.applyCancelOverride(app)));
+  }
+
   private startAutoRefresh(): void {
     this.refreshTimer = setInterval(() => {
       // Refresh main table — preserve pending state until ADO catches up
       this.appService.getApps().subscribe({
-        next: data => {
-          const applyOverrides = (apps: ManagedApp[]) => apps.map(app => {
-            if (app.runId && this.cancelledRuns.has(app.runId)) {
-              if (app.runStatus === 'Canceled') {
-                this.cancelledRuns.delete(app.runId);
-                return app;
-              }
-              return { ...app, runStatus: 'Canceling' as const };
-            }
-            return app;
-          });
-
-          if (this.pendingApps.size === 0) {
-            this.apps.set(applyOverrides(data));
-          } else {
-            this.apps.set(applyOverrides(data.map(app => {
-              const pending = this.pendingApps.get(app.name);
-              if (!pending) return app;
-              // ADO has caught up if the API's last run is newer than when we triggered
-              if (app.lastPipelineRun && new Date(app.lastPipelineRun) > new Date(pending.lastPipelineRun!)) {
-                this.pendingApps.delete(app.name);
-                return app;
-              }
-              // Still stale — keep our pending overlay
-              return { ...app, runStatus: 'Pending' as const, branch: pending.branch, environment: pending.environment, triggeredBy: pending.triggeredBy, lastPipelineRun: pending.lastPipelineRun };
-            })));
-          }
-        },
+        next: data => this.reconcileApps(data),
         error: () => { /* API unavailable — keep showing last known data */ }
       });
 
@@ -164,7 +197,15 @@ export class App implements OnInit, OnDestroy {
           next: result => {
             this.runsTotal.set(result.total);
             const runs = result.runs.map(r => {
+              // Reconcile the optimistic pending row against the real run. triggerRun
+              // returns the ORCHESTRATOR build id, which is what pendingRuns is keyed
+              // by; the real run arrives as the ENGINE build (r.id) that references its
+              // orchestrator via r.orchestratorId. Clearing on both ids means the
+              // pending row drops whether ADO is still in prepare (API emits the
+              // orchestrator as r.id) or the engine has started (r.orchestratorId
+              // carries the link) — so it can't linger once the run is known.
               this.pendingRuns.delete(r.id);
+              if (r.orchestratorId != null) this.pendingRuns.delete(r.orchestratorId);
               if (this.cancelledRuns.has(r.id)) {
                 if (r.status === 'Canceled') {
                   this.cancelledRuns.delete(r.id);
@@ -232,26 +273,30 @@ export class App implements OnInit, OnDestroy {
       (!cloud || app.cloud === cloud) &&
       (!env || app.environment === env) &&
       (!status || app.runStatus === status) &&
-      (!triggeredBy || app.triggeredBy === triggeredBy)
+      (!triggeredBy || this.triggeredByLabel(app.triggeredBy) === triggeredBy)
     ).sort((a, b) => a.name.localeCompare(b.name));
   });
 
   // ── Filter options ────────────────────────────────────────────────────────
 
   protected readonly techOptions = computed(() =>
-    [...new Set(this.apps().map(a => a.technology))].sort()
+    [...new Set(this.apps().map(a => a.technology))].sort((a, b) => a.localeCompare(b))
   );
   protected readonly cloudOptions = computed(() =>
-    [...new Set(this.apps().map(a => a.cloud))].sort()
+    [...new Set(this.apps().map(a => a.cloud))].sort((a, b) => a.localeCompare(b))
   );
   protected readonly envOptions = computed(() =>
-    [...new Set(this.apps().map(a => a.environment))].sort()
+    [...new Set(this.apps().map(a => a.environment))].sort((a, b) => a.localeCompare(b))
   );
   protected readonly statusOptions = computed(() =>
-    [...new Set(this.apps().map(a => a.runStatus))].sort()
+    [...new Set(this.apps().map(a => a.runStatus))].sort((a, b) =>
+      (a ?? '').localeCompare(b ?? '')
+    )
   );
   protected readonly triggeredByOptions = computed(() =>
-    [...new Set(this.apps().map(a => a.triggeredBy))].sort()
+    [...new Set(this.apps().map(a => this.triggeredByLabel(a.triggeredBy)))].sort((a, b) =>
+      a.localeCompare(b)
+    )
   );
 
   protected get hasActiveFilters(): boolean {
@@ -311,19 +356,25 @@ export class App implements OnInit, OnDestroy {
   protected formatDate(iso: string | null): string {
     if (!iso) return '—';
     const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
+    if (Number.isNaN(d.getTime())) return iso;
     const pad = (n: number) => n.toString().padStart(2, '0');
     return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
   // ── User ──────────────────────────────────────────────────────────────────
 
+  // Runs triggered before the triggeredBy parameter existed (or triggered directly
+  // in ADO) carry no user — surface them as "System" rather than a blank chip.
+  protected triggeredByLabel(name: string | null): string {
+    return name?.trim() ? name : 'System';
+  }
+
   protected initialsFor(name: string | null): string {
     if (!name) return '—';
     if (name === 'System') return '⚙';
 
     // Normalize: strip commas, split into parts, filter empties
-    const parts = name.replace(/,/g, '').split(/\s+/).filter(Boolean);
+    const parts = name.replaceAll(',', '').split(/\s+/).filter(Boolean);
     if (parts.length === 0) return '?';
 
     // Detect "Last, First [Middle]" format (original had a comma)
@@ -335,7 +386,7 @@ export class App implements OnInit, OnDestroy {
 
     // "First Last" or "First Middle Last" — use first and last
     const first = parts[0];
-    const last = parts[parts.length - 1];
+    const last = parts.at(-1)!;
     return parts.length === 1
       ? first[0].toUpperCase()
       : (first[0] + last[0]).toUpperCase();
@@ -348,7 +399,7 @@ export class App implements OnInit, OnDestroy {
         fetch('https://graph.microsoft.com/v1.0/me/photo/$value', {
           headers: { Authorization: `Bearer ${result.accessToken}` },
         })
-          .then((res) => (res.ok ? res.blob() : Promise.reject()))
+          .then((res) => (res.ok ? res.blob() : Promise.reject(new Error('photo fetch failed'))))
           .then((blob) => this.currentUserPhoto.set(URL.createObjectURL(blob)))
           .catch(() => {});
       },
@@ -368,7 +419,7 @@ export class App implements OnInit, OnDestroy {
     "codePath": "/",
     "runtimeVersion": "20",
     "scanTool": "sonarqube",
-    "buildTestTool": "jest"
+    "buildTestTool": "karma"
   },
   "cloud": {
     "awsAccountId": "123456789012",
@@ -431,6 +482,21 @@ export class App implements OnInit, OnDestroy {
   "cloud": {
     "awsAccountId": "123456789012",
     "awsRegion": "us-west-2"
+  }
+}`,
+    go: `{
+  "app": {
+    "appName": "my-go-app",
+    "appType": "go",
+    "codePath": "/",
+    "runtimeVersion": "1.23",
+    "scanTool": "sonarqube",
+    "buildTestTool": "gotestsum"
+  },
+  "cloud": {
+    "awsAccountId": "123456789012",
+    "awsRegion": "us-west-2",
+    "appExecutable": "my-go-app"
   }
 }`,
     html: `{
@@ -508,7 +574,8 @@ export class App implements OnInit, OnDestroy {
   "app": {
     "appName": "my-cap-app",
     "appType": "cap",
-    "codePath": "/"
+    "codePath": "/",
+    "scanTool": "sonarqube"
   },
   "cloud": {
     "awsAccountId": "123456789012",
@@ -516,6 +583,7 @@ export class App implements OnInit, OnDestroy {
     "cfApi": "https://api.cf.us10.hana.ondemand.com",
     "cfOrg": "my-cf-org",
     "cfSpace": "my-cf-space",
+    "cfOrigin": "my-idp-origin",
     "secretsManager": {
       "name": "my-secrets-manager-name",
       "keys": [
@@ -545,6 +613,7 @@ export class App implements OnInit, OnDestroy {
 
   protected showAddModal = signal(false);
   protected showManageModal = signal(false);
+  protected manageModalFullscreen = signal(false);
   protected selectedApp = signal<ManagedApp | null>(null);
   protected appDetail = signal<AppDetail | null>(null);
 
@@ -607,6 +676,24 @@ export class App implements OnInit, OnDestroy {
     });
   }
 
+  // The clickable pipeline-stage dots, in column order. `prepare` (a link) and
+  // `download` (static) are rendered separately; these are the expandable stages.
+  // Template renders one <button> per entry via @for to avoid 7 near-identical blocks.
+  protected readonly clickableStages: { key: keyof PipelineRun['stages']; label: string }[] = [
+    { key: 'review', label: 'Review' },
+    { key: 'build', label: 'Build' },
+    { key: 'test', label: 'Test' },
+    { key: 'scan', label: 'Scan' },
+    { key: 'infraDeploy', label: 'Infrastructure deploy' },
+    { key: 'appDeploy', label: 'App deploy' },
+    { key: 'integrationTest', label: 'Integration test' },
+  ];
+
+  // Status of a named stage on a run (typed accessor for the template @for).
+  protected stageStatusOf(run: PipelineRun, key: keyof PipelineRun['stages']): RunStatus {
+    return run.stages[key];
+  }
+
   protected onStageClick(event: Event, run: PipelineRun, stageName: string): void {
     event.stopPropagation();
 
@@ -614,9 +701,11 @@ export class App implements OnInit, OnDestroy {
     if (stageStatus === 'Skipped' || stageStatus === 'Pending') return;
 
     const current = this.expandedStage();
-    if (current && current.runId === run.id && current.stageName === stageName) {
+    if (current?.runId === run.id && current?.stageName === stageName) {
       this.expandedStage.set(null);
       this.stageDetail.set(null);
+      this.complianceSummary.set(null);
+      this.scanResultUrl.set(null);
       this.collapseStepLog();
       return;
     }
@@ -628,6 +717,21 @@ export class App implements OnInit, OnDestroy {
 
     const appName = this.selectedApp()?.name;
     if (!appName) return;
+
+    // On the Review stage, also pull the compliance summary (version + verdict
+    // counts) for inline display, but only once the report can exist.
+    this.complianceSummary.set(null);
+    if (stageName === 'review' && this.reviewReportAvailable(run.stages.review)) {
+      this.loadComplianceSummary(appName, run.id);
+    }
+
+    // On the Scan stage, pull the SonarQube dashboard URL (parsed server-side
+    // from the "Analyze code" log). Only present for a terminal SonarQube scan;
+    // the button stays hidden otherwise.
+    this.scanResultUrl.set(null);
+    if (stageName === 'scan' && this.scanResultAvailable(run.stages.scan)) {
+      this.loadScanResultUrl(appName, run.id);
+    }
 
     this.appService.getStageDetail(appName, run.id, stageName).subscribe({
       next: detail => {
@@ -685,6 +789,180 @@ export class App implements OnInit, OnDestroy {
     navigator.clipboard.writeText(log).then(() => this.showToast('Log copied to clipboard.'));
   }
 
+  protected complianceReportDownloading = signal(false);
+
+  // Compliance summary (tool version + verdict counts) parsed from the Review
+  // stage's compliance-report.json. Loaded when the Review stage is expanded;
+  // null when unavailable (run predates the JSON output, or still running).
+  protected complianceSummary = signal<ComplianceSummary | null>(null);
+  protected complianceSummaryLoading = signal(false);
+
+  // Verdicts in display order, so the summary table reads worst-first and
+  // matches the report's own ordering.
+  private readonly verdictOrder = ['FAIL', 'PARTIAL', 'PASS', 'MANUAL', 'N/A'];
+
+  // Returns the verdict counts as ordered {verdict, count} rows for the table,
+  // skipping verdicts with a zero count.
+  protected complianceVerdictRows(): { verdict: string; count: number }[] {
+    const summary = this.complianceSummary();
+    if (!summary) return [];
+    const by = summary.byVerdict ?? {};
+    const known = this.verdictOrder.filter(v => by[v] !== undefined);
+    // Include any verdicts the API returns that aren't in the known order.
+    const extra = Object.keys(by).filter(v => !this.verdictOrder.includes(v));
+    return [...known, ...extra].map(verdict => ({ verdict, count: by[verdict] }));
+  }
+
+  // Loads the compliance summary for an expanded Review stage. Silent on
+  // failure — the summary table simply doesn't render (the Download Report
+  // button and its own error handling remain).
+  private loadComplianceSummary(appName: string, runId: number): void {
+    this.complianceSummary.set(null);
+    this.complianceSummaryLoading.set(true);
+    this.appService.getComplianceSummary(appName, runId).subscribe({
+      next: summary => {
+        this.complianceSummaryLoading.set(false);
+        this.complianceSummary.set(summary);
+      },
+      error: () => {
+        this.complianceSummaryLoading.set(false);
+        this.complianceSummary.set(null);
+      },
+    });
+  }
+
+  // The Review stage publishes its report on succeededOrFailed(), so the file
+  // only exists once the stage reaches a terminal state. A Running/Pending stage
+  // has no report yet, and a Canceled/Skipped run never produced one — so the
+  // Download Report button must stay hidden outside these two statuses.
+  protected reviewReportAvailable(status: RunStatus): boolean {
+    return status === 'Success' || status === 'Failed';
+  }
+
+  // SonarQube dashboard URL for an expanded Scan stage, parsed server-side from
+  // the "Analyze code" step log. Null when the scan wasn't SonarQube, hasn't
+  // finished, or emitted no URL — the "View in SonarQube" button hides then.
+  protected scanResultUrl = signal<string | null>(null);
+  protected scanResultUrlLoading = signal(false);
+
+  // SonarQubeAnalyze prints the dashboard URL only on a terminal scan, so only
+  // attempt the lookup once the Scan stage has succeeded or failed.
+  protected scanResultAvailable(status: RunStatus): boolean {
+    return status === 'Success' || status === 'Failed';
+  }
+
+  // Loads the SonarQube dashboard URL for an expanded Scan stage. Silent on
+  // failure / absence (non-SonarQube scan, Wiz, or no URL line) — the button
+  // simply doesn't render.
+  private loadScanResultUrl(appName: string, runId: number): void {
+    this.scanResultUrl.set(null);
+    this.scanResultUrlLoading.set(true);
+    this.appService.getScanResultUrl(appName, runId).subscribe({
+      next: result => {
+        this.scanResultUrlLoading.set(false);
+        this.scanResultUrl.set(result.url);
+      },
+      error: () => {
+        this.scanResultUrlLoading.set(false);
+        this.scanResultUrl.set(null);
+      },
+    });
+  }
+
+  // Opens the SonarQube dashboard for the expanded Scan stage in a new tab.
+  protected openScanResult(event: Event): void {
+    event.stopPropagation();
+    const url = this.scanResultUrl();
+    if (url) window.open(url, '_blank', 'noopener');
+  }
+
+  // Fetches the Markdown compliance report published by the Review stage and
+  // triggers a client-side download. Only shown on the Review stage detail.
+  protected downloadComplianceReport(event: Event): void {
+    event.stopPropagation();
+    const appName = this.selectedApp()?.name;
+    const runId = this.expandedStage()?.runId;
+    if (!appName || !runId) return;
+
+    this.complianceReportDownloading.set(true);
+    this.appService.getComplianceReport(appName, runId).subscribe({
+      next: result => {
+        this.complianceReportDownloading.set(false);
+        const blob = new Blob([result.report], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `compliance-report-${appName}-${runId}.md`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.complianceReportDownloading.set(false);
+        this.showToast('No compliance report available for this run.');
+      }
+    });
+  }
+
+  // ── View compliance report modal ────────────────────────────────────────────
+
+  protected showReportModal = signal(false);
+  protected reportModalLoading = signal(false);
+  protected reportModalReport = signal<ComplianceReport | null>(null);
+  protected reportModalTitle = signal('');
+  protected reportModalFullscreen = signal(false);
+
+  protected toggleReportModalFullscreen(): void {
+    this.reportModalFullscreen.update(v => !v);
+  }
+
+  // Fetches the structured JSON report and opens it, rendered natively, in a
+  // modal. Rendering from JSON (not the .md) keeps the view in the app's design
+  // system — grouped findings, verdict pills, profile — with no Markdown parsing.
+  protected viewComplianceReport(event: Event): void {
+    event.stopPropagation();
+    const appName = this.selectedApp()?.name;
+    const runId = this.expandedStage()?.runId;
+    if (!appName || !runId) return;
+
+    this.reportModalTitle.set(`Compliance Report — ${appName} #${runId}`);
+    this.reportModalReport.set(null);
+    this.reportModalLoading.set(true);
+    this.showReportModal.set(true);
+
+    this.appService.getComplianceReportJson(appName, runId).subscribe({
+      next: report => {
+        this.reportModalLoading.set(false);
+        this.reportModalReport.set(report);
+      },
+      error: () => {
+        this.reportModalLoading.set(false);
+        this.showReportModal.set(false);
+        this.showToast('No compliance report available for this run.');
+      }
+    });
+  }
+
+  protected closeReportModal(): void {
+    this.showReportModal.set(false);
+    this.reportModalReport.set(null);
+    this.reportModalFullscreen.set(false);
+  }
+
+  // Findings grouped by verdict in display order (worst-first), for the modal.
+  // Verdicts with no findings are omitted.
+  protected reportFindingGroups(): { verdict: string; findings: ComplianceFinding[] }[] {
+    const report = this.reportModalReport();
+    if (!report) return [];
+    return this.verdictOrder
+      .map(verdict => ({
+        verdict,
+        findings: report.findings.filter(f => f.verdict === verdict),
+      }))
+      .filter(g => g.findings.length > 0);
+  }
+
   private collapseStepLog(): void {
     this.expandedLogId.set(null);
     this.stepLog.set(null);
@@ -693,6 +971,8 @@ export class App implements OnInit, OnDestroy {
   protected collapseStageDetail(): void {
     this.expandedStage.set(null);
     this.stageDetail.set(null);
+    this.complianceSummary.set(null);
+    this.scanResultUrl.set(null);
     this.collapseStepLog();
   }
 
@@ -704,17 +984,31 @@ export class App implements OnInit, OnDestroy {
   protected newRunConfig = '';
   protected newRunBranchError = signal<string | null>(null);
   protected newRunEnvLocked = signal(false);
+  protected newRunReview = true;
   protected newRunBuild = true;
   protected newRunTests = false;
   protected newRunScan = false;
   protected newRunDeploy = false;
   protected newRunIntegrations = false;
   protected newRunDeployInfra = 'none';
+  // Default checked: when a committed tfstate is found, the user almost always
+  // wants EPIC to take over managing it.
+  protected newRunForceStateCopy = true;
   protected configSearchStatus = signal<'idle' | 'searching' | 'found' | 'not-found' | 'error'>('idle');
   protected availableConfigs = signal<string[]>([]);
   protected newRunHasInfra = signal(false);
   protected newRunHasInfraParams = signal(false);
+  // Whether the app's Terraform declares an S3 remote backend. When the user
+  // requests an infra deploy without one, we confirm they don't want EPIC to
+  // manage their state before triggering the run.
+  protected newRunHasS3Backend = signal(false);
+  // Whether a committed *.tfstate exists in the repo. If so we offer a
+  // "Force State Copy" checkbox so EPIC migrates it into the S3 backend.
+  protected newRunHasTfState = signal(false);
   protected newRunConfigAppType = signal<string | null>(null);
+  protected newRunBuildTestTool = signal<string | null>(null);
+  protected newRunScanTool = signal<string | null>(null);
+  protected newRunIntegrationTestTool = signal<string | null>(null);
   protected newRunValidating = signal(false);
   private lastValidatedBranch = '';
 
@@ -722,11 +1016,30 @@ export class App implements OnInit, OnDestroy {
   protected repoCheckStatus = signal<'idle' | 'checking' | 'available' | 'in-epic-not-mine' | 'already-mine' | 'not-found'>('idle');
   protected foundMasterApp = signal<AppLookup | null>(null);
 
+  // GitHub org/source the new app is pulled from. Populated from the API; the
+  // dropdown is only shown when more than one source is configured.
+  protected githubSources = signal<GitHubSourceOption[]>([]);
+  protected selectedSource = signal<string>('');
+
   protected onAddApp(): void {
     this.newAppRepo = '';
     this.repoCheckStatus.set('idle');
     this.foundMasterApp.set(null);
     this.showAddModal.set(true);
+    // Load the configured sources (once) and default the selection.
+    if (this.githubSources().length === 0) {
+      this.appService.getGitHubSources().subscribe({
+        next: res => {
+          this.githubSources.set(res.sources);
+          this.selectedSource.set(res.defaultSource);
+        },
+        // Non-fatal: with no source list the selection stays '' and the API
+        // falls back to its default source (single-org behavior).
+        error: () => { /* leave sources empty; onboarding still works */ }
+      });
+    } else if (!this.selectedSource()) {
+      this.selectedSource.set(this.githubSources().find(s => s.isDefault)?.name ?? this.githubSources()[0]?.name ?? '');
+    }
   }
 
   protected closeAddModal(): void {
@@ -738,6 +1051,12 @@ export class App implements OnInit, OnDestroy {
     this.foundMasterApp.set(null);
   }
 
+  // Changing the org invalidates any prior repo check (same name can differ per org).
+  protected onSourceChange(): void {
+    this.repoCheckStatus.set('idle');
+    this.foundMasterApp.set(null);
+  }
+
   protected onRepoBlur(): void {
     const repo = this.newAppRepo.trim();
     if (!repo) {
@@ -745,7 +1064,7 @@ export class App implements OnInit, OnDestroy {
       return;
     }
     this.repoCheckStatus.set('checking');
-    this.appService.checkRepo(repo).subscribe({
+    this.appService.checkRepo(repo, this.selectedSource() || undefined).subscribe({
       next: result => {
         this.repoCheckStatus.set(result.status);
         this.foundMasterApp.set(result.masterApp ?? null);
@@ -762,7 +1081,7 @@ export class App implements OnInit, OnDestroy {
     if (!this.canOnboard) return;
     const repo = this.newAppRepo.trim();
     this.loading.set(true);
-    this.appService.onboardApp(repo).subscribe({
+    this.appService.onboardApp(repo, this.selectedSource() || undefined).subscribe({
       next: app => {
         this.loading.set(false);
         this.apps.update(list => [app, ...list]);
@@ -821,15 +1140,22 @@ export class App implements OnInit, OnDestroy {
     this.availableConfigs.set([]);
     this.newRunHasInfra.set(false);
     this.newRunHasInfraParams.set(false);
+    this.newRunHasS3Backend.set(false);
+    this.newRunHasTfState.set(false);
     this.newRunConfigAppType.set(null);
+    this.newRunBuildTestTool.set(null);
+    this.newRunScanTool.set(null);
+    this.newRunIntegrationTestTool.set(null);
     this.newRunValidating.set(false);
     this.lastValidatedBranch = '';
+    this.newRunReview = true;
     this.newRunBuild = true;
     this.newRunTests = false;
     this.newRunScan = false;
     this.newRunDeploy = false;
     this.newRunIntegrations = false;
     this.newRunDeployInfra = 'none';
+    this.newRunForceStateCopy = true;
     this.showManageModal.set(false);
     this.showNewRunModal.set(true);
   }
@@ -850,7 +1176,12 @@ export class App implements OnInit, OnDestroy {
     this.newRunConfig = '';
     this.newRunHasInfra.set(false);
     this.newRunHasInfraParams.set(false);
+    this.newRunHasS3Backend.set(false);
+    this.newRunHasTfState.set(false);
     this.newRunConfigAppType.set(null);
+    this.newRunBuildTestTool.set(null);
+    this.newRunScanTool.set(null);
+    this.newRunIntegrationTestTool.set(null);
   }
 
   protected onNewRunBranchBlur(): void {
@@ -868,29 +1199,31 @@ export class App implements OnInit, OnDestroy {
     this.newRunConfig = '';
     this.newRunHasInfra.set(false);
     this.newRunHasInfraParams.set(false);
+    this.newRunHasS3Backend.set(false);
+    this.newRunHasTfState.set(false);
     this.appService.getConfigs(repo, branch).subscribe({
       next: result => {
         if (result.configs.length === 0) {
           this.configSearchStatus.set('not-found');
           this.newRunValidating.set(false);
+          // No epic.json → contract-less Review-only run. Force the toggles so a
+          // stale/default selection (Build defaults on) isn't submitted; only
+          // Review stays available and checked.
+          this.newRunReview = true;
+          this.newRunBuild = false;
+          this.newRunTests = false;
+          this.newRunScan = false;
+          this.newRunDeploy = false;
+          this.newRunIntegrations = false;
+          this.newRunDeployInfra = 'none';
         } else {
           this.availableConfigs.set(result.configs);
           this.configSearchStatus.set('found');
           if (result.configs.length === 1) {
             this.newRunConfig = result.configs[0];
-            this.appService.checkConfigInfra(repo, branch, result.configs[0]).subscribe({
-              next: r => {
-                this.newRunHasInfra.set(r.hasInfra);
-                this.newRunHasInfraParams.set(r.hasInfraParams);
-                this.newRunConfigAppType.set(r.appType);
-                this.applyAppTypeDefaults(r.appType);
-              },
-              error: () => {
-                this.newRunHasInfra.set(false);
-                this.newRunHasInfraParams.set(false);
-              },
-              complete: () => this.newRunValidating.set(false)
-            });
+            // Single config auto-resolves its infra/tooling — same handling as an
+            // explicit config pick (onConfigSelect → checkInfraForConfig).
+            this.checkInfraForConfig(repo, branch, result.configs[0]);
           } else {
             this.newRunValidating.set(false);
           }
@@ -909,7 +1242,16 @@ export class App implements OnInit, OnDestroy {
     if (!repo || !branch || !this.newRunConfig) return;
     this.newRunHasInfra.set(false);
     this.newRunHasInfraParams.set(false);
+    this.newRunHasS3Backend.set(false);
+    this.newRunHasTfState.set(false);
+    this.newRunBuildTestTool.set(null);
+    this.newRunScanTool.set(null);
+    this.newRunIntegrationTestTool.set(null);
     this.newRunDeployInfra = 'none';
+    // Mark validation in-flight so the "no infra found" hint (and other
+    // result-derived messages) stay hidden until checkConfigInfra resolves,
+    // instead of flashing the misleading default while the request is pending.
+    this.newRunValidating.set(true);
     this.checkInfraForConfig(repo, branch, this.newRunConfig);
   }
 
@@ -918,18 +1260,39 @@ export class App implements OnInit, OnDestroy {
       next: result => {
         this.newRunHasInfra.set(result.hasInfra);
         this.newRunHasInfraParams.set(result.hasInfraParams);
+        this.newRunHasS3Backend.set(result.hasS3Backend);
+        this.newRunHasTfState.set(result.hasTfState);
         this.newRunConfigAppType.set(result.appType);
+        this.newRunBuildTestTool.set(result.buildTestTool);
+        this.newRunScanTool.set(result.scanTool);
+        this.newRunIntegrationTestTool.set(result.integrationTestTool);
         this.applyAppTypeDefaults(result.appType);
+        // Default to Apply when the resolved infra folder exists
+        // (.infra/ or the epic.json-specified infraPath). If there's no
+        // S3 backend, Apply stays selected but disabled, which keeps the
+        // Run button disabled until the user adds the backend.
+        // BTP keeps its "Plan ONLY" default from applyAppTypeDefaults.
+        if (result.hasInfra && result.appType !== 'btp') this.newRunDeployInfra = 'apply';
       },
       error: () => {
         this.newRunHasInfra.set(false);
         this.newRunHasInfraParams.set(false);
-      }
+        this.newRunHasS3Backend.set(false);
+        this.newRunHasTfState.set(false);
+        this.newRunBuildTestTool.set(null);
+        this.newRunScanTool.set(null);
+        this.newRunIntegrationTestTool.set(null);
+        this.newRunValidating.set(false);
+      },
+      complete: () => this.newRunValidating.set(false)
     });
   }
 
   private applyAppTypeDefaults(appType: string | null): void {
     if (appType === 'btp' || appType === 'infra') {
+      // Review is app-code only — infrastructure appTypes (btp/infra) have no
+      // Review stage, so force it off alongside the other app stages.
+      this.newRunReview = false;
       this.newRunBuild = false;
       this.newRunDeploy = false;
       this.newRunIntegrations = false;
@@ -937,10 +1300,54 @@ export class App implements OnInit, OnDestroy {
       this.newRunScan = false;
       this.newRunDeployInfra = 'apply';
     }
+    // BTP defaults: environment "other" and infrastructure "Plan ONLY" (plan),
+    // unless a release branch has locked the environment to prod.
+    if (appType === 'btp') {
+      if (!this.newRunEnvLocked()) {
+        this.newRunEnvironment = 'other';
+      }
+      this.newRunDeployInfra = 'plan';
+    }
+    // Uncheck any stage the resolved config can't actually run so a stale
+    // selection (e.g. after switching configs) isn't submitted.
+    if (this.reviewDisabled) this.newRunReview = false;
+    if (this.buildTestsDisabled) this.newRunTests = false;
+    if (this.scanDisabled) this.newRunScan = false;
+    if (this.integrationTestsDisabled) this.newRunIntegrations = false;
+    if (this.deployDisabled) this.newRunDeploy = false;
   }
 
   protected get infraDisabled(): boolean {
     return !this.newRunHasInfra();
+  }
+
+  // No epic.json in the repo/branch. The orchestrator still runs a Review-only
+  // pipeline in this case (contract-less fallback), so we keep Review available
+  // and lock every other stage — there's no contract to build/test/scan/deploy.
+  protected get noConfig(): boolean {
+    return this.configSearchStatus() === 'not-found';
+  }
+
+  // Review (PG&E compliance gate) is app-code only: available for any app once
+  // a config is selected — or when the repo has NO config at all (contract-less
+  // Review-only run) — but never for infrastructure appTypes (btp/infra).
+  protected get reviewDisabled(): boolean {
+    if (this.newRunConfigAppType() === 'btp' || this.newRunConfigAppType() === 'infra') return true;
+    return !this.newRunConfig && !this.noConfig;
+  }
+
+  // Build Tests / Scan / Integration Tests each require the corresponding tool
+  // to be declared in epic.json's `app` section — without it the stage is a no-op.
+  protected get buildTestsDisabled(): boolean {
+    return !this.newRunConfig || !this.newRunBuildTestTool();
+  }
+
+  protected get scanDisabled(): boolean {
+    // SonarQube analyzes .NET in MSBuild mode — analysis is a byproduct of the
+    // compile, so a .NET scan cannot run without a build. Require Build to be
+    // selected before Scan is available for dotnet apps.
+    if (this.newRunConfigAppType() === 'dotnet' && !this.newRunBuild) return true;
+    return !this.newRunConfig || !this.newRunScanTool();
   }
 
   protected get deployDisabled(): boolean {
@@ -949,10 +1356,14 @@ export class App implements OnInit, OnDestroy {
     if (this.newRunConfigAppType() === 'cap') {
       return !this.newRunConfig || !this.newRunBuild;
     }
-    return !this.newRunConfig || !this.newRunBuild || this.newRunConfigAppType() === 'btp' || this.newRunConfigAppType() === 'infra' || this.infraDisabled;
+    // App deploy needs somewhere to deploy to: either an infra folder to provision
+    // or cloud deploy targets in epic.json. No `.infra` and no cloud params → nothing to deploy against.
+    if (!this.newRunHasInfra() && !this.newRunHasInfraParams()) return true;
+    return !this.newRunConfig || !this.newRunBuild || this.newRunConfigAppType() === 'btp' || this.newRunConfigAppType() === 'infra';
   }
 
   protected get integrationTestsDisabled(): boolean {
+    if (!this.newRunIntegrationTestTool()) return true;
     if (this.newRunConfigAppType() === 'cap') {
       return !this.newRunConfig;
     }
@@ -960,17 +1371,57 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected onBuildToggle(checked: boolean): void {
-    if (!checked) this.newRunDeploy = false;
+    if (!checked) {
+      this.newRunDeploy = false;
+      // A .NET scan is compile-instrumented, so it can't run without a build.
+      // Clear the selection when Build is unchecked (scanDisabled re-disables it).
+      if (this.newRunConfigAppType() === 'dotnet') this.newRunScan = false;
+    }
+  }
+
+  /**
+   * Plan ONLY publishes no Terraform outputs, so a Deploy in the same run can't
+   * use freshly-provisioned infra — it falls back to existing infra (epic.json),
+   * exactly like the "None" path. Surface that so the pairing isn't mistaken for
+   * "provision then deploy". Informational only — the combination is valid.
+   */
+  protected get planOnlyWithDeploy(): boolean {
+    return this.newRunDeployInfra === 'plan' && this.newRunDeploy;
   }
 
   protected get canRunNewPipeline(): boolean {
+    const branchOk = !!this.newRunBranch.trim() && !this.newRunBranchError() && !!this.newRunEnvironment;
+    if (!branchOk) return false;
+    // Contract-less Review-only run: no epic.json, but Review is selected.
+    if (this.noConfig) return this.newRunReview;
     return (
-      !!this.newRunBranch.trim() &&
-      !this.newRunBranchError() &&
-      !!this.newRunEnvironment &&
       this.configSearchStatus() === 'found' &&
-      !!this.newRunConfig.trim()
+      !!this.newRunConfig.trim() &&
+      // An infra deploy needs an S3 remote backend for EPIC-managed state.
+      !this.infraDeployBlockedNoS3Backend
     );
+  }
+
+  /**
+   * Infra folder exists but its Terraform has no S3 remote backend, so EPIC
+   * can't manage the state. Apply/Destroy are unavailable in this case.
+   */
+  protected get missingS3Backend(): boolean {
+    return this.newRunHasInfra() && !this.newRunHasS3Backend();
+  }
+
+  /** Infra deploy was requested but the Terraform has no S3 remote backend. */
+  protected get infraDeployBlockedNoS3Backend(): boolean {
+    return this.newRunDeployInfra !== 'none' && this.missingS3Backend;
+  }
+
+  /**
+   * Show the "Force State Copy" option only when a committed tfstate was found
+   * AND the run can actually deploy infra (S3 backend present, Apply/Destroy
+   * selected) — otherwise there's no init to migrate state into.
+   */
+  protected get showForceStateCopy(): boolean {
+    return this.newRunHasTfState() && this.newRunHasS3Backend() && this.newRunDeployInfra !== 'none';
   }
 
   protected closeNewRunModal(): void {
@@ -993,12 +1444,15 @@ export class App implements OnInit, OnDestroy {
       branch,
       environment: env,
       config: this.newRunConfig.trim() || '.pipeline/epic.json',
+      review: this.newRunReview,
       build: this.newRunBuild,
       tests: this.newRunTests,
       scan: this.newRunScan,
       deploy: this.newRunDeploy,
       integrations: this.newRunIntegrations,
-      deployInfra: this.newRunDeployInfra
+      deployInfra: this.newRunDeployInfra,
+      // Only meaningful when the option is actually offered for this run.
+      forceStateCopy: this.showForceStateCopy && this.newRunForceStateCopy
     }).subscribe({
       next: (result) => {
         this.loading.set(false);
@@ -1007,7 +1461,7 @@ export class App implements OnInit, OnDestroy {
         const triggeredAt = new Date().toISOString();
         const currentApp = this.apps().find(a => a.name === appName);
         this.pendingApps.set(appName, {
-          ...(currentApp ?? { name: appName, appName: null, technology: '', cloud: '', environment: env, runId: null, successRate: null, avgDuration: null }),
+          ...(currentApp ?? { name: appName, appName: null, githubOrg: null, technology: '', cloud: '', environment: env, runId: null, successRate: null, avgDuration: null }),
           lastPipelineRun: triggeredAt,
           branch,
           environment: env,
@@ -1035,6 +1489,7 @@ export class App implements OnInit, OnDestroy {
           stages: {
             prepare: 'Pending',
             download: 'Pending',
+            review: this.newRunReview ? 'Pending' : 'Skipped',
             build: 'Pending',
             test: 'Pending',
             scan: 'Pending',
@@ -1100,51 +1555,78 @@ export class App implements OnInit, OnDestroy {
 
   protected closeManageModal(): void {
     this.showManageModal.set(false);
+    this.manageModalFullscreen.set(false);
     this.selectedApp.set(null);
     this.appDetail.set(null);
     this.collapseStageDetail();
+  }
+
+  protected toggleManageModalFullscreen(): void {
+    this.manageModalFullscreen.update(v => !v);
   }
 
   // ── Builder modal ─────────────────────────────────────────────────────────
 
   protected showBuilderModal = signal(false);
   private builderOpenedFromNewRun = false;
-  protected builderStep = signal<1 | 2 | 3>(1);
+  protected builderStep = signal<BuilderStep>(1);
 
   protected builderAppName = '';
-  protected builderAppType = 'angular';
+  protected builderAppType = '';
   protected builderCodePath = '';
   protected builderRuntimeVersion = '';
   protected builderInfraPath = '';
   protected builderConfigPath = '';
   protected builderScanTool = '';
   protected builderUnitTestTool = '';
+  protected builderIntegrationTestTool = '';
 
   protected builderAwsAccountId = '';
   protected builderAwsRegion = 'us-west-2';
   protected builderSecretsManagerName = '';
   protected builderSecretsManagerKeys = signal<string[]>(['']);
+  // Cloud Foundry deploy target — CAP apps only.
+  protected builderCfApi = '';
+  protected builderCfOrg = '';
+  protected builderCfSpace = '';
+  protected builderCfOrigin = '';
+  // EC2 Image Builder component names — AMI apps only (required: cloud.components).
+  protected builderComponents = signal<string[]>(['']);
 
   protected readonly builderRuntimePlaceholders: Record<string, string> = {
-    angular: '20 (default)', react: '20 (default)', dotnet: '10.x (default)', python: '3.11 (default)', java: '17 (default)', html: '18 (default)', php: '8.3 (default)', cap: '22 (default)', ami: '', btp: '', infra: ''
+    angular: '20 (default)', react: '20 (default)', dotnet: '9.x (default)', python: '3.11 (default)', java: '17 (default)', go: '1.23 (default)', html: '20 (default)', php: '8.3 (default)', cap: '20 (default)', ami: '', btp: '', infra: ''
   };
 
   protected readonly builderUnitTestOptions: Record<string, string[]> = {
-    angular: ['jest'], react: ['jest', 'vitest'], dotnet: ['xunit', 'nunit'], python: ['pytest'], java: ['junit'], php: ['phpunit'], cap: ['jest'], html: [], ami: [], btp: [], infra: []
+    angular: ['karma', 'jest'], react: ['jest', 'vitest'], dotnet: ['xunit', 'nunit'], python: ['pytest'], java: ['junit'], go: ['gotestsum'], php: ['phpunit'], cap: ['jest'], html: [], ami: [], btp: [], infra: []
+  };
+
+  protected readonly builderIntegrationTestOptions: Record<string, string[]> = {
+    angular: ['playwright'], react: ['playwright'], dotnet: ['playwright'], node: ['playwright'], python: ['playwright'], java: ['playwright'], go: ['playwright'], php: ['playwright'], html: ['playwright'], cap: ['playwright'], ami: [], btp: [], infra: []
   };
 
   protected onBuilderAppTypeChange(): void {
-    this.builderAppName = '';
+    // App Name is entered before App Type (and is type-independent), so preserve it.
     this.builderCodePath = '';
     this.builderRuntimeVersion = '';
     this.builderInfraPath = '';
     this.builderConfigPath = '';
-    this.builderScanTool = '';
-    this.builderUnitTestTool = '';
+    // Prefill preferred tools (first option) for the new appType. The scan/test fields only
+    // render for code-bearing appTypes (not btp/ami/infra); defaultScanTool returns '' for
+    // those, and builderUnitTestOptions is empty for them, so both stay on "None".
+    this.builderScanTool = defaultScanTool(this.builderAppType as AppType);
+    this.builderUnitTestTool = this.builderUnitTestOptions[this.builderAppType]?.[0] ?? '';
+    // Integration test tool intentionally left unset — defaults to "None" (matches the wizard).
+    this.builderIntegrationTestTool = '';
     this.builderAwsAccountId = '';
     this.builderAwsRegion = 'us-west-2';
     this.builderSecretsManagerName = '';
     this.builderSecretsManagerKeys.set(['']);
+    this.builderCfApi = '';
+    this.builderCfOrg = '';
+    this.builderCfSpace = '';
+    this.builderCfOrigin = '';
+    this.builderComponents.set(['']);
   }
 
   protected openBuilderFromNewRun(): void {
@@ -1156,17 +1638,23 @@ export class App implements OnInit, OnDestroy {
   protected openBuilder(): void {
     this.builderStep.set(1);
     this.builderAppName = '';
-    this.builderAppType = this.howToAppType || 'angular';
+    this.builderAppType = '';
     this.builderCodePath = '';
     this.builderRuntimeVersion = '';
     this.builderInfraPath = '';
     this.builderConfigPath = '';
     this.builderScanTool = '';
     this.builderUnitTestTool = '';
+    this.builderIntegrationTestTool = '';
     this.builderAwsAccountId = '';
     this.builderAwsRegion = 'us-west-2';
     this.builderSecretsManagerName = '';
     this.builderSecretsManagerKeys.set(['']);
+    this.builderCfApi = '';
+    this.builderCfOrg = '';
+    this.builderCfSpace = '';
+    this.builderCfOrigin = '';
+    this.builderComponents.set(['']);
     this.closeHowTo();
     this.showBuilderModal.set(true);
   }
@@ -1178,20 +1666,19 @@ export class App implements OnInit, OnDestroy {
       this.showManageModal.set(true);
     } else {
       this.showHowToModal.set(true);
-      setTimeout(() => {
-        document.querySelector('.howto-sample-controls')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
     }
   }
 
   protected builderNext(): void {
     const step = this.builderStep();
-    if (step < 3) this.builderStep.set((step + 1) as 1 | 2 | 3);
+    if (step === 1) this.builderStep.set(2);
+    else if (step === 2) this.builderStep.set(3);
   }
 
   protected builderBack(): void {
     const step = this.builderStep();
-    if (step > 1) this.builderStep.set((step - 1) as 1 | 2 | 3);
+    if (step === 3) this.builderStep.set(2);
+    else if (step === 2) this.builderStep.set(1);
   }
 
   protected addSecretKey(): void {
@@ -1210,6 +1697,22 @@ export class App implements OnInit, OnDestroy {
     this.builderSecretsManagerKeys.update(keys => keys.map((k, i) => i === index ? value : k));
   }
 
+  protected addComponent(): void {
+    this.builderComponents.update(c => [...c, '']);
+    setTimeout(() => {
+      const rows = document.querySelectorAll('.builder-components__row input');
+      (rows[rows.length - 1] as HTMLElement)?.focus();
+    });
+  }
+
+  protected removeComponent(index: number): void {
+    this.builderComponents.update(c => c.filter((_, i) => i !== index));
+  }
+
+  protected updateComponent(index: number, value: string): void {
+    this.builderComponents.update(c => c.map((v, i) => i === index ? value : v));
+  }
+
   protected get builderJson(): string {
     const app: Record<string, any> = { appName: this.builderAppName, appType: this.builderAppType };
     if (this.builderCodePath) app['codePath'] = this.builderCodePath;
@@ -1218,14 +1721,17 @@ export class App implements OnInit, OnDestroy {
     if (this.builderConfigPath) app['configPath'] = this.builderConfigPath;
     if (this.builderScanTool) app['scanTool'] = this.builderScanTool;
     if (this.builderUnitTestTool) app['buildTestTool'] = this.builderUnitTestTool;
+    if (this.builderIntegrationTestTool) app['integrationTestTool'] = this.builderIntegrationTestTool;
 
     const cloud: Record<string, any> = { awsAccountId: this.builderAwsAccountId, awsRegion: this.builderAwsRegion };
     if (this.builderAppType === 'cap') {
-      // CAP deploys to a pre-existing Cloud Foundry space — stub the target and
-      // the Secrets Manager entry holding the CF credentials.
-      cloud['cfApi'] = '';
-      cloud['cfOrg'] = '';
-      cloud['cfSpace'] = '';
+      // CAP deploys to a pre-existing Cloud Foundry space — all four CF fields are
+      // required by the deploy stage (deploy/sap/cap.yml), plus the Secrets Manager
+      // entry holding the CF credentials.
+      cloud['cfApi'] = this.builderCfApi;
+      cloud['cfOrg'] = this.builderCfOrg;
+      cloud['cfSpace'] = this.builderCfSpace;
+      cloud['cfOrigin'] = this.builderCfOrigin;
       const keys = this.builderSecretsManagerKeys().filter(k => k.trim());
       cloud['secretsManager'] = { name: this.builderSecretsManagerName, keys };
     } else if (this.builderAppType === 'btp' || this.builderAppType === 'infra') {
@@ -1233,6 +1739,10 @@ export class App implements OnInit, OnDestroy {
       if (this.builderSecretsManagerName || keys.length) {
         cloud['secretsManager'] = { name: this.builderSecretsManagerName, keys };
       }
+    } else if (this.builderAppType === 'ami') {
+      // AMI triggers one EC2 Image Builder pipeline per component — cloud.components
+      // is required by the build stage (build/ami/main.yml).
+      cloud['components'] = this.builderComponents().map(c => c.trim()).filter(Boolean);
     }
 
     return JSON.stringify({ app, cloud }, null, 2);
@@ -1244,9 +1754,44 @@ export class App implements OnInit, OnDestroy {
     });
   }
 
+  // Normalize-as-typed handlers, mirroring the wizard. The builder binds plain properties
+  // (not signals), so these run on every (ngModelChange).
+  protected onBuilderAppNameChange(value: string): void {
+    this.builderAppName = normalizeAppName(value);
+  }
+
+  protected onBuilderAwsAccountIdChange(value: string): void {
+    this.builderAwsAccountId = normalizeAwsAccountId(value);
+  }
+
+  // Inline format errors — null while empty or valid, message once present-but-malformed.
+  protected get builderAppNameError(): string | null {
+    const name = this.builderAppName.trim();
+    if (!name) return null;
+    return APP_NAME_PATTERN.test(name) ? null : APP_NAME_RULE;
+  }
+
+  protected get builderAwsAccountIdError(): string | null {
+    const id = this.builderAwsAccountId.trim();
+    if (!id) return null;
+    return AWS_ACCOUNT_ID_PATTERN.test(id) ? null : 'AWS account ID must be exactly 12 digits.';
+  }
+
   protected get canBuilderNext(): boolean {
-    if (this.builderStep() === 1) return !!this.builderAppName.trim() && !!this.builderAppType;
-    if (this.builderStep() === 2) return !!this.builderAwsAccountId.trim() && !!this.builderAwsRegion;
+    if (this.builderStep() === 1) return APP_NAME_PATTERN.test(this.builderAppName.trim()) && !!this.builderAppType;
+    if (this.builderStep() === 2) {
+      if (!AWS_ACCOUNT_ID_PATTERN.test(this.builderAwsAccountId.trim()) || !this.builderAwsRegion) return false;
+      // CAP deploy fails without all four Cloud Foundry fields, so require them here.
+      if (this.builderAppType === 'cap') {
+        return !!this.builderCfApi.trim() && !!this.builderCfOrg.trim()
+          && !!this.builderCfSpace.trim() && !!this.builderCfOrigin.trim();
+      }
+      // AMI build requires at least one Image Builder component.
+      if (this.builderAppType === 'ami') {
+        return this.builderComponents().some(c => c.trim());
+      }
+      return true;
+    }
     return true;
   }
 
@@ -1255,6 +1800,10 @@ export class App implements OnInit, OnDestroy {
   protected readonly APP_TYPE_LABELS = APP_TYPE_LABELS;
   protected readonly NO_ARCHITECTURE_APP_TYPES = NO_ARCHITECTURE_APP_TYPES;
   protected readonly SCAN_TOOL_OPTIONS = SCAN_TOOL_OPTIONS;
+  // Live input normalizers, exposed for template (ngModelChange) wiring. See wizard.model.ts.
+  protected readonly normalizeAppName = normalizeAppName;
+  protected readonly normalizeAwsAccountId = normalizeAwsAccountId;
+  protected readonly normalizeAzureSubscriptionId = normalizeAzureSubscriptionId;
 
   protected wizardBuildTestOptions(): string[] {
     const t = this.wizardAnswers().appType;
@@ -1267,15 +1816,45 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected showCreateAppWizard = signal(false);
-  protected wizardStep = signal<1 | 2 | 3 | 4 | 5>(1);
+  protected wizardStep = signal<WizardStep>(1);
   protected wizardAnswers = signal<WizardAnswers>(emptyAnswers(''));
-  protected wizardAppNameError = signal<string | null>(null);
+  // Derived live from the typed app name so the requirement is surfaced as the user types,
+  // rather than only on a Next click that can never fire while the button is disabled.
+  // Stays null while the field is empty so we don't yell before the user has typed anything.
+  protected readonly wizardAppNameError = computed<string | null>(() => {
+    const name = this.wizardAnswers().appName.trim();
+    if (!name) return null;
+    if (!APP_NAME_PATTERN.test(name)) {
+      return APP_NAME_RULE;
+    }
+    if (this.apps().some((m) => m.name.toLowerCase() === name.toLowerCase())) {
+      return 'An app with this name is already onboarded into EPIC.';
+    }
+    return null;
+  });
+
+  // Inline format feedback for the cloud-target IDs. Null while empty (don't nag before the
+  // user types) or well-formed; a message once the value is present but malformed. Mirrors the
+  // pattern checks in validateWizardStep3 / canWizardNext so the button and the hint agree.
+  protected readonly wizardAwsAccountIdError = computed<string | null>(() => {
+    const id = this.wizardAnswers().awsAccountId.trim();
+    if (!id) return null;
+    return AWS_ACCOUNT_ID_PATTERN.test(id) ? null : 'AWS account ID must be exactly 12 digits.';
+  });
+
+  protected readonly wizardAzureSubscriptionIdError = computed<string | null>(() => {
+    const id = this.wizardAnswers().azureSubscriptionId.trim();
+    if (!id) return null;
+    return AZURE_SUBSCRIPTION_ID_PATTERN.test(id) ? null : 'Azure subscription ID must be a UUID.';
+  });
   protected wizardPreview = signal<string>('');
   protected epicInfraContent = signal<string>('');
   protected epicInfraLoadError = signal<boolean>(false);
 
   protected readonly wizardAppTypeOptions = computed<AppType[]>(() =>
-    appTypesForCloud(this.wizardAnswers().cloudProvider),
+    [...appTypesForCloud(this.wizardAnswers().cloudProvider)].sort((a, b) =>
+      APP_TYPE_LABELS[a].localeCompare(APP_TYPE_LABELS[b]),
+    ),
   );
 
   protected readonly wizardArchitectureSkipped = computed<boolean>(() => {
@@ -1292,7 +1871,6 @@ export class App implements OnInit, OnDestroy {
     const fresh = emptyAnswers(this.currentUser() || '');
     this.wizardAnswers.set(fresh);
     this.wizardStep.set(1);
-    this.wizardAppNameError.set(null);
     this.wizardPreview.set('');
     this.showCreateAppWizard.set(true);
     this.loadEpicInfraSteering();
@@ -1327,12 +1905,13 @@ export class App implements OnInit, OnDestroy {
     if (step === 4) {
       this.wizardPreview.set(renderEpicMd(this.stampedAnswers(), this.epicInfraContent()));
     }
-    if (step < 5) this.wizardStep.set((step + 1) as 1 | 2 | 3 | 4 | 5);
+    const forward: Record<WizardStep, WizardStep> = { 1: 2, 2: 3, 3: 4, 4: 5, 5: 5 };
+    this.wizardStep.set(forward[step]);
   }
 
   protected wizardBack(): void {
-    const step = this.wizardStep();
-    if (step > 1) this.wizardStep.set((step - 1) as 1 | 2 | 3 | 4 | 5);
+    const back: Record<WizardStep, WizardStep> = { 1: 1, 2: 1, 3: 2, 4: 3, 5: 4 };
+    this.wizardStep.set(back[this.wizardStep()]);
   }
 
   protected wizardUpdate<K extends keyof WizardAnswers>(key: K, value: WizardAnswers[K]): void {
@@ -1343,18 +1922,36 @@ export class App implements OnInit, OnDestroy {
     const appType = value as AppType;
     this.wizardAnswers.update((a) => {
       const next: WizardAnswers = { ...a, appType };
-      // Reset every appType-dependent field. Tools — buildTestTool/integrationTestTool have
-      // different option sets per appType; scanTool's options are universal but the rendered
-      // tooling-allowlist section only fires for code-bearing appTypes, so a stale scanTool
-      // would emit into epic.json without a matching allowlist when switching to btp/infra/ami.
-      next.scanTool = '';
-      next.buildTestTool = '';
+      // Reset every appType-dependent field, then prefill the preferred tool for the new
+      // appType (first option in each list). buildTestTool/integrationTestTool have different
+      // option sets per appType; scanTool's options are universal but the rendered tooling-
+      // allowlist section only fires for code-bearing appTypes, so defaultScanTool returns ''
+      // for btp/infra/ami to avoid emitting a scanTool into epic.json without a matching allowlist.
+      next.scanTool = defaultScanTool(appType);
+      next.buildTestTool = defaultBuildTestTool(appType);
+      // Integration test tool intentionally left unset — defaults to "None".
       next.integrationTestTool = '';
       // Deploy-target keys are per-(appType, cloudProvider); leftover values from the old
       // appType are filtered by the renderer/form but pollute state — clear them.
       next.deployTarget = emptyDeployTarget();
-      // BTP forces aws cloud (BTP secrets live in AWS Secrets Manager).
-      if (appType === 'btp') next.cloudProvider = 'aws';
+      // BTP and CAP force aws cloud (their secrets live in AWS Secrets Manager).
+      if (appType === 'btp' || appType === 'cap') next.cloudProvider = 'aws';
+      // Reset the Secrets Manager target and prefill the credential keys each appType
+      // typically needs (still user-editable). Cleared for everything else.
+      next.cfApi = '';
+      next.cfOrg = '';
+      next.cfSpace = '';
+      next.cfOrigin = '';
+      next.secretsManagerName = '';
+      if (appType === 'btp') {
+        next.secretsManagerKeys = ['BTP_USERNAME', 'BTP_PASSWORD', 'CF_USER', 'CF_PASSWORD'];
+      } else if (appType === 'cap') {
+        next.secretsManagerKeys = ['CF_USER', 'CF_PASSWORD'];
+      } else {
+        next.secretsManagerKeys = [];
+      }
+      // AMI requires at least one Image Builder component; seed one empty row.
+      next.amiComponents = appType === 'ami' ? [''] : [];
       // Reset architecture toggles for app types that bypass them.
       if (NO_ARCHITECTURE_APP_TYPES.includes(appType)) {
         next.hasFrontend = false;
@@ -1369,26 +1966,27 @@ export class App implements OnInit, OnDestroy {
         next.schedulerCron = '';
         next.needsStorage = false;
         next.storage = null;
-      } else {
-        // Sensible defaults: SPAs get frontend, server runtimes get backend.
-        if (['angular', 'react', 'html'].includes(appType)) {
-          next.hasFrontend = true;
-          next.frontend = next.frontend ?? { authMode: 'msal', authClientId: '', apiBaseUrlNeeded: false };
-          next.hasBackend = false;
-          next.backend = null;
-        } else if (['dotnet', 'node', 'python', 'java', 'php'].includes(appType)) {
-          next.hasBackend = true;
-          next.backend = next.backend ?? { style: 'rest-api', runtime: '', authStyle: 'none', authClientId: '' };
-          next.hasFrontend = false;
-          next.frontend = null;
-        }
+      } else if (['angular', 'react', 'html'].includes(appType)) {
+        // Sensible defaults: SPAs get frontend.
+        next.hasFrontend = true;
+        next.frontend = next.frontend ?? { authMode: 'msal', authClientId: '', apiBaseUrlNeeded: false };
+        next.hasBackend = false;
+        next.backend = null;
+      } else if (['dotnet', 'node', 'python', 'java', 'go', 'php'].includes(appType)) {
+        // Server runtimes get backend.
+        next.hasBackend = true;
+        next.backend = next.backend ?? { style: 'rest-api', runtime: '', authStyle: 'none', authClientId: '' };
+        next.hasFrontend = false;
+        next.frontend = null;
       }
       // Default infra=true for cloud-using apps; off for plain html sites with no backend.
       next.includeInfra = !(appType === 'html' && !next.hasBackend);
-      if (appType === 'infra') next.includeInfra = true;
+      // infra and btp always provision Terraform (btp is exempt from the orchestrator's
+      // missing-folder skip); cap deploys to a pre-existing CF space and never provisions.
+      if (appType === 'infra' || appType === 'btp') next.includeInfra = true;
+      if (appType === 'cap') next.includeInfra = false;
       return next;
     });
-    this.wizardAppNameError.set(null);
   }
 
 
@@ -1398,7 +1996,7 @@ export class App implements OnInit, OnDestroy {
       const next: WizardAnswers = { ...a, cloudProvider: provider };
       // If the current appType is invalid under this cloud, reset (let user re-pick).
       const allowed = appTypesForCloud(provider);
-      if (next.appType && !allowed.includes(next.appType as AppType)) next.appType = '';
+      if (next.appType && !allowed.includes(next.appType)) next.appType = '';
       return next;
     });
   }
@@ -1407,6 +2005,50 @@ export class App implements OnInit, OnDestroy {
     this.wizardAnswers.update((a) => ({
       ...a,
       deployTarget: { ...a.deployTarget, [key]: value },
+    }));
+  }
+
+  protected wizardAddSecretKey(): void {
+    this.wizardAnswers.update((a) => ({ ...a, secretsManagerKeys: [...a.secretsManagerKeys, ''] }));
+    setTimeout(() => {
+      const rows = document.querySelectorAll('.wizard-keys__row input');
+      (rows[rows.length - 1] as HTMLElement)?.focus();
+    });
+  }
+
+  protected wizardRemoveSecretKey(index: number): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      secretsManagerKeys: a.secretsManagerKeys.filter((_, i) => i !== index),
+    }));
+  }
+
+  protected wizardUpdateSecretKey(index: number, value: string): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      secretsManagerKeys: a.secretsManagerKeys.map((k, i) => (i === index ? value : k)),
+    }));
+  }
+
+  protected wizardAddComponent(): void {
+    this.wizardAnswers.update((a) => ({ ...a, amiComponents: [...a.amiComponents, ''] }));
+    setTimeout(() => {
+      const rows = document.querySelectorAll('.wizard-components__row input');
+      (rows[rows.length - 1] as HTMLElement)?.focus();
+    });
+  }
+
+  protected wizardRemoveComponent(index: number): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      amiComponents: a.amiComponents.filter((_, i) => i !== index),
+    }));
+  }
+
+  protected wizardUpdateComponent(index: number, value: string): void {
+    this.wizardAnswers.update((a) => ({
+      ...a,
+      amiComponents: a.amiComponents.map((c, i) => (i === index ? value : c)),
     }));
   }
 
@@ -1509,49 +2151,56 @@ export class App implements OnInit, OnDestroy {
   }
 
   private validateWizardStep1(): boolean {
+    // The name error is surfaced reactively via the wizardAppNameError computed; this is
+    // just the click-time guard. appType has no inline message — it can't be invalid without
+    // also disabling Next, so reaching here with it unset shouldn't happen.
     const a = this.wizardAnswers();
-    if (!/^[a-z][a-z0-9-]{2,40}$/.test(a.appName.trim())) {
-      this.wizardAppNameError.set('App name must be kebab-case, 3–41 chars, starting with a letter.');
-      return false;
-    }
-    const collision = this.apps().some((m) => m.name.toLowerCase() === a.appName.trim().toLowerCase());
-    if (collision) {
-      this.wizardAppNameError.set('An app with this name is already onboarded into EPIC.');
-      return false;
-    }
-    if (!a.appType) {
-      this.wizardAppNameError.set('App type is required.');
-      return false;
-    }
-    this.wizardAppNameError.set(null);
-    return true;
+    return !this.wizardAppNameError() && APP_NAME_PATTERN.test(a.appName.trim()) && !!a.appType;
+  }
+
+  /** AWS account id + region are both present and well-formed. */
+  private wizardAwsAccountAndRegionValid(): boolean {
+    const a = this.wizardAnswers();
+    return AWS_ACCOUNT_ID_PATTERN.test(a.awsAccountId.trim()) && !!a.awsRegion.trim();
   }
 
   private validateWizardStep3(): boolean {
     const a = this.wizardAnswers();
+    // CAP never includes infra but still needs an AWS account (Secrets Manager),
+    // all four Cloud Foundry fields, and a Secrets Manager name — validate before
+    // the includeInfra short-circuit.
+    if (a.appType === 'cap') {
+      return this.wizardAwsAccountAndRegionValid() && this.wizardCapCloudComplete() && !!a.secretsManagerName.trim();
+    }
+    if (a.appType === 'btp') {
+      return this.wizardAwsAccountAndRegionValid() && !!a.secretsManagerName.trim();
+    }
+    // AMI needs an AWS account/region and at least one Image Builder component,
+    // regardless of whether it also includes a .infra/ project.
+    if (a.appType === 'ami') {
+      return this.wizardAwsAccountAndRegionValid() && a.amiComponents.some((c) => c.trim());
+    }
     if (!a.includeInfra) return true;
-    if (a.cloudProvider === 'aws' || a.appType === 'btp') {
-      if (!/^\d{12}$/.test(a.awsAccountId.trim())) return false;
-      if (!a.awsRegion.trim()) return false;
-    }
-    if (a.cloudProvider === 'azure') {
-      if (!a.azureSubscriptionId.trim()) return false;
-    }
+    if (a.cloudProvider === 'aws') return this.wizardAwsAccountAndRegionValid();
+    if (a.cloudProvider === 'azure') return AZURE_SUBSCRIPTION_ID_PATTERN.test(a.azureSubscriptionId.trim());
     return true;
+  }
+
+  private wizardCapCloudComplete(): boolean {
+    const a = this.wizardAnswers();
+    return !!a.cfApi.trim() && !!a.cfOrg.trim() && !!a.cfSpace.trim() && !!a.cfOrigin.trim();
   }
 
   protected get canWizardNext(): boolean {
     const a = this.wizardAnswers();
     const step = this.wizardStep();
     if (step === 1) {
-      return /^[a-z][a-z0-9-]{2,40}$/.test(a.appName.trim()) && !!a.appType;
+      // wizardAppNameError covers both the kebab-case pattern and the collision check,
+      // so a non-null error (or an empty name) keeps Next disabled.
+      return !this.wizardAppNameError() && APP_NAME_PATTERN.test(a.appName.trim()) && !!a.appType;
     }
-    if (step === 3) {
-      if (!a.includeInfra) return true;
-      if (a.cloudProvider === 'aws' || a.appType === 'btp') return /^\d{12}$/.test(a.awsAccountId.trim()) && !!a.awsRegion.trim();
-      if (a.cloudProvider === 'azure') return !!a.azureSubscriptionId.trim();
-      return true;
-    }
+    // Step 3 gating is exactly the step-3 validation; every other step is always enabled.
+    if (step === 3) return this.validateWizardStep3();
     return true;
   }
 
@@ -1576,7 +2225,7 @@ export class App implements OnInit, OnDestroy {
     a.download = 'epic.md';
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    a.remove();
     URL.revokeObjectURL(url);
     this.showToast('epic.md downloaded.');
   }

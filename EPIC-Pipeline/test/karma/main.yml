@@ -1,0 +1,72 @@
+###############################################################################
+# Steps
+###############################################################################
+steps:
+
+  #############################################################################
+  # Use Node Version
+  #############################################################################
+  - task: UseNode@1
+    displayName: "Use Node ${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
+    inputs:
+      version: "${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
+
+
+  #############################################################################
+  # Verify Node
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      node --version
+      npm --version
+    displayName: "Verify Node"
+
+
+  #############################################################################
+  # Install Chrome (headless test browser)
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo ">> Installing Google Chrome for headless Karma"
+      sudo apt-get update
+      wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+      sudo apt-get install -y /tmp/chrome.deb
+      google-chrome --version
+    displayName: "Install Chrome"
+
+
+  #############################################################################
+  # Install Dependencies
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Installing dependencies"
+      npm install
+    displayName: "Install dependencies"
+
+
+  #############################################################################
+  # Test
+  #############################################################################
+  # Runs the Angular Karma unit tests once (no watch) in headless Chrome with
+  # code coverage. The project's karma.conf.js emits reports/coverage/lcov.info,
+  # which the EPIC SonarQube scan reads via sonar.javascript.lcov.reportPaths.
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      export CHROME_BIN="$(which google-chrome)"
+
+      echo ">> Executing tests"
+      npx ng test --no-watch --no-progress --code-coverage --browsers=ChromeHeadlessNoSandbox
+
+      rm -rf .reports
+      mkdir -p .reports
+      cp -R reports/. .reports/
+    displayName: "Execute tests"

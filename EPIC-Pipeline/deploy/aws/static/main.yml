@@ -54,8 +54,70 @@ steps:
         BUCKET_NAME="$(BUCKET_NAME)"
         DISTRIBUTION_ID="$(DISTRIBUTION_ID)"
 
-        echo "Syncing to S3..."
-        aws s3 sync "$BUILD_PATH" "s3://$BUCKET_NAME" --delete
+        # Cache policy is applied in two passes, safe-default first:
+        #
+        #   1. Upload everything (and prune old files) with a revalidating
+        #      policy. This is the policy that can NEVER serve stale content:
+        #      the browser must check with the origin before reusing a file.
+        #      The app shell (index.html) stays fresh — the bug this fixes.
+        #
+        #   2. Promote only files that are provably content-hashed (a hash token
+        #      in the name → the content is versioned by its bytes) to a
+        #      long-lived immutable cache. These are safe to cache forever
+        #      because a content change produces a new filename.
+        #
+        # A file that is NOT fingerprinted simply keeps the pass-1 revalidating
+        # policy — it is never wrongly marked immutable, so nothing can go stale.
+        # (<meta> cache tags in index.html do not control caching — only these
+        # real HTTP response headers do.)
+        echo "Syncing to S3 with safe revalidating cache (and pruning old files)..."
+        aws s3 sync "$BUILD_PATH" "s3://$BUCKET_NAME" --delete \
+          --cache-control "no-cache, must-revalidate"
+
+        # A fingerprinted asset name carries a hash token: >= 8 alphanumeric
+        # chars containing at least one digit, delimited by '-' or '.', right
+        # before a cacheable asset extension (Angular: main-WSZCU5TJ.js, Vite:
+        # index-D4f2Kk1p.css, webpack: main.a1b2c3d4.js). Requiring a digit keeps
+        # ordinary words (polyfills.js, styles.css, vendor.js) from matching, so
+        # only genuinely versioned files are promoted — conservative by design.
+        # Rewriting an object's metadata with `s3 cp --metadata-directive
+        # REPLACE` REPLACES all system metadata, so Content-Type must be re-set
+        # explicitly — otherwise it falls back to binary/octet-stream and the
+        # browser rejects the module scripts under strict MIME checking. Map each
+        # extension to its correct type here.
+        content_type() {
+          case "${1##*.}" in
+            js|mjs) echo "text/javascript" ;;
+            css)    echo "text/css" ;;
+            svg)    echo "image/svg+xml" ;;
+            png)    echo "image/png" ;;
+            jpg|jpeg) echo "image/jpeg" ;;
+            gif)    echo "image/gif" ;;
+            webp)   echo "image/webp" ;;
+            avif)   echo "image/avif" ;;
+            ico)    echo "image/x-icon" ;;
+            woff)   echo "font/woff" ;;
+            woff2)  echo "font/woff2" ;;
+            ttf)    echo "font/ttf" ;;
+            otf)    echo "font/otf" ;;
+            eot)    echo "application/vnd.ms-fontobject" ;;
+            *)      echo "application/octet-stream" ;;
+          esac
+        }
+
+        echo "Promoting content-hashed assets to immutable cache..."
+        EXT='js|mjs|css|woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico'
+        while IFS= read -r -d '' f; do
+          rel="${f#"$BUILD_PATH"/}"
+          base="$(basename "$rel")"
+          if echo "$base" | grep -Eq "[-.][A-Za-z0-9]{8,}\.($EXT)\$" \
+             && echo "$base" | grep -Eq "[-.][A-Za-z0-9]*[0-9][A-Za-z0-9]*\.($EXT)\$"; then
+            aws s3 cp "s3://$BUCKET_NAME/$rel" "s3://$BUCKET_NAME/$rel" \
+              --metadata-directive REPLACE \
+              --content-type "$(content_type "$base")" \
+              --cache-control "public, max-age=31536000, immutable"
+          fi
+        done < <(find "$BUILD_PATH" -type f -print0)
 
         if [ -n "$DISTRIBUTION_ID" ]; then
           echo "Invalidating CloudFront..."

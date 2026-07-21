@@ -271,6 +271,9 @@ resource "aws_rds_cluster" "epic" {
   skip_final_snapshot    = true
   deletion_protection    = var.environment == "prod"
   storage_encrypted      = true
+  # Retain automated backups for a week so a bad deploy/data issue is recoverable
+  # (the Aurora default of 1 day is too short — SonarQube S6364).
+  backup_retention_period = 7
   tags                   = module.tags.tags
 
   serverlessv2_scaling_configuration {

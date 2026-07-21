@@ -59,17 +59,38 @@ steps:
 
         cd ${{ parameters.appName }}/${{ parameters.infraPath }}
 
-        terraform init \
+        # When the repo ships a committed tfstate, -force-copy migrates it into
+        # the S3 backend non-interactively (answers Terraform's "copy existing
+        # state?" prompt). -input=false guarantees init never blocks on a prompt.
+        FORCE_COPY=""
+        if [ "$(echo "${{ parameters.forceStateCopy }}" | tr '[:upper:]' '[:lower:]')" == "true" ]; then
+          FORCE_COPY="-force-copy"
+          echo ">> Force State Copy enabled: migrating committed tfstate to the S3 backend."
+        fi
+
+        # State-key name. Single-config repos: <appName>-<appType> (unchanged).
+        # Multi-config repos prefix the repo name so two repos sharing a folder
+        # name + appType (e.g. frontend-aws) don't collide on one state file.
+        STATE_NAME="${{ parameters.appName }}-${{ parameters.appType }}"
+        if [ "$(echo "${{ parameters.multiConfig }}" | tr '[:upper:]' '[:lower:]')" == "true" ]; then
+          STATE_NAME="${{ parameters.repo }}-${{ parameters.appName }}-${{ parameters.appType }}"
+        fi
+
+        terraform init -input=false $FORCE_COPY \
           -backend-config="bucket=pge-epic-tfstate" \
           -backend-config="use_lockfile=true" \
-          -backend-config="key=$(CLOUD_AWS_ACCOUNT_ID)/${{ parameters.appName }}-${{ parameters.appType }}/${{ parameters.environment }}/terraform.tfstate" \
+          -backend-config="key=$(CLOUD_AWS_ACCOUNT_ID)/${STATE_NAME}/${{ parameters.environment }}/terraform.tfstate" \
           -backend-config="region=$(CLOUD_AWS_REGION)" \
           -backend-config="encrypt=true"
 
   ###########################################################################
-  # Apply
+  # Plan / Apply
+  #
+  # The Plan step runs for both 'plan' (Plan ONLY) and 'apply'. The Apply step
+  # (and its output publish) only runs for 'apply', so selecting Plan ONLY
+  # previews changes without mutating any infrastructure.
   ###########################################################################
-  - ${{ if eq(parameters.terraformAction, 'apply') }}:
+  - ${{ if in(parameters.terraformAction, 'plan', 'apply') }}:
 
     - task: AWSShellScript@1
       displayName: 'Terraform Plan'
@@ -86,6 +107,8 @@ steps:
             -var="environment=${{ parameters.environment }}" \
             -var="aws_region=$(CLOUD_AWS_REGION)" \
             -out=tfplan
+
+  - ${{ if eq(parameters.terraformAction, 'apply') }}:
 
     - task: AWSShellScript@1
       displayName: 'Terraform Apply'

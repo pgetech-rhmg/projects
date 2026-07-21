@@ -283,6 +283,98 @@ Confirm the Wiz credentials exist in the `GV-account-access` variable group
 
 ---
 
+## Adding another agent (scaling concurrency on the same box)
+
+One ADO agent runs **one job at a time**, so concurrent scan-bearing pipelines queue
+(and a .NET+SonarQube pipeline consumes an agent twice — build then scan). To run scans
+concurrently *without* standing up another EC2 box, register **additional agents on the same
+instance**, each in its own directory and its own systemd service, all joined to the
+`EPIC - Self-hosted` pool. This is pure on-box config over SSM — **no Terraform change**.
+
+> **Sizing.** SonarQube/.NET analysis is JVM/memory-heavy — budget **~4–6 GB RAM per
+> concurrent heavy scan**. m5.large (8 GB) ≈ 1 agent, m5.xlarge (16 GB) ≈ 2, **m5.2xlarge
+> (32 GB) ≈ 4**. The box was resized to **m5.2xlarge** to host up to 4 agents
+> (`scan-agent-01`…`scan-agent-04`). Wiz-only scans are lighter, so you can pack more if
+> your volume is mostly Wiz; watch actual memory under real concurrent load before adding
+> the last agent. Do NOT overpack — a run that OOMs fails the gate.
+>
+> **The AMI is pinned** (`var.ami_id` in the Scan Agent stack), *not* a `most_recent`
+> lookup — the toolchain and agents are hand-installed here, not baked into the AMI, so an
+> AMI change would force an instance REPLACE that wipes this state. A resize is a safe
+> in-place `instance_type` change (stop → resize → start): the agent blips Offline for a
+> few minutes and the private IP changes (harmless — it polls ADO outbound and comes back
+> Online on its own). Only bump `var.ami_id` when you deliberately intend to rebuild the box.
+
+Prerequisites: a fresh registration PAT (**Agent Pools → Read & manage**) — the original
+stand-up PAT was revoked. The toolchain is already installed once on the box and **shared**
+via the `adoagent` user's PATH, so you do NOT repeat Step 4; you only repeat registration.
+
+### Add an agent (repeat per agent: agent2/scan-agent-02, agent3/scan-agent-03, …)
+
+Connect and become root (Step 3):
+
+```bash
+aws ssm start-session --target <instance_id> --region us-west-2
+sudo su -
+```
+
+Find the agent version already on the box so the new agent matches (avoid mixing versions):
+
+```bash
+ls /home/adoagent/myagent/*.tar.gz    # e.g. vsts-agent-linux-x64-4.274.1.tar.gz
+```
+
+Register the new agent as the `adoagent` user, in its own directory, reusing the tarball
+already on the box (no re-download):
+
+```bash
+su - adoagent
+mkdir -p ~/agent2 && cd ~/agent2                       # ~/agent3, ~/agent4 for the next ones
+cp /home/adoagent/myagent/vsts-agent-linux-x64-*.tar.gz .
+tar zxf vsts-agent-linux-x64-*.tar.gz
+
+./config.sh \
+  --unattended \
+  --url https://dev.azure.com/pgetech \
+  --auth pat --token <YOUR_PAT> \
+  --pool "EPIC - Self-hosted" \
+  --agent scan-agent-02 \                              # MUST be unique per agent
+  --acceptTeeEula
+
+exit   # back to root to install the service
+```
+
+Install it as its **own** systemd service (`svc.sh` derives the unit name from the install
+directory, so `agent2` gets a distinct unit and does not collide with `myagent`/agent-01):
+
+```bash
+cd /home/adoagent/agent2
+./svc.sh install adoagent
+./svc.sh start
+./svc.sh status      # active (running)
+```
+
+Verify in ADO: **Agent pools → EPIC - Self-hosted** shows the new agent **Online / Idle**
+alongside the others, and its **Capabilities** tab lists git/java/node/dotnet (inherited from
+the shared `adoagent` PATH). Revoke the registration PAT once the last agent is Online.
+
+> The "restart the agent after any tool change" rule (Step 5c) applies **per agent** — each
+> caches capabilities at its own startup. If you install/patch a tool later, restart every
+> agent's service (`cd <dir> && ./svc.sh stop && ./svc.sh start`), not just one.
+
+### Removing an agent
+
+```bash
+cd /home/adoagent/agentN
+sudo ./svc.sh stop
+sudo ./svc.sh uninstall
+su - adoagent -c 'cd ~/agentN && ./config.sh remove --auth pat --token <YOUR_PAT>'
+```
+
+Then delete the dead entry from the ADO pool if it lingers (see "Stale agents" below).
+
+---
+
 ## Operations notes
 
 - **This box is hand-built.** This runbook is the only record of what's installed — keep it
@@ -298,10 +390,11 @@ Confirm the Wiz credentials exist in the `GV-account-access` variable group
 - **Agent updates:** ADO auto-updates the agent binary; no action needed normally.
 - **Stale agents:** remove dead/offline agents (e.g. an old `EPIC-Agent`) from the pool so they
   don't muddy capacity reporting.
-- **Scaling later:** with one agent, concurrent scan-bearing pipelines queue (one job at a
-  time; a .NET+SonarQube pipeline consumes the agent twice — build then scan). To scale,
-  register a second agent in its own dir on the same box, run the stack again for a second
-  instance, or move to a baked AMI + autoscaling set.
+- **Scaling:** concurrency = number of agents (one job per agent at a time; a .NET+SonarQube
+  pipeline consumes an agent twice — build then scan). Cheapest scaling is more agents on the
+  same box — see **"Adding another agent"** above (the box is an m5.2xlarge sized for ~4).
+  Beyond what one box's RAM supports, run the stack again for a second instance, or move to a
+  baked AMI + autoscaling set.
 
 ---
 

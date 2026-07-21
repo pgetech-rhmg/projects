@@ -6,10 +6,10 @@ steps:
   #############################################################################
   # Use Node Version
   #############################################################################
-  - task: NodeTool@0
-    displayName: "Use Node ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+  - task: UseNode@1
+    displayName: "Use Node ${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
     inputs:
-      versionSpec: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+      version: "${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
 
 
   #############################################################################

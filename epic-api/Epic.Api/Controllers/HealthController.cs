@@ -1,10 +1,12 @@
 using Epic.Api.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Epic.Api.Controllers;
 
 [ApiController]
 [Route("api/health")]
+[AllowAnonymous]
 public sealed class HealthController(EpicDbContext db) : ControllerBase
 {
     [HttpGet]

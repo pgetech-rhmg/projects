@@ -31,6 +31,20 @@ resource "azurerm_postgresql_flexible_server" "this" {
   }
 
   tags = var.tags
+
+  # Azure auto-assigns an availability zone; ignore drift so subsequent plans
+  # don't try to move the server.
+  lifecycle {
+    ignore_changes = [zone]
+  }
+}
+
+resource "azurerm_postgresql_flexible_server_configuration" "this" {
+  for_each = var.server_configurations
+
+  name      = each.key
+  server_id = azurerm_postgresql_flexible_server.this.id
+  value     = each.value
 }
 
 resource "azurerm_postgresql_flexible_server_database" "this" {

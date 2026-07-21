@@ -13,6 +13,10 @@ public sealed class AppEntity
     public required string Team { get; set; }
     public required string Domain { get; set; }
     public required string GithubRepo { get; set; }
+    // Named GitHub source (org + host + PAT) this repo lives in; see
+    // GitHubSourceRegistry. "default" preserves the single-org behavior for
+    // rows created before multi-org support.
+    public string GithubSource { get; set; } = "default";
     public string GithubBranch { get; set; } = "main";
     public bool HasInfra { get; set; }
 

@@ -9,7 +9,7 @@ steps:
   - bash: |
       set -euo pipefail
 
-      PHP_VERSION="${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+      PHP_VERSION="${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
 
       echo ">> Installing PHP $PHP_VERSION"
 
@@ -18,7 +18,7 @@ steps:
       sudo apt-get install -y -qq php${PHP_VERSION} php${PHP_VERSION}-cli php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-curl php${PHP_VERSION}-zip unzip
 
       sudo update-alternatives --set php /usr/bin/php${PHP_VERSION}
-    displayName: "Install PHP ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+    displayName: "Install PHP ${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
 
 
   #############################################################################

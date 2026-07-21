@@ -104,6 +104,40 @@ describe('renderEpicMd', () => {
     expect(md).not.toContain('"runtimeVersion"');
   });
 
+  it('emits all four Cloud Foundry fields (including cfOrigin) in the CAP skeleton', () => {
+    const md = renderEpicMd(baseAnswers({
+      appType: 'cap',
+      cloudProvider: 'aws',
+      cfApi: 'https://api.cf.us11.hana.ondemand.com',
+      cfOrg: 'pge-workstream-dev',
+      cfSpace: 'Dev',
+      cfOrigin: 'ainbdeind-platform',
+    }));
+    expect(md).toContain('"cfApi": "https://api.cf.us11.hana.ondemand.com"');
+    expect(md).toContain('"cfOrg": "pge-workstream-dev"');
+    expect(md).toContain('"cfSpace": "Dev"');
+    expect(md).toContain('"cfOrigin": "ainbdeind-platform"');
+    expect(md).toContain('"secretsManager"');
+  });
+
+  it('detects cap as a SAP target in the epic.json contract rule', () => {
+    const md = renderEpicMd(baseAnswers({ appType: 'cap', cloudProvider: 'aws' }));
+    expect(md).toContain('`app.appType == "btp"` or `app.appType == "cap"` → SAP');
+  });
+
+  it('uses the entered Secrets Manager name and keys for BTP (not hardcoded guesses)', () => {
+    const md = renderEpicMd(baseAnswers({
+      appType: 'btp',
+      cloudProvider: 'aws',
+      secretsManagerName: 'pge-epic-btp-secrets-dev',
+      secretsManagerKeys: ['BTP_USERNAME', 'BTP_PASSWORD'],
+    }));
+    expect(md).toContain('"name": "pge-epic-btp-secrets-dev"');
+    expect(md).toContain('"BTP_USERNAME"');
+    expect(md).toContain('"BTP_PASSWORD"');
+    expect(md).not.toContain('sample-app-btp-secrets');
+  });
+
   it('emits all three phases with explicit approval gates between them', () => {
     const md = renderEpicMd(baseAnswers());
     expect(md).toContain('Phase 1 — Design (write to `.epic/` only)');
@@ -124,7 +158,7 @@ describe('renderEpicMd', () => {
     const md = renderEpicMd(baseAnswers());
     expect(md).toContain('**Phase 2 must finish with a fully provisioned local environment, not just source files.**');
     expect(md).toContain('**Install all dependencies**');
-    expect(md).toContain('**Generate trusted local TLS certs**');
+    expect(md).toContain('**Generate trusted local TLS certs and serve the dev server over HTTPS**');
     expect(md).toContain('**Smoke-test the boot.**');
     expect(md).toContain('**Validate auth wiring (if any).**');
     expect(md).toContain('do not stop at "the package is installed and the import compiles."');
@@ -441,7 +475,7 @@ describe('renderEpicMd', () => {
       expect(md).toContain('Bootstrap a working project before writing any feature code');
       expect(md).toContain('Local-development redirect URIs');
       expect(md).toContain('CloudFront / public exposure');
-      expect(md).toContain('`.infra/terraform.auto.tfvars` placeholders');
+      expect(md).toContain('### `.infra/terraform.auto.tfvars`');
     });
 
     it('forbids version-mismatch firefighting and mandates a known-good baseline', () => {
@@ -524,17 +558,49 @@ describe('renderEpicMd', () => {
       expect(md).toContain('add `.certs/` to `.gitignore`');
     });
 
+    it('mandates HTTPS on port 4200 and forbids plain HTTP for SPA/Node apps', () => {
+      for (const appType of ['angular', 'react', 'html', 'node'] as const) {
+        const md = renderEpicMd(baseAnswers({ appType }));
+        expect(md).toContain('HTTPS, port 4200, always');
+        expect(md).toContain('**Plain HTTP on 4200 is forbidden.**');
+        expect(md).toContain('configure dev server on port 4200 (plain HTTP)');
+        // Phase 2 gate restates it as a hard exit criterion.
+        expect(md).toContain('this is a hard gate: the dev server must answer on `https://localhost:4200`');
+      }
+    });
+
+    it('calls out the specific app type as needing HTTPS:4200 when it is a SPA/Node app', () => {
+      const md = renderEpicMd(baseAnswers({ appType: 'react' }));
+      expect(md).toContain('This app (`appType: react`) is one of these — its dev server **must** be `https://localhost:4200`.');
+    });
+
     it('forbids public CloudFront access by default', () => {
       const md = renderEpicMd(baseAnswers());
       expect(md).toContain('**Default access posture is PG&E-internal only.**');
       expect(md).toContain('unless the user explicitly asked for it');
     });
 
-    it('requires TODO placeholders for unknown tfvars values', () => {
+    it('uses type-correct placeholders for the typed/validated tags-module inputs', () => {
       const md = renderEpicMd(baseAnswers({ includeInfra: true }));
-      expect(md).toContain('write a **TODO placeholder**');
-      expect(md).toContain('aws_account_id = "TODO"');
+      // appid/order are numbers, owner/notify are lists — a bare "TODO" string would
+      // fail `terraform plan` on a type error, so the placeholders must match the types.
+      expect(md).toContain('appid              = 0');
+      expect(md).toContain('owner              = ["TODO1", "TODO2", "TODO3"]');
+      expect(md).toContain('notify             = ["TODO@pge.com"]');
+      expect(md).toContain('order              = 1000000');
       expect(md).toContain('Action required before deploy');
+    });
+
+    it('keeps pipeline-injected values out of terraform.auto.tfvars', () => {
+      const md = renderEpicMd(baseAnswers({ includeInfra: true }));
+      // aws_account_id is injected via -var; it must not be assigned in the tfvars example.
+      expect(md).not.toContain('aws_account_id = "TODO"');
+      expect(md).toContain('Never put pipeline-injected values in this file');
+    });
+
+    it('pins principal_orgid as a fixed literal for AWS infra', () => {
+      const md = renderEpicMd(baseAnswers({ includeInfra: true }));
+      expect(md).toContain('principal_orgid = "o-7vgpdbu22o"');
     });
 
     it('lists terraform.auto.tfvars in the .infra folder layout', () => {
@@ -595,11 +661,11 @@ describe('renderEpicMd', () => {
     expect(md).not.toContain('AWS account:');
   });
 
-  it('still surfaces AWS fields when appType=btp even if cloudProvider=btp', () => {
+  it('still surfaces AWS fields when appType=btp even if cloudProvider=sap', () => {
     const md = renderEpicMd(
       baseAnswers({
         appType: 'btp',
-        cloudProvider: 'btp',
+        cloudProvider: 'sap',
         awsAccountId: '999988887777',
         awsRegion: 'us-west-2',
       }),
@@ -936,7 +1002,6 @@ describe('renderEpicMd', () => {
             resourceGroupName: '',
             configDocPrefix: '',
             testDocPrefix: '',
-            imageRecipeName: '',
             appUrl: '',
           },
         }),
@@ -980,7 +1045,17 @@ describe('renderEpicMd', () => {
       const md = renderEpicMd(baseAnswers({ appType: 'ami', includeInfra: false }));
       expect(md).toContain('`cloud.configDocPrefix`');
       expect(md).toContain('`cloud.testDocPrefix`');
-      expect(md).toContain('`cloud.imageRecipeName`');
+      expect(md).not.toContain('`cloud.imageRecipeName`');
+    });
+
+    it('emits cloud.components from the entered AMI components', () => {
+      const md = renderEpicMd(baseAnswers({
+        appType: 'ami',
+        amiComponents: ['server', 'portal'],
+      }));
+      expect(md).toContain('"components"');
+      expect(md).toContain('"server"');
+      expect(md).toContain('"portal"');
     });
 
     it('omits region from Cloud target when includeInfra is false (no .infra/ generated)', () => {
@@ -991,6 +1066,96 @@ describe('renderEpicMd', () => {
     it('tells the AI that .infra-using apps read the deploy target from Terraform outputs, not cloud.*', () => {
       const md = renderEpicMd(baseAnswers({ includeInfra: true }));
       expect(md).toContain('reads the deploy target from Terraform outputs');
+    });
+  });
+
+  describe('stack references per app type', () => {
+    const cases: { appType: WizardAnswers['appType']; marker: string }[] = [
+      { appType: 'react', marker: 'https://react.dev' },
+      { appType: 'node', marker: 'https://nodejs.org/docs/latest/api/' },
+      { appType: 'dotnet', marker: 'https://learn.microsoft.com/dotnet/' },
+      { appType: 'python', marker: 'https://docs.python.org/3/' },
+      { appType: 'java', marker: 'https://docs.spring.io/spring-boot/index.html' },
+      { appType: 'go', marker: 'https://go.dev/doc/' },
+      { appType: 'php', marker: 'https://www.php.net/manual/en/' },
+      { appType: 'html', marker: 'https://developer.mozilla.org' },
+      { appType: 'ami', marker: 'https://docs.aws.amazon.com/imagebuilder/' },
+      { appType: 'cap', marker: 'https://cap.cloud.sap' },
+      { appType: 'btp', marker: 'https://help.sap.com/docs/btp' },
+      { appType: 'infra', marker: 'https://developer.hashicorp.com/terraform/docs' },
+    ];
+    for (const { appType, marker } of cases) {
+      it(`includes the canonical reference for ${appType}`, () => {
+        const md = renderEpicMd(baseAnswers({ appType }));
+        expect(md).toContain(marker);
+      });
+    }
+  });
+
+  describe('MSAL references for non-Angular/React frontends', () => {
+    it('falls back to the generic MSAL.js SPA doc for a node frontend using msal', () => {
+      const md = renderEpicMd(
+        baseAnswers({
+          appType: 'node',
+          hasFrontend: true,
+          frontend: { authMode: 'msal', authClientId: '', apiBaseUrlNeeded: false },
+        }),
+      );
+      expect(md).toContain('MSAL.js (browser) docs');
+    });
+
+    it('includes the OIDC + PKCE reference for an oidc-entra frontend', () => {
+      const md = renderEpicMd(
+        baseAnswers({
+          hasFrontend: true,
+          frontend: { authMode: 'oidc-entra', authClientId: '', apiBaseUrlNeeded: false },
+        }),
+      );
+      expect(md).toContain('OIDC + PKCE for SPA');
+    });
+  });
+
+  describe('deploy-target contract edge cases', () => {
+    it('reports no flat deploy-target keys for a no-infra btp app', () => {
+      // btp has no relevantDeployTargetKeys, exercising the empty-keys branch.
+      const md = renderEpicMd(baseAnswers({ appType: 'btp', includeInfra: false }));
+      expect(md).toContain('no flat deploy-target keys');
+    });
+
+  });
+
+  describe('unspecified / fallback values', () => {
+    it('shows a placeholder when no acceptance criteria are provided', () => {
+      const md = renderEpicMd(baseAnswers({ acceptanceCriteria: '' }));
+      expect(md).toContain('_(no acceptance criteria provided)_');
+    });
+
+    it('shows "(unspecified)" for a blank AWS account', () => {
+      const md = renderEpicMd(baseAnswers({ awsAccountId: '' }));
+      expect(md).toContain('AWS account: _(unspecified)_');
+    });
+
+    it('shows placeholder account id in the epic.json skeleton for a blank AWS account', () => {
+      const md = renderEpicMd(baseAnswers({ awsAccountId: '' }));
+      expect(md).toContain('<12-digit-account-id>');
+    });
+
+    it('shows "(unspecified)" and a placeholder for a blank Azure subscription', () => {
+      const md = renderEpicMd(
+        baseAnswers({ appType: 'dotnet', cloudProvider: 'azure', azureSubscriptionId: '' }),
+      );
+      expect(md).toContain('Azure subscription: _(unspecified)_');
+      expect(md).toContain('<subscription-uuid>');
+    });
+
+    it('shows a TBD schedule when scheduler is on but no cron given', () => {
+      const md = renderEpicMd(baseAnswers({ needsScheduler: true, schedulerCron: '' }));
+      expect(md).toContain('_(rule TBD — confirm with user)_');
+    });
+
+    it('reports no unit-test runner for html (empty BUILD_TEST_TOOL_OPTIONS)', () => {
+      const md = renderEpicMd(baseAnswers({ appType: 'html' }));
+      expect(md).toContain('has no EPIC-supported unit-test runner');
     });
   });
 });

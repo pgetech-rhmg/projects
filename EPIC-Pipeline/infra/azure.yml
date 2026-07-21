@@ -18,8 +18,49 @@ steps:
         exit 1
       fi
 
+      # Terraform remote-state home — per-SUBSCRIPTION convention, all three
+      # overridable in epic.json but rarely needed:
+      #   • account: "epictfstate<first-8-of-subscription-id>" (globally-unique,
+      #     lowercase-alphanumeric, <=24 chars). One state account per sub holds
+      #     every app's state in that sub — the state KEY already namespaces per
+      #     app (<sub>/<appName>-<appType>/<env>/...). Because init runs under
+      #     this app's own service connection, it authenticates to an account in
+      #     the app's OWN tenant — which is what makes cross-tenant deploys work.
+      #   • RG: "rg-epic-tfstate"; container: "tfstate".
+      # Create one such account per subscription out of band (see the state
+      # bootstrap in the app's access-request doc). Override any of the three in
+      # epic.json only for a non-conventional setup.
+      SUB_FRAGMENT=$(echo "$SUBSCRIPTION_ID" | tr -d '-' | cut -c1-8)
+      STATE_RG=$(jq -r '.cloud.stateResourceGroup // "rg-epic-tfstate"' "$CONFIG")
+      STATE_SA=$(jq -r --arg d "epictfstate${SUB_FRAGMENT}" '.cloud.stateStorageAccount // $d' "$CONFIG")
+      STATE_CONTAINER=$(jq -r '.cloud.stateContainer // "tfstate"' "$CONFIG")
+
       echo "##vso[task.setvariable variable=CLOUD_AZURE_SUBSCRIPTION_ID]$SUBSCRIPTION_ID"
       echo "##vso[task.setvariable variable=CLOUD_AZURE_REGION]$AZURE_REGION"
+      echo "##vso[task.setvariable variable=TF_STATE_RG]$STATE_RG"
+      echo "##vso[task.setvariable variable=TF_STATE_SA]$STATE_SA"
+      echo "##vso[task.setvariable variable=TF_STATE_CONTAINER]$STATE_CONTAINER"
+
+      # Optional container-image build. When cloud.containerImage is present, the
+      # apply is STAGED so a container app can reference an image built during the
+      # same run (chicken-and-egg): apply the registry target first, `az acr build`
+      # the image, then full apply passing the built tag into a TF variable. When
+      # absent, IMAGE_BUILD=false and the apply is a normal single pass — apps that
+      # don't build an image are completely unaffected. Nothing here is app-specific;
+      # every field comes from epic.json.
+      CI=$(jq -r '.cloud.containerImage // empty' "$CONFIG")
+      if [ -n "$CI" ]; then
+        echo "##vso[task.setvariable variable=IMAGE_BUILD]true"
+        echo "##vso[task.setvariable variable=IMG_REGISTRY_TARGET]$(jq -r '.cloud.containerImage.registryTarget' "$CONFIG")"
+        echo "##vso[task.setvariable variable=IMG_REGISTRY_OUTPUT]$(jq -r '.cloud.containerImage.registryOutput' "$CONFIG")"
+        echo "##vso[task.setvariable variable=IMG_DOCKERFILE]$(jq -r '.cloud.containerImage.dockerfile // "Dockerfile"' "$CONFIG")"
+        echo "##vso[task.setvariable variable=IMG_CONTEXT]$(jq -r '.cloud.containerImage.context // "."' "$CONFIG")"
+        echo "##vso[task.setvariable variable=IMG_TARGET]$(jq -r '.cloud.containerImage.target // empty' "$CONFIG")"
+        echo "##vso[task.setvariable variable=IMG_NAME]$(jq -r '.cloud.containerImage.imageName' "$CONFIG")"
+        echo "##vso[task.setvariable variable=IMG_TAG_VAR]$(jq -r '.cloud.containerImage.tagVariable' "$CONFIG")"
+      else
+        echo "##vso[task.setvariable variable=IMAGE_BUILD]false"
+      fi
     displayName: 'Read Azure cloud config'
 
   ###########################################################################
@@ -28,7 +69,7 @@ steps:
   - task: AzureCLI@2
     displayName: 'Terraform Init'
     inputs:
-      azureSubscription: 'Azure'
+      azureSubscription: ${{ parameters.azureServiceConnection }}
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       addSpnToEnvironment: true
@@ -42,21 +83,42 @@ steps:
         export ARM_TENANT_ID=$tenantId
         export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
 
-        terraform init \
-          -backend-config="resource_group_name=rg-epic-terraform-state" \
-          -backend-config="storage_account_name=pgeepicterraformstate" \
-          -backend-config="container_name=tfstate" \
-          -backend-config="key=$(CLOUD_AZURE_SUBSCRIPTION_ID)/${{ parameters.appName }}-${{ parameters.appType }}/${{ parameters.environment }}/terraform.tfstate"
+        # When the repo ships a committed tfstate, -force-copy migrates it into
+        # the remote backend non-interactively (answers Terraform's "copy
+        # existing state?" prompt). -input=false guarantees init never blocks.
+        FORCE_COPY=""
+        if [ "$(echo "${{ parameters.forceStateCopy }}" | tr '[:upper:]' '[:lower:]')" == "true" ]; then
+          FORCE_COPY="-force-copy"
+          echo ">> Force State Copy enabled: migrating committed tfstate to the remote backend."
+        fi
+
+        # State-key name. Single-config repos: <appName>-<appType> (unchanged).
+        # Multi-config repos prefix the repo name so two repos sharing a folder
+        # name + appType (e.g. frontend-azure) don't collide on one state file.
+        STATE_NAME="${{ parameters.appName }}-${{ parameters.appType }}"
+        if [ "$(echo "${{ parameters.multiConfig }}" | tr '[:upper:]' '[:lower:]')" == "true" ]; then
+          STATE_NAME="${{ parameters.repo }}-${{ parameters.appName }}-${{ parameters.appType }}"
+        fi
+
+        terraform init -input=false $FORCE_COPY \
+          -backend-config="resource_group_name=$(TF_STATE_RG)" \
+          -backend-config="storage_account_name=$(TF_STATE_SA)" \
+          -backend-config="container_name=$(TF_STATE_CONTAINER)" \
+          -backend-config="key=$(CLOUD_AZURE_SUBSCRIPTION_ID)/${STATE_NAME}/${{ parameters.environment }}/terraform.tfstate"
 
   ###########################################################################
-  # Apply
+  # Plan / Apply
+  #
+  # The Plan step runs for both 'plan' (Plan ONLY) and 'apply'. The Apply step
+  # (and its output publish) only runs for 'apply', so selecting Plan ONLY
+  # previews changes without mutating any infrastructure.
   ###########################################################################
-  - ${{ if eq(parameters.terraformAction, 'apply') }}:
+  - ${{ if in(parameters.terraformAction, 'plan', 'apply') }}:
 
     - task: AzureCLI@2
       displayName: 'Terraform Plan'
       inputs:
-        azureSubscription: 'Azure'
+        azureSubscription: ${{ parameters.azureServiceConnection }}
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         addSpnToEnvironment: true
@@ -77,10 +139,12 @@ steps:
             -var="azure_region=$(CLOUD_AZURE_REGION)" \
             -out=tfplan
 
+  - ${{ if eq(parameters.terraformAction, 'apply') }}:
+
     - task: AzureCLI@2
       displayName: 'Terraform Apply'
       inputs:
-        azureSubscription: 'Azure'
+        azureSubscription: ${{ parameters.azureServiceConnection }}
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         addSpnToEnvironment: true
@@ -94,7 +158,51 @@ steps:
           export ARM_TENANT_ID=$tenantId
           export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
 
-          terraform apply -auto-approve tfplan
+          if [ "$(IMAGE_BUILD)" == "true" ]; then
+            # ---- Staged apply: build the image mid-apply so the container app
+            #      references a real image (chicken-and-egg). All inputs from
+            #      cloud.containerImage in epic.json — nothing app-specific here.
+            IMAGE_TAG="$(Build.BuildId)"
+
+            echo ">> [1/3] Applying registry target '$(IMG_REGISTRY_TARGET)' so the image has somewhere to go"
+            # tfplan was produced without the image tag var; re-plan the target
+            # with the tag var set so apply is consistent, then apply just the
+            # registry (and its dependencies).
+            terraform apply -auto-approve \
+              -target="$(IMG_REGISTRY_TARGET)" \
+              -var="subscription_id=$(CLOUD_AZURE_SUBSCRIPTION_ID)" \
+              -var="tenant_id=$tenantId" \
+              -var="environment=${{ parameters.environment }}" \
+              -var="azure_region=$(CLOUD_AZURE_REGION)" \
+              -var="$(IMG_TAG_VAR)=${IMAGE_TAG}"
+
+            LOGIN_SERVER=$(terraform output -raw "$(IMG_REGISTRY_OUTPUT)")
+            REGISTRY_NAME="${LOGIN_SERVER%%.*}"
+            echo ">> [2/3] az acr build → ${LOGIN_SERVER}/$(IMG_NAME):${IMAGE_TAG}"
+
+            BUILD_CTX="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/$(IMG_CONTEXT)"
+            TARGET_ARG=""
+            if [ -n "$(IMG_TARGET)" ]; then TARGET_ARG="--target $(IMG_TARGET)"; fi
+
+            az acr build \
+              --registry "$REGISTRY_NAME" \
+              --image "$(IMG_NAME):${IMAGE_TAG}" \
+              --image "$(IMG_NAME):latest" \
+              --file "${BUILD_CTX}/$(IMG_DOCKERFILE)" \
+              $TARGET_ARG \
+              "$BUILD_CTX"
+
+            echo ">> [3/3] Full apply with $(IMG_TAG_VAR)=${IMAGE_TAG}"
+            terraform apply -auto-approve \
+              -var="subscription_id=$(CLOUD_AZURE_SUBSCRIPTION_ID)" \
+              -var="tenant_id=$tenantId" \
+              -var="environment=${{ parameters.environment }}" \
+              -var="azure_region=$(CLOUD_AZURE_REGION)" \
+              -var="$(IMG_TAG_VAR)=${IMAGE_TAG}"
+          else
+            # Normal single-pass apply (no image build).
+            terraform apply -auto-approve tfplan
+          fi
 
           terraform output -json > $(System.DefaultWorkingDirectory)/output.json
 
@@ -113,7 +221,7 @@ steps:
     - task: AzureCLI@2
       displayName: 'Terraform Plan Destroy'
       inputs:
-        azureSubscription: 'Azure'
+        azureSubscription: ${{ parameters.azureServiceConnection }}
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         addSpnToEnvironment: true
@@ -137,7 +245,7 @@ steps:
     - task: AzureCLI@2
       displayName: 'Terraform Destroy'
       inputs:
-        azureSubscription: 'Azure'
+        azureSubscription: ${{ parameters.azureServiceConnection }}
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         addSpnToEnvironment: true

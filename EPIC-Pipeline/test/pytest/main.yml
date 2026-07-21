@@ -7,9 +7,9 @@ steps:
   # Use Python Version
   #############################################################################
   - task: UsePythonVersion@0
-    displayName: "Use Python ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+    displayName: "Use Python ${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
     inputs:
-      versionSpec: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+      versionSpec: "${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
       addToPath: true
 
 

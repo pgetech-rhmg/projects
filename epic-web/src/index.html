@@ -5,6 +5,14 @@
   <title>EPIC</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Best-effort hint only. Browsers ignore http-equiv cache directives when
+       caching the HTML document itself — the authoritative control is the real
+       Cache-Control response header set on index.html at deploy time (see
+       epic-pipeline deploy/aws/static/main.yml). Hashed JS/CSS bundles
+       (outputHashing: "all") are separately marked immutable/long-lived. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>

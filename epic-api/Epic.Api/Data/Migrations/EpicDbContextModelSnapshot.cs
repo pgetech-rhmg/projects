@@ -17,7 +17,7 @@ namespace Epic.Api.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.5")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -89,6 +89,10 @@ namespace Epic.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("GithubSource")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<bool>("HasInfra")
                         .HasColumnType("boolean");
 
@@ -122,10 +126,10 @@ namespace Epic.Api.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GithubRepo")
+                    b.HasIndex("Name")
                         .IsUnique();
 
-                    b.HasIndex("Name")
+                    b.HasIndex("GithubSource", "GithubRepo")
                         .IsUnique();
 
                     b.ToTable("apps", (string)null);
@@ -166,6 +170,10 @@ namespace Epic.Api.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("StageIntegrationTest")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("StageReview")
                         .IsRequired()
                         .HasColumnType("text");
 

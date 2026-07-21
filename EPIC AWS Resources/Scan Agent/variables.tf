@@ -23,9 +23,15 @@ variable "aws_region" {
 ###############################################################################
 
 variable "instance_type" {
-  description = "EC2 instance type for the ADO scan agent. SonarQube analysis is JVM/memory-heavy; m5.large (8 GB) is the floor, m5.xlarge (16 GB) is safer for large .NET solutions."
+  description = "EC2 instance type for the ADO scan agent. SonarQube analysis is JVM/memory-heavy; m5.large (8 GB) is the floor, m5.xlarge (16 GB) is safer for large .NET solutions. Budget ~4-6 GB per concurrent heavy scan when running multiple agents on one box (m5.2xlarge/32 GB ~= 4 agents)."
   type        = string
   default     = "m5.large"
+}
+
+variable "ami_id" {
+  description = "PINNED AMI for the scan agent host. Pinned (not a most_recent lookup) because the box is hand-built: the toolchain + ADO agent are installed over SSM, not baked into the AMI, so an AMI change forces an instance REPLACE that wipes that state. Defaults to the AL2023 AMI the current box was built on. Change deliberately only when rebuilding from documents/scan-agent-setup.md."
+  type        = string
+  default     = "ami-04857b2a57c905098"
 }
 
 variable "root_volume_size" {

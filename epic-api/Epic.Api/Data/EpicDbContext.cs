@@ -16,7 +16,9 @@ public sealed class EpicDbContext(DbContextOptions<EpicDbContext> options) : DbC
             entity.ToTable("apps");
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Name).IsUnique();
-            entity.HasIndex(e => e.GithubRepo).IsUnique();
+            // A repo name is unique only within its source — the same name can
+            // exist in two different orgs/hosts.
+            entity.HasIndex(e => new { e.GithubSource, e.GithubRepo }).IsUnique();
         });
 
         modelBuilder.Entity<PipelineRunEntity>(entity =>

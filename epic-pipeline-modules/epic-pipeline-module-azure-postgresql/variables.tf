@@ -24,8 +24,8 @@ variable "postgresql_version" {
   default     = "16"
 
   validation {
-    condition     = contains(["13", "14", "15", "16"], var.postgresql_version)
-    error_message = "postgresql_version must be one of: 13, 14, 15, 16"
+    condition     = contains(["13", "14", "15", "16", "17", "18"], var.postgresql_version)
+    error_message = "postgresql_version must be one of: 13, 14, 15, 16, 17, 18"
   }
 }
 
@@ -103,6 +103,12 @@ variable "firewall_rules" {
   }))
   description = "Firewall rules for public access"
   default     = []
+}
+
+variable "server_configurations" {
+  type        = map(string)
+  description = "Server parameters (azurerm_postgresql_flexible_server_configuration), keyed by parameter name. E.g. { \"azure.extensions\" = \"UUID-OSSP,FUZZYSTRMATCH\" }."
+  default     = {}
 }
 
 variable "delegated_subnet_id" {

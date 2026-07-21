@@ -2,9 +2,8 @@
   "app": {
     "appName": "epic-web",
     "appType": "angular",
-    "runtimeVersion": "20",
     "scanTool": "sonarqube",
-    "buildTestTool": "jest"
+    "buildTestTool": "karma"
   },
   "cloud": {
     "awsAccountId": "514712703977",

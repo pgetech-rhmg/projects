@@ -366,23 +366,40 @@ variable "azure_region"    { type = string }
 variable "environment"     { type = string }
 ```
 
-### Standard EPIC tagging vars (required by the `tags` module)
+### Standard EPIC tagging vars (inputs to the `tags` module)
 
-Every project should declare these and pass them to `module "tags"`:
+Declare these and pass them to `module "tags"`. This list is **exactly** the module's input
+surface — do not add inputs it does not accept (the module rejects unknown arguments):
 
 ```hcl
-variable "appid"              { type = number }                  # AMPS application ID
-variable "notify"             { type = list(string) }            # email addresses
-variable "owner"              { type = list(string) }            # exactly 3 LANIDs
-variable "order"              { type = number }                  # 7-9 digit cost center order
+variable "appid"              { type = number }                  # AMPS application ID — rendered as APP-<appid>; number, not string
+variable "notify"             { type = list(string) }            # failure/maintenance email(s); each must be a valid address
+variable "owner"              { type = list(string) }            # exactly 3 LANIDs (validated: length == 3)
+variable "order"              { type = number }                  # cost-center order; number, validated 7-9 digits
 variable "dataclassification" { type = string  default = "Internal" }
 variable "compliance"         { type = list(string) default = ["None"] }
 variable "cris"               { type = string  default = "Low" }   # Cyber Risk Impact Score
-variable "principal_orgid"    { type = string  default = "o-7vgpdbu22o" }  # AWS only — fixed PG&E AWS Org ID
-variable "project_tag"        { type = string }                  # short PascalCase resource-name prefix
 ```
 
-> **`principal_orgid` is a fixed value — always `o-7vgpdbu22o`.** This is the PG&E AWS Organization ID, identical for every account in scope of EPIC. Any module that needs it (`aws-kms` for the org-membership condition in DenyFromInternet, `aws-static-web`, anything else that takes an org-id input) gets the same literal. Always set `principal_orgid = "o-7vgpdbu22o"` in `terraform.auto.tfvars` (or rely on the default above). Never leave a `TODO_*` placeholder for it, and never source it per-environment.
+> The `tags` module also takes `aws_account_id` and `environment`, but those are **pipeline-injected** `-var` values — declare them (see section 5) and pass them through to the module; do not assign them in `terraform.auto.tfvars`.
+
+### Other common project vars (NOT tags-module inputs)
+
+These are project-level conventions, not arguments to `module "tags"`. Declare them only if your
+resources use them:
+
+```hcl
+variable "principal_orgid"    { type = string  default = "o-7vgpdbu22o" }  # AWS only — fixed PG&E AWS Org ID
+variable "project_tag"        { type = string }                  # short lowercase kebab-case resource-NAME prefix (e.g. "my-app"); NOT a tag value
+```
+
+> **`principal_orgid` is a fixed value — always `o-7vgpdbu22o`.** This is the PG&E AWS Organization ID, identical for every account in scope of EPIC. It is **not** a tags-module input — it is consumed by modules that enforce org membership (`aws-kms` for the DenyFromInternet org condition, `aws-static-web`, anything else that takes an org-id input). Always set `principal_orgid = "o-7vgpdbu22o"` in `terraform.auto.tfvars` (or rely on the default above). Never leave a `TODO_*` placeholder for it, and never source it per-environment.
+
+> **`project_tag` is a resource-NAME prefix, not a tag.** Despite the name, it does not go into `module "tags"` — it is a short string used to build resource names (e.g. `"${var.project_tag}-api-${var.environment}"`). Declare it only if your `main.tf` references it for naming.
+>
+> **`project_tag` MUST equal `app.appName` from `.pipeline/epic.json` — verbatim.** Do not invent a new name, do not re-case it, do not abbreviate it, do not derive a "prettier" PascalCase or camelCase variant from the repo folder. The wizard already validates `appName` as lowercase kebab-case (`^[a-z][a-z0-9-]{2,40}$`); reusing it as-is keeps the resource name stable across every sink (repo dir, ADO build tag, Terraform state key, S3 bucket, IAM role). If `epic.json` has `"appName": "rhmg-react-app"`, then `project_tag = "rhmg-react-app"` — **NOT** `"RhmgReactApp"`, `"rhmgReactApp"`, `"rhmg_react_app"`, or `"rhmg-react"`.
+>
+> **Why this matters.** EPIC modules that build S3 bucket names interpolate `project_tag` directly into `pge-epic-${app_name}-${env}` (see `aws-s3` / `aws-static-web`), and **S3 bucket names must be all-lowercase** — a PascalCase value like `"MyApp"` produces `pge-epic-MyApp-dev`, which AWS rejects at apply time with `InvalidBucketName`. The validation error never surfaces during `terraform plan` (the name is "known after apply"), so getting this wrong wastes a full pipeline run.
 
 ---
 
@@ -898,7 +915,7 @@ principal_orgid = "o-7vgpdbu22o"  # PG&E AWS Org ID — fixed value
 aws_account_id  = "123456789012"
 aws_region      = "us-west-2"
 environment     = "dev"
-project_tag     = "MyApp"
+project_tag     = "my-app"     # MUST equal app.appName from .pipeline/epic.json — verbatim, never re-cased
 appid           = 1234
 notify          = ["team@example.com"]
 owner           = ["abc1", "def2", "ghi3"]
@@ -1019,7 +1036,7 @@ module "lambda" {
 module "api_gateway" {
   source = "git::https://github.com/pgetech/epic-pipeline-module-aws-api-gateway.git?ref=main"
 
-  api_name      = "${var.project_tag}-Api-${var.environment}"
+  api_name      = "${var.project_tag}-api-${var.environment}"
   description   = "${var.project_tag} REST API"
   endpoint_type = "REGIONAL"
   stage_name    = var.environment

@@ -111,3 +111,12 @@ variable "network_rules" {
   description = "Network rules for the storage account"
   default     = null
 }
+
+variable "static_website" {
+  type = object({
+    index_document     = optional(string, "index.html")
+    error_404_document = optional(string, "index.html")
+  })
+  description = "Enable static website hosting (serves from the implicit $web container). null disables it. For SPA client-side routing, point error_404_document at index.html."
+  default     = null
+}

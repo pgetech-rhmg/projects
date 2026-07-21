@@ -1,0 +1,131 @@
+###############################################################################
+# EPIC — Review App (PG&E Compliance Gate)
+#
+# Runs the epic-compliance CLI against the checked-out repo to verify it against
+# PG&E's AIDLC steering docs (T&S R&C Unified Controls Framework). Findings are
+# keyed to NIST control IDs. The CLI's EXIT CODE gates the pipeline:
+#   0 = compliant (proceed)   1 = gating finding (fail)   2 = tool error
+#
+# The binary is a version-pinned, self-contained Go executable pulled from S3
+# into the cleaned run workspace (no global install → no drift). Runs on the
+# EPIC self-hosted agent, which already has AWS creds + S3/KMS read on the
+# artifact bucket (granted in EPIC AWS Resources/Compliance Reviewer).
+#
+# Distinct scope from Wiz (cloud posture) and SonarQube (code quality).
+###############################################################################
+
+# Inherited params (appName, appType, codePath, repo, branch, ...) arrive via
+# the engine's `${{ insert }}: ${{ parameters }}` and are referenced directly,
+# matching the other main.yml templates. Only the extras the engine passes
+# explicitly are declared here (like test/main.yml declares testType).
+parameters:
+  complianceVersion: ""
+  artifactBucket: "pge-epic-compliance-reviewer"
+  artifactPrefix: "compliance"
+
+jobs:
+- job: ReviewJob
+  displayName: "Review App"
+  pool:
+    name: EPIC - Self-hosted
+
+  workspace:
+    clean: all
+
+  #############################################################################
+  # Steps
+  #############################################################################
+  steps:
+
+    ###########################################################################
+    # Download App Artifact (the cloned source published by the Download stage)
+    ###########################################################################
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download app artifact"
+      inputs:
+        artifactName: epic-app
+        targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.appName }}
+
+
+    ###########################################################################
+    # Pull the version-pinned epic-compliance binary from S3
+    #
+    # Installed into the run workspace (not globally) so `workspace: clean: all`
+    # wipes it each run — fresh tool every time, no drift on the shared agent.
+    ###########################################################################
+    - bash: |
+        set -euo pipefail
+
+        VERSION="${{ parameters.complianceVersion }}"
+        BUCKET="${{ parameters.artifactBucket }}"
+        PREFIX="${{ parameters.artifactPrefix }}"
+        KEY="${PREFIX}/epic-compliance-${VERSION}-linux-amd64"
+
+        echo ">> Pulling s3://${BUCKET}/${KEY}"
+
+        aws s3 cp "s3://${BUCKET}/${KEY}" ./epic-compliance
+        chmod +x ./epic-compliance
+
+        ./epic-compliance --version
+
+      displayName: "Pull epic-compliance binary"
+
+
+    ###########################################################################
+    # Run the compliance review — exit code gates the stage
+    #
+    # --fail-on hard-fail : non-zero only on HARD-mapped control failures;
+    #                       PARTIAL/MANUAL/N/A surface as informational.
+    # --llm               : escalate interpretive controls to Opus 4.8 via the
+    #                       PG&E Portkey gateway (falls back to deterministic
+    #                       per-control on gateway error).
+    ###########################################################################
+    - bash: |
+        set -euo pipefail
+
+        SRC="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        echo ">> Reviewing: $SRC"
+
+        ./epic-compliance "$SRC" \
+          --app-type "${{ parameters.appType }}" \
+          --repo-name "${{ parameters.repo }}" \
+          --llm \
+          --fail-on hard-fail \
+          --sarif "$(System.DefaultWorkingDirectory)/compliance-report.sarif" \
+          --out   "$(System.DefaultWorkingDirectory)/compliance-report.json" \
+          --md    "$(System.DefaultWorkingDirectory)/compliance-report.md"
+
+      displayName: "Run compliance review"
+      env:
+        PORTKEY_API_KEY: $(PORTKEY_API_KEY)
+        PORTKEY_BASE_URL: $(PORTKEY_BASE_URL)
+        PORTKEY_MODEL: $(PORTKEY_MODEL)
+
+
+    ###########################################################################
+    # Publish Results
+    #
+    # succeededOrFailed() so the report is available even when the gate fails —
+    # that is exactly when a developer needs to see the findings.
+    ###########################################################################
+    - task: PublishBuildArtifacts@1
+      displayName: "Publish compliance report"
+      condition: succeededOrFailed()
+      inputs:
+        pathToPublish: $(System.DefaultWorkingDirectory)/compliance-report.sarif
+        artifactName: epic-compliance-review
+
+    - task: PublishBuildArtifacts@1
+      displayName: "Publish compliance report (json)"
+      condition: succeededOrFailed()
+      inputs:
+        pathToPublish: $(System.DefaultWorkingDirectory)/compliance-report.json
+        artifactName: epic-compliance-review
+
+    - task: PublishBuildArtifacts@1
+      displayName: "Publish compliance report (md)"
+      condition: succeededOrFailed()
+      inputs:
+        pathToPublish: $(System.DefaultWorkingDirectory)/compliance-report.md
+        artifactName: epic-compliance-review

@@ -152,8 +152,13 @@
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: #2c5282;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   &--secondary {
@@ -161,7 +166,7 @@
     color: #2b6cb0;
     border: 1px solid #2b6cb0;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: #ebf4ff;
       color: #2c5282;
     }
@@ -266,6 +271,23 @@
   color: #a0aec0;
   font-size: 0.9rem;
 }
+
+.backend-offline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 64px 16px;
+  text-align: center;
+  color: #a0aec0;
+
+  svg { color: #cbd5e0; margin-bottom: 4px; }
+  p { margin: 0; }
+  &__title { font-size: 1rem; font-weight: 600; color: #4a5568; }
+  &__hint { font-size: 0.875rem; }
+}
+
 
 // ── Table ───────────────────────────────────────────────────────────────────
 
@@ -407,6 +429,7 @@ tbody {
   &-aws   { background: #fff1e0; color: #c45500; }
   &-azure { background: #e1f0fd; color: #0058a3; }
   &-btp   { background: #fef6e0; color: #946800; }
+  &-sap   { background: #e8f1fd; color: #0070f2; }
 }
 
 // Run Status
@@ -421,10 +444,11 @@ tbody {
 
 // Environment
 .badge--env {
-  &-prod { background: #d4edda; color: #155724; }
-  &-qa   { background: #d1ecf1; color: #0c5460; }
-  &-test { background: #fff3cd; color: #7d5a00; }
-  &-dev  { background: #e2e8f0; color: #4a5568; }
+  &-prod  { background: #d4edda; color: #155724; }
+  &-qa    { background: #d1ecf1; color: #0c5460; }
+  &-test  { background: #fff3cd; color: #7d5a00; }
+  &-dev   { background: #e2e8f0; color: #4a5568; }
+  &-other { background: #edf0f4; color: #718096; }
 }
 
 // ── Cancel button ────────────────────────────────────────────────────────────
@@ -558,6 +582,14 @@ tbody {
     flex-direction: column;
   }
 
+  &--fullscreen {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
   &--loading {
     position: relative;
     pointer-events: none;
@@ -592,8 +624,16 @@ tbody {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
   padding: 20px 24px 0;
   flex-shrink: 0;
+
+  // Title/description block grows to fill the header width so the description
+  // isn't artificially narrow next to the controls.
+  > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 
   h3 {
     margin: 0;
@@ -608,7 +648,6 @@ tbody {
   font-size: 0.82rem;
   color: #718096;
   line-height: 1.5;
-  max-width: 640px;
 }
 
 .modal-loading {
@@ -751,6 +790,12 @@ tbody {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+  // Reset UA <button> chrome so button-based dots render identically to span dots.
+  padding: 0;
+  border: none;
+  appearance: none;
+  font: inherit;
+  color: inherit;
 
   &--success   { background: #48bb78; }
   &--failed    { background: #fc8181; }
@@ -800,6 +845,15 @@ tbody {
   border-radius: 6px;
   overflow: hidden;
 
+  &__actions {
+    display: flex;
+    justify-content: flex-start;
+    gap: 8px;
+    padding-bottom: 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #edf2f7;
+  }
+
   &__loading {
     display: flex;
     align-items: center;
@@ -829,6 +883,13 @@ tbody {
     padding: 6px 8px;
     font-size: 0.82rem;
     color: #4a5568;
+    // Reset UA <button> chrome — the step is a full-width flex row, not a pill.
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: none;
+    font-family: inherit;
+    appearance: none;
 
     &--clickable {
       cursor: pointer;
@@ -906,6 +967,13 @@ tbody {
     tab-size: 4;
     word-break: normal;
   }
+}
+
+.modal-header__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .modal-close {
@@ -1042,6 +1110,225 @@ tbody {
   }
 }
 
+.btn-download-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #2b6cb0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover:not(:disabled) {
+    background: #ebf4ff;
+    border-color: #2b6cb0;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  svg { flex-shrink: 0; }
+}
+
+// ── Compliance summary (Review stage) ────────────────────────────────────────
+
+.compliance-summary {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f7fafc;
+
+  &__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  &__title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #2d3748;
+  }
+
+  &__version {
+    font-size: 0.72rem;
+    color: #718096;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  &__table {
+    width: 100%;
+    max-width: 260px;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+
+    th {
+      text-align: left;
+      font-weight: 600;
+      color: #718096;
+      padding: 2px 8px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    td {
+      padding: 3px 8px;
+    }
+  }
+
+  &__count {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #2d3748;
+  }
+
+  &__total-row {
+    border-top: 1px solid #e2e8f0;
+
+    td { padding-top: 5px; font-weight: 700; color: #2d3748; }
+  }
+}
+
+// Verdict pills — colors mirror the stage-dot status palette.
+.compliance-verdict {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+
+  &--fail    { background: #fed7d7; color: #c53030; }
+  &--partial { background: #feebc8; color: #c05621; }
+  &--pass    { background: #c6f6d5; color: #276749; }
+  &--manual  { background: #e2e8f0; color: #4a5568; }
+  &--na      { background: #edf2f7; color: #718096; }
+}
+
+// ── View Report modal ─────────────────────────────────────────────────────────
+
+.report-modal {
+  // modal--wide makes this a fixed-height flex column (and fullscreen swaps the
+  // dimensions), so the body flex-grows to fill and scrolls internally — no
+  // dead space in fullscreen, no fixed max-height fighting the layout.
+  &__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  &__summary {
+    margin-bottom: 16px;
+  }
+
+  &__footer {
+    justify-content: flex-start;
+  }
+}
+
+.report-profile {
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #4a5568;
+
+  &__label { font-weight: 700; color: #2d3748; }
+  &__value { color: #2d3748; }
+  &__sep { color: #cbd5e0; margin: 0 2px; }
+
+  &__narrative {
+    margin: 6px 0 0;
+    color: #718096;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+}
+
+.report-group {
+  margin-bottom: 18px;
+
+  &__heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #edf2f7;
+    font-size: 0.85rem;
+  }
+
+  &__count { color: #a0aec0; font-weight: 600; font-size: 0.8rem; }
+}
+
+.report-finding {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid #edf2f7;
+  border-radius: 6px;
+  background: #fff;
+
+  &__title {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  &__id {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #2b6cb0;
+  }
+
+  &__name { font-size: 0.82rem; font-weight: 600; color: #2d3748; }
+
+  &__hard {
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: #fefcbf;
+    color: #975a16;
+  }
+
+  &__req, &__msg, &__rem, &__inherited {
+    margin: 4px 0 0;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #4a5568;
+  }
+
+  &__inherited { color: #718096; font-style: italic; }
+  &__req { color: #718096; }
+
+  &__evidence {
+    margin: 5px 0 0;
+    padding-left: 18px;
+
+    li { font-size: 0.74rem; color: #718096; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #f7fafc;
+      padding: 0 3px;
+      border-radius: 3px;
+    }
+  }
+}
+
 // ── Run link ────────────────────────────────────────────────────────────────
 
 .run-link {
@@ -1133,6 +1420,22 @@ tbody {
   }
 }
 
+.howto-note {
+  font-size: 0.82rem;
+  color: #4a5568;
+  background: #f7fafc;
+  border-left: 3px solid #cbd5e0;
+  padding: 8px 12px;
+  border-radius: 0 6px 6px 0;
+  margin-top: 4px;
+
+  &--important {
+    color: #7c2d12;
+    background: #fffbeb;
+    border-left-color: #f59e0b;
+  }
+}
+
 .howto-sample-controls {
   display: flex;
   align-items: center;
@@ -1218,7 +1521,11 @@ tbody {
   flex-direction: column;
   gap: 6px;
 
-  label {
+  // `.field-label` is a group heading (labels a set of controls — a component
+  // list, key list, checkbox/radio group — not a single input), styled to match
+  // real <label>s. Kept as a non-<label> element so it needs no `for` target.
+  label,
+  .field-label {
     font-size: 0.8125rem;
     font-weight: 600;
     color: #4a5568;
@@ -1342,6 +1649,30 @@ tbody {
     border-radius: 3px;
     font-size: 0.78rem;
   }
+}
+
+.field-hint--block {
+  // Same block layout as `--info` (so inline <code> doesn't shred via flex),
+  // but inherits the surrounding color (pair with `--taken` for an error hint).
+  display: block;
+  line-height: 1.45;
+  margin-bottom: 8px;
+
+  code {
+    background: rgba(197, 48, 48, 0.08);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.78rem;
+  }
+
+  // When paired with `--info` (blue prose), tint inline <code> blue to match.
+  &.field-hint--info code {
+    background: rgba(43, 108, 176, 0.08);
+  }
+}
+
+.force-state-copy {
+  margin-top: 10px;
 }
 
 // ── New Run modal meta grid ──────────────────────────────────────────────────

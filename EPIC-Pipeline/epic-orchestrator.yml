@@ -31,6 +31,11 @@
 #   are owned entirely by the EPIC Engine pipeline.
 ###############################################################################
 
+resources:
+  webhooks:
+    - webhook: epicHook
+      connection: epic-github
+
 trigger: none
 pr: none
 
@@ -42,6 +47,16 @@ parameters:
     displayName: "GitHub Repo"
     type: string
     default: ""
+
+  - name: owner
+    displayName: "GitHub Org/Owner"
+    type: string
+    default: "pgetech"
+
+  - name: githubHost
+    displayName: "GitHub Host (github.com or an Enterprise host)"
+    type: string
+    default: "github.com"
 
   - name: branch
     displayName: "GitHub Branch"
@@ -61,12 +76,24 @@ parameters:
       - dev
       - test
       - qa
+      - stage
       - prod
+      - other
+
+  - name: triggeredBy
+    displayName: "Triggered By (leave as 'auto' to use your ADO identity)"
+    type: string
+    default: "auto"
+
+  - name: review
+    displayName: "Review App"
+    type: boolean
+    default: false
 
   - name: build
     displayName: "Build App"
     type: boolean
-    default: true
+    default: false
 
   - name: tests
     displayName: "Run Build Tests"
@@ -94,8 +121,14 @@ parameters:
     default: none
     values:
       - none
+      - plan
       - apply
       - destroy
+
+  - name: forceStateCopy
+    displayName: "Force State Copy (migrate committed tfstate to S3 backend)"
+    type: boolean
+    default: false
 
 
 ###############################################################################
@@ -110,6 +143,51 @@ variables:
     value: "pgetech"
   - name: PROJECT
     value: "EPIC-Pipeline"
+
+  # Effective repo/branch.
+  #   • Manual / epic-api REST runs supply parameters.repo + parameters.branch.
+  #   • A webhook push leaves those empty, so fall back to the GitHub push
+  #     payload delivered on the epicHook resource.
+  # The unselected ${{ if }} branch is never emitted, so parameters.epicHook
+  # is only referenced on the webhook path.
+  - name: EFFECTIVE_REPO
+    ${{ if ne(parameters.repo, '') }}:
+      value: ${{ parameters.repo }}
+    ${{ else }}:
+      value: ${{ parameters.epicHook.repository.name }}
+  - name: EFFECTIVE_BRANCH
+    ${{ if ne(parameters.branch, '') }}:
+      value: ${{ parameters.branch }}
+    ${{ else }}:
+      value: ${{ replace(parameters.epicHook.ref, 'refs/heads/', '') }}
+
+  # Effective GitHub org/owner + host.
+  #   • Manual / epic-api REST runs supply parameters.owner (+ githubHost),
+  #     defaulting to pgetech/github.com when omitted.
+  #   • A webhook push carries the source org/host in its payload, so a push
+  #     from any onboarded org clones from the right place.
+  # parameters.repo is the discriminator for "was this a manual/REST run?" —
+  # it's non-empty there and empty on the webhook path.
+  - name: EFFECTIVE_OWNER
+    ${{ if ne(parameters.repo, '') }}:
+      value: ${{ parameters.owner }}
+    ${{ else }}:
+      value: ${{ parameters.epicHook.repository.owner.login }}
+  - name: EFFECTIVE_HOST
+    ${{ if ne(parameters.repo, '') }}:
+      value: ${{ parameters.githubHost }}
+    ${{ else }}:
+      value: github.com
+
+  # Head commit SHA — only a webhook push carries one (epicHook.after). Manual
+  # and epic-api REST runs leave it empty, which tells the engine to skip GitHub
+  # commit-status reporting. Used to post the "EPIC" rollup status back to the
+  # pushed commit so branch protection can gate PR merges on it.
+  - name: COMMIT_SHA
+    ${{ if ne(parameters.repo, '') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.epicHook.after }}
 
 
 ###############################################################################
@@ -133,10 +211,16 @@ stages:
           - bash: |
               set -euo pipefail
 
+              # TEMP DEBUG: confirm webhook payload resolution on push-triggered
+              # runs. Remove once the webhook path is verified end-to-end.
+              echo ">> DEBUG Build.Reason=$(Build.Reason)"
+              echo ">> DEBUG EFFECTIVE_REPO=$(EFFECTIVE_REPO)"
+              echo ">> DEBUG EFFECTIVE_BRANCH=$(EFFECTIVE_BRANCH)"
+
               echo ">> Verifying parameters..."
 
-              REPO="${{ parameters.repo }}"
-              BRANCH="${{ parameters.branch }}"
+              REPO="$(EFFECTIVE_REPO)"
+              BRANCH="$(EFFECTIVE_BRANCH)"
               CONFIG="${{ parameters.config }}"
               ENVIRONMENT="${{ parameters.environment }}"
 
@@ -153,96 +237,224 @@ stages:
 
               echo ">> Building payload..."
 
-              # Clone repo to temp dir
-              git clone --depth 1 --branch "${{ parameters.branch }}" "https://${GITHUB_PAT}@github.com/${ORG}/${{ parameters.repo }}.git" /tmp/repo
+              # Clone repo to temp dir (org + host come from the effective values
+              # so EPIC can pull from more than one org / an Enterprise host).
+              git clone --depth 1 --branch "$(EFFECTIVE_BRANCH)" "https://${GITHUB_PAT}@$(EFFECTIVE_HOST)/$(EFFECTIVE_OWNER)/$(EFFECTIVE_REPO).git" /tmp/repo
 
-              REPO="${{ parameters.repo }}"
-              BRANCH="${{ parameters.branch }}"
+              REPO="$(EFFECTIVE_REPO)"
+              BRANCH="$(EFFECTIVE_BRANCH)"
               CONFIG_FILE="/tmp/repo/${{ parameters.config }}"
               ENVIRONMENT="${{ parameters.environment }}"
+              REVIEW="${{ parameters.review }}"
               BUILD="${{ parameters.build }}"
               TESTS="${{ parameters.tests }}"
               SCAN="${{ parameters.scan }}"
               DEPLOY="${{ parameters.deploy }}"
               INTEGRATIONS="${{ parameters.integrations }}"
 
-              HAS_INFRA="true"
-              APP_TYPE=$(jq -r '.app.appType' "$CONFIG_FILE")
-              INFRA_PATH=$(jq -r '.app.infraPath // ".infra"' "$CONFIG_FILE")
-
-              if [ ! -d "/tmp/repo/$INFRA_PATH" ] && [ "$APP_TYPE" != "btp" ]; then
-                HAS_INFRA="false"
+              # Contract-less (Review-only) detection. A repo/branch with no
+              # epic.json cannot describe its appType, build/test/scan tools,
+              # cloud target, or infra — so instead of failing the run we
+              # synthesize a minimal Review-only payload below. The compliance
+              # reviewer profiles the repo itself and needs no contract; every
+              # other stage self-disables (its toggle stays false and/or its
+              # tool string is empty).
+              NO_CONFIG="false"
+              if [ ! -f "$CONFIG_FILE" ]; then
+                NO_CONFIG="true"
+                echo ">> No config at ${{ parameters.config }} — running Review-only (contract-less) mode"
               fi
 
-              TERRAFORM=$(jq -r --arg hasInfra "$HAS_INFRA" --arg deployInfra "${{ parameters.deployInfra }}" \
-                'if $hasInfra == "false" then "none"
-                else $deployInfra
-                end' "$CONFIG_FILE")
+              # Push-triggered CI: a webhook push carries no stage toggles (they
+              # take their 'false' defaults), which would trigger an empty run.
+              # When this run was started by the incoming webhook, force the safe
+              # non-deploying CI stages on. Manual and epic-api REST runs (any
+              # other Build.Reason) keep exactly the toggles they were given.
+              if [ "$(Build.Reason)" == "ResourceTrigger" ]; then
+                echo ">> Webhook push detected — applying CI defaults (review, build, tests, scan)"
+                REVIEW="true"
+                BUILD="true"
+                TESTS="true"
+                SCAN="true"
+                DEPLOY="false"
+                INTEGRATIONS="false"
+              fi
+
+              # Contract-less override. With no epic.json the repo has nothing to
+              # build/test/scan/deploy against, so force Review-only regardless of
+              # the requested toggles (or the CI defaults just applied above).
+              if [ "$NO_CONFIG" == "true" ]; then
+                REVIEW="true"
+                BUILD="false"
+                TESTS="false"
+                SCAN="false"
+                DEPLOY="false"
+                INTEGRATIONS="false"
+              fi
+
+              if [ "$NO_CONFIG" == "true" ]; then
+                # ---- Contract-less defaults (no epic.json to read) ----
+                # appName falls back to the repo name; codePath to the repo root;
+                # everything else is inert so only the Review stage materializes.
+                APP_TYPE=""
+                HAS_INFRA="false"
+                MULTI_CONFIG="false"
+                TERRAFORM="none"
+                FORCE_STATE_COPY="false"
+                REQUIRE_APPROVAL="false"
+                CLOUD_PROVIDER="aws"
+              else
+                HAS_INFRA="true"
+                APP_TYPE=$(jq -r '.app.appType' "$CONFIG_FILE")
+                INFRA_PATH=$(jq -r '.app.infraPath // ".infra"' "$CONFIG_FILE")
+
+                if [ ! -d "/tmp/repo/$INFRA_PATH" ] && [ "$APP_TYPE" != "btp" ]; then
+                  HAS_INFRA="false"
+                fi
+
+                # Detect whether this repo hosts multiple EPIC apps (more than one
+                # epic.json). Multi-config repos namespace their Terraform state
+                # key with the repo name so that two repos sharing a folder name +
+                # appType (e.g. frontend-aws) don't collide on one state file.
+                EPIC_CONFIG_COUNT=$(find /tmp/repo -type f -name epic.json | wc -l | tr -d '[:space:]')
+                MULTI_CONFIG="false"
+                if [ "$EPIC_CONFIG_COUNT" -gt 1 ]; then
+                  MULTI_CONFIG="true"
+                fi
+
+                TERRAFORM=$(jq -r --arg hasInfra "$HAS_INFRA" --arg deployInfra "${{ parameters.deployInfra }}" \
+                  'if $hasInfra == "false" then "none"
+                  else $deployInfra
+                  end' "$CONFIG_FILE")
+
+                # Force State Copy only applies when an infra deploy actually runs.
+                FORCE_STATE_COPY="${{ parameters.forceStateCopy }}"
+                if [ "$TERRAFORM" == "none" ]; then
+                  FORCE_STATE_COPY="false"
+                fi
+
+                # Resolve approval gate: check if current environment is in approvalEnvironments array
+                REQUIRE_APPROVAL=$(jq -r \
+                  --arg env "$ENVIRONMENT" \
+                  'if .app.approvalEnvironments then
+                    (.app.approvalEnvironments | map(ascii_downcase) | index($env | ascii_downcase) != null)
+                  else
+                    false
+                  end' "$CONFIG_FILE")
+
+                # Detect cloud provider from epic.json cloud section
+                CLOUD_PROVIDER=$(jq -r \
+                  'if .app.appType == "btp" or .app.appType == "cap" then "sap"
+                  elif .cloud.awsAccountId then "aws"
+                  elif .cloud.azureSubscriptionId then "azure"
+                  else "aws"
+                  end' "$CONFIG_FILE")
+              fi
+
+              # Azure DevOps service connection for Azure deploys. Defaults to
+              # 'Azure'; an app targeting a different Azure tenant overrides it
+              # via cloud.azureServiceConnection in epic.json (the name of a
+              # service connection whose SPN lives in that tenant). Harmless for
+              # non-Azure clouds — the engine only consults it in the Azure path.
+              AZURE_SERVICE_CONNECTION=$(jq -r '.cloud.azureServiceConnection // "Azure"' "$CONFIG_FILE" 2>/dev/null || echo "Azure")
 
               # Normalize ADO boolean strings -> JSON booleans
+              REVIEW=$(echo "$REVIEW" | tr '[:upper:]' '[:lower:]')
               BUILD=$(echo "$BUILD" | tr '[:upper:]' '[:lower:]')
+
+              # Review is app-code only. Infrastructure appTypes (btp, infra)
+              # have no app source to review, so force it off regardless of what
+              # was requested (the epic-web UI already hides the toggle for these,
+              # but a bare ADO trigger could still pass review=true).
+              if [ "$APP_TYPE" == "btp" ] || [ "$APP_TYPE" == "infra" ]; then
+                if [ "$REVIEW" == "true" ]; then
+                  echo ">> appType '$APP_TYPE' is infrastructure — forcing review=false"
+                fi
+                REVIEW="false"
+              fi
               TESTS=$(echo "$TESTS" | tr '[:upper:]' '[:lower:]')
               SCAN=$(echo "$SCAN" | tr '[:upper:]' '[:lower:]')
               DEPLOY=$(echo "$DEPLOY" | tr '[:upper:]' '[:lower:]')
               INTEGRATIONS=$(echo "$INTEGRATIONS" | tr '[:upper:]' '[:lower:]')
-
-              # Resolve approval gate: check if current environment is in approvalEnvironments array
-              REQUIRE_APPROVAL=$(jq -r \
-                --arg env "$ENVIRONMENT" \
-                'if .app.approvalEnvironments then
-                  (.app.approvalEnvironments | map(ascii_downcase) | index($env | ascii_downcase) != null)
-                else
-                  false
-                end' "$CONFIG_FILE")
-
-              # Detect cloud provider from epic.json cloud section
-              CLOUD_PROVIDER=$(jq -r \
-                'if .app.appType == "btp" or .app.appType == "cap" then "btp"
-                elif .cloud.awsAccountId then "aws"
-                elif .cloud.azureSubscriptionId then "azure"
-                else "aws"
-                end' "$CONFIG_FILE")
+              FORCE_STATE_COPY=$(echo "$FORCE_STATE_COPY" | tr '[:upper:]' '[:lower:]')
 
               echo ">> Cloud provider: $CLOUD_PROVIDER"
 
+              # Use the supplied triggeredBy (set by the EPIC API to the real portal user).
+              # For a manual ADO run it's left as the "auto" sentinel (ADO won't enable
+              # Run on a blank field), so fall back to the ADO identity that queued this
+              # run (Build.RequestedFor).
+              #
+              # A webhook push has no portal user and RequestedFor is ADO's system
+              # identity (Microsoft.VisualStudio.Services.TFS), so label it "Github CI".
+              TRIGGERED_BY="${{ parameters.triggeredBy }}"
+              if [ "$(Build.Reason)" == "ResourceTrigger" ]; then
+                TRIGGERED_BY="Github CI"
+              elif [[ -z "$TRIGGERED_BY" || "$TRIGGERED_BY" == "auto" ]]; then
+                TRIGGERED_BY="$(Build.RequestedFor)"
+              fi
+
+              # The `app` object is the merge base for templateParameters — every
+              # field from epic.json's app section (appName, codePath, appType,
+              # tool names, ...) flows to the engine. In contract-less mode there
+              # is no file to slurp, so we synthesize the minimal app object the
+              # Review stage needs: appName (repo name) + an empty codePath
+              # (reviews the repo root). Everything else the engine defaults.
+              if [ "$NO_CONFIG" == "true" ]; then
+                APP_JSON=$(jq -n --arg appName "$REPO" '{ appName: $appName, codePath: "" }')
+              else
+                APP_JSON=$(jq -c '.app' "$CONFIG_FILE")
+              fi
+
               PAYLOAD=$(jq -n \
                 --arg repo "$REPO" \
+                --arg owner "$(EFFECTIVE_OWNER)" \
+                --arg githubHost "$(EFFECTIVE_HOST)" \
                 --arg branch "$BRANCH" \
                 --arg environment "$ENVIRONMENT" \
+                --arg triggeredBy "$TRIGGERED_BY" \
+                --arg commitSha "$(COMMIT_SHA)" \
                 --arg terraformAction "$TERRAFORM" \
                 --arg cloudProvider "$CLOUD_PROVIDER" \
+                --arg azureServiceConnection "$AZURE_SERVICE_CONNECTION" \
+                --argjson review "$REVIEW" \
                 --argjson build "$BUILD" \
                 --argjson tests "$TESTS" \
                 --argjson scan "$SCAN" \
                 --argjson deploy "$DEPLOY" \
                 --argjson integrations "$INTEGRATIONS" \
+                --argjson forceStateCopy "$FORCE_STATE_COPY" \
+                --argjson multiConfig "$MULTI_CONFIG" \
                 --argjson requireApproval "$REQUIRE_APPROVAL" \
-                --slurpfile config "$CONFIG_FILE" \
+                --argjson app "$APP_JSON" \
                 '{
                   templateParameters: (
                     (
-                      $config[0].app
+                      $app
                       | with_entries(select(.value != null and (.value | type != "string" or length > 0)))
                     )
                     + {
                         repo: $repo,
+                        owner: $owner,
+                        githubHost: $githubHost,
                         branch: $branch,
                         environment: $environment,
+                        triggeredBy: $triggeredBy,
+                        commitSha: $commitSha,
                         cloudProvider: $cloudProvider,
+                        azureServiceConnection: $azureServiceConnection,
                         terraformAction: $terraformAction,
+                        review: $review,
                         build: $build,
                         tests: $tests,
                         scan: $scan,
                         deploy: $deploy,
                         integrations: $integrations,
+                        forceStateCopy: $forceStateCopy,
+                        multiConfig: $multiConfig,
                         requireApproval: $requireApproval
                       }
-                    | with_entries(
-                        {
-                          key: .key,
-                          value: .value
-                        }
-                      )
+                    | with_entries(select(.value != null and (.value | type != "string" or length > 0)))
                   )
                 }')
 
@@ -264,13 +476,14 @@ stages:
 
               APP_NAME=$(jq -r '.templateParameters.appName' payload.json)
               REPO_NAME=$(jq -r '.templateParameters.repo' payload.json)
+              BRANCH_NAME=$(jq -r '.templateParameters.branch' payload.json)
 
               if [[ -z "$REPO_NAME" || "$REPO_NAME" == "null" ]]; then
                 echo "!! WARNING: repo not found in payload — skipping tag"
                 exit 0
               fi
 
-              echo ">> Tagging orchestrator build with: repo=$REPO_NAME, appName=$APP_NAME"
+              echo ">> Tagging orchestrator build with: repo=$REPO_NAME, appName=$APP_NAME, branch=$BRANCH_NAME"
 
               API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/tags"
 
@@ -286,8 +499,22 @@ stages:
                   "$API_URL/epicAppName.${APP_NAME}?api-version=7.1"
               fi
 
+              # Tag the resolved app branch so epic-api can show the real branch on
+              # the orchestrator's "prepare" row — before the engine build (which
+              # carries branch in templateParameters) exists. Without this the row
+              # falls back to the orchestrator's own sourceBranch (always the
+              # epic-pipeline repo's 'main'), which is never the app's branch.
+              # URL-encode '/' in branch names (feature/x) so the tag path is valid.
+              if [[ -n "$BRANCH_NAME" && "$BRANCH_NAME" != "null" ]]; then
+                BRANCH_TAG=${BRANCH_NAME//\//%2F}
+                curl -s -X PUT -d "" \
+                  -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                  -H "Content-Type: application/json" \
+                  "$API_URL/epicBranch.${BRANCH_TAG}?api-version=7.1"
+              fi
+
               echo ">> Orchestrator build tagged"
-            displayName: "Tag build with repo and appName"
+            displayName: "Tag build with repo, appName, and branch"
             env:
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
@@ -325,7 +552,7 @@ stages:
           - bash: |
               set -euo pipefail
 
-              echo ">> Invoking EPIC Engine for: ${{ parameters.repo }}"
+              echo ">> Invoking EPIC Engine for: $(EFFECTIVE_REPO)"
 
               PAYLOAD_FILE="$(System.DefaultWorkingDirectory)/payload.json"
 
@@ -338,8 +565,8 @@ stages:
               project="${PROJECT}"
               pipeline_id="${PIPELINE_ID}"
 
-              repo="${{ parameters.repo }}"
-              branch="${{ parameters.branch }}"
+              repo="$(EFFECTIVE_REPO)"
+              branch="$(EFFECTIVE_BRANCH)"
               env="${{ parameters.environment }}"
 
               # API endpoint for pipeline runs
@@ -387,6 +614,18 @@ stages:
                 echo "!! ERROR: Unable to extract runId!"
                 exit 1
               fi
+
+              # ---------------------------------------------------------------
+              # Tag this orchestrator build with the engine run id so the API can
+              # link the two deterministically (instead of matching by time).
+              # ---------------------------------------------------------------
+              TAG_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/tags"
+              curl -s -X PUT -d "" \
+                -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                -H "Content-Type: application/json" \
+                "$TAG_URL/epicEngineId.${runId}?api-version=7.1" >/dev/null \
+                && echo ">> Orchestrator build tagged with epicEngineId.${runId}" \
+                || echo "!! WARNING: failed to tag orchestrator with engine id (non-fatal)"
 
               # ---------------------------------------------------------------
               # Build clean clickable URL

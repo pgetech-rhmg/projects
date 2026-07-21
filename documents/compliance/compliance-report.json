@@ -1,0 +1,1670 @@
+{
+  "metadata": {
+    "tool": "epic-compliance",
+    "version": "dev",
+    "repoPath": "projects/ai-code-reviewer/Application-Codebase",
+    "specSource": "T\u0026S R\u0026C Unified Controls Framework-APP.md",
+    "scannedAt": "2026-07-08T18:22:08Z"
+  },
+  "summary": {
+    "total": 76,
+    "byVerdict": {
+      "FAIL": 7,
+      "MANUAL": 59,
+      "N/A": 1,
+      "PARTIAL": 7,
+      "PASS": 2
+    }
+  },
+  "findings": [
+    {
+      "control": {
+        "nistId": "AC-06-00",
+        "title": "Unsuccessful Logon Attempts (account lockout)",
+        "requirement": "Enforce a limit of no more than 10 consecutive invalid logon attempts by a user during any 60-minute period; automatically lock the account/node for at least 15 minutes when the maximum is exceeded.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AC-06-00",
+      "kind": "hard",
+      "verdict": "FAIL",
+      "severity": "High",
+      "message": "Authentication present but no account-lockout mechanism (10 attempts / 60 min, lock \u003e=15 min) detected.",
+      "remediation": "Enforce \u003e=10 invalid attempts per 60 min then lock \u003e=15 min on the authentication path."
+    },
+    {
+      "control": {
+        "nistId": "AC-07-00",
+        "title": "System Use Notification (banner)",
+        "requirement": "Display a system-use notification banner before granting access, stating: users are accessing a PG\u0026E system; usage may be monitored/recorded/audited; unauthorized use is prohibited; use indicates consent to monitoring.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AC-07-00",
+      "kind": "hard",
+      "verdict": "FAIL",
+      "severity": "High",
+      "message": "Logon interface present but no system-use notification banner detected.",
+      "remediation": "Display a use-notification banner with the four mandated statements before granting access."
+    },
+    {
+      "control": {
+        "nistId": "AC-08-00",
+        "title": "Concurrent Session Control",
+        "requirement": "Limit the number of concurrent sessions for all individual and shared accounts to two.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AC-08-00",
+      "kind": "hard",
+      "verdict": "FAIL",
+      "severity": "High",
+      "message": "Sessions present but no concurrent-session cap (limit of 2) detected.",
+      "remediation": "Limit concurrent sessions per account to 2."
+    },
+    {
+      "control": {
+        "nistId": "AU-02-00",
+        "title": "Event Logging (audit record content)",
+        "requirement": "Ensure audit records establish: (a) what type of event occurred, (b) when, (c) where, (d) source of the event, (e) outcome, and (f) identity of any individual associated with the event.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AU-02-00",
+      "kind": "hard",
+      "verdict": "FAIL",
+      "severity": "High",
+      "message": "The evidence shows only a simple progress/operational logging function accepting a pass label and message string; it contains no structured audit fields for event type, timestamp, location, source, outcome, or user identity. (LLM-reviewed)",
+      "evidence": [
+        {
+          "file": "src/cli.ts",
+          "line": 127,
+          "snippet": "const progressLog = (pass: string, message: string) =\u003e {"
+        },
+        {
+          "file": "src/cli.ts",
+          "line": 138,
+          "snippet": "const results = await scan(options, progressLog);"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "AU-06-00",
+        "title": "Time Stamps",
+        "requirement": "Use internal system clocks to generate UTC-based time stamps for audit records; synchronize to enterprise reference clocks where available.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AU-06-00",
+      "kind": "hard",
+      "verdict": "PARTIAL",
+      "severity": "High",
+      "message": "UTC timestamp generation found; confirm all audit records (not just some) carry UTC time stamps.",
+      "evidence": [
+        {
+          "file": "src/api/server.ts",
+          "line": 61,
+          "snippet": "app.get('/health', async () =\u003e ({ status: 'ok', timestamp: new Date().toISOString() }));"
+        },
+        {
+          "file": "src/cli.ts",
+          "line": 283,
+          "snippet": "timestamp: new Date().toISOString(),"
+        },
+        {
+          "file": "src/db/database.ts",
+          "line": 229,
+          "snippet": "migration.version, new Date().toISOString(),"
+        },
+        {
+          "file": "src/db/repositories/code-review.repository.ts",
+          "line": 15,
+          "snippet": "const now = new Date().toISOString();"
+        },
+        {
+          "file": "src/db/repositories/file-state.repository.ts",
+          "line": 15,
+          "snippet": "const now = new Date().toISOString();"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "AC-12-00",
+        "title": "Event types selected for logging",
+        "requirement": "Identify and log the security-relevant event types the system is capable of logging: authentication events, authorization grants/denials, privilege escalation, configuration changes, intrusion/anomaly events, and related categories.",
+        "baseline": [
+          "Medium",
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AC-12-00",
+      "kind": "hard",
+      "verdict": "FAIL",
+      "severity": "Medium",
+      "message": "The evidence consists only of a guidance comment instructing developers to 'log security events' and a description of Lightning Web Security; there is no actual implementation code logging authentication, authorization, privilege escalation, or configuration change events. (LLM-reviewed)",
+      "evidence": [
+        {
+          "file": "src/platform/language-context.ts",
+          "line": 175,
+          "snippet": "- Logging: log security events; never log sensitive data (passwords, tokens, PII)"
+        },
+        {
+          "file": "src/platform/platform-context.ts",
+          "line": 89,
+          "snippet": "description: 'Lightning Web Security (LWS) provides DOM isolation and prevents cross-component DOM manipulation. LWC templates use reactive data binding that automatically escapes output.',"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "IA-02-00",
+        "title": "Identification and Authentication (organizational users)",
+        "requirement": "Uniquely identify and authenticate organizational users and associate that identity with processes acting on behalf of those users.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "code"
+      },
+      "ruleId": "EPIC-IA-02-00",
+      "kind": "presence",
+      "verdict": "FAIL",
+      "severity": "High",
+      "message": "Evidence consists of outbound GitHub token injection for git operations and documentation/prompt text describing authentication best practices for other frameworks; there is no enforced request authentication (middleware/guards) on any inbound endpoints. (LLM-reviewed)",
+      "evidence": [
+        {
+          "file": "src/github/git-operations.ts",
+          "line": 13,
+          "snippet": "const authenticatedUrl = token ? injectToken(repoUrl, token) : repoUrl;"
+        },
+        {
+          "file": "src/github/git-operations.ts",
+          "line": 16,
+          "snippet": "await git.clone(authenticatedUrl, localPath, ['--depth', '1']);"
+        },
+        {
+          "file": "src/github/git-operations.ts",
+          "line": 74,
+          "snippet": "/** Injects a GitHub token into a https:// URL for authenticated operations. */"
+        },
+        {
+          "file": "src/platform/dotnet-context.ts",
+          "line": 15,
+          "snippet": "- ASP.NET Core: Verify [Authorize] attributes on all controllers/actions that require authentication."
+        },
+        {
+          "file": "src/platform/dotnet-context.ts",
+          "line": 32,
+          "snippet": "- CORS: Verify AllowAnyOrigin() is not used on authenticated endpoints."
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "AC-03-00",
+        "title": "Access Enforcement",
+        "requirement": "Enforce approved authorizations for logical access in accordance with access control policies; deny by default; enforce server-side.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AC-03-00",
+      "kind": "presence",
+      "verdict": "FAIL",
+      "severity": "High",
+      "message": "API route handlers (repos.ts, scans.ts) invoke services directly with no authorization checks; rbacEnabled is explicitly false/backlog, and the deny-by-default and @Authorize references are only prompt/context strings for the scanner, not real enforcement in this app. (LLM-reviewed)",
+      "evidence": [
+        {
+          "file": "src/api/routes/repos.ts",
+          "line": 19,
+          "snippet": "const scanId = scanService.createScan(repo.id, 'full');"
+        },
+        {
+          "file": "src/api/routes/repos.ts",
+          "line": 20,
+          "snippet": "jobQueue.enqueue(() =\u003e scanService.executeFullScan(repo.id, scanId));"
+        },
+        {
+          "file": "src/api/routes/repos.ts",
+          "line": 55,
+          "snippet": "const scanId = scanService.createScan(req.params.repoId, type);"
+        },
+        {
+          "file": "src/api/routes/repos.ts",
+          "line": 57,
+          "snippet": "? () =\u003e scanService.executeFullScan(req.params.repoId, scanId)"
+        },
+        {
+          "file": "src/api/routes/repos.ts",
+          "line": 58,
+          "snippet": ": () =\u003e scanService.executeIncrementalScan(req.params.repoId, scanId);"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "AU-08-00",
+        "title": "Time Stamps (non-repudiation)",
+        "requirement": "Record time stamps sufficient to attribute logged actions to individuals (non-repudiation).",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AU-08-00",
+      "kind": "presence",
+      "verdict": "PARTIAL",
+      "severity": "High",
+      "message": "Timestamps present; non-repudiation attribution requires user identity in logs.",
+      "evidence": [
+        {
+          "file": "src/api/server.ts",
+          "line": 61,
+          "snippet": "app.get('/health', async () =\u003e ({ status: 'ok', timestamp: new Date().toISOString() }));"
+        },
+        {
+          "file": "src/cli.ts",
+          "line": 283,
+          "snippet": "timestamp: new Date().toISOString(),"
+        },
+        {
+          "file": "src/db/database.ts",
+          "line": 229,
+          "snippet": "migration.version, new Date().toISOString(),"
+        },
+        {
+          "file": "src/db/repositories/code-review.repository.ts",
+          "line": 15,
+          "snippet": "const now = new Date().toISOString();"
+        },
+        {
+          "file": "src/db/repositories/file-state.repository.ts",
+          "line": 15,
+          "snippet": "const now = new Date().toISOString();"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "AU-11-00",
+        "title": "Audit Record Retention/Generation",
+        "requirement": "Generate and retain audit records for the defined event types.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AU-11-00",
+      "kind": "presence",
+      "verdict": "PARTIAL",
+      "severity": "High",
+      "message": "Logging present; audit-record generation for defined events must be confirmed.",
+      "evidence": [
+        {
+          "file": "src/api/server.ts",
+          "line": 21,
+          "snippet": "const app = Fastify({ logger: true });"
+        },
+        {
+          "file": "src/cli.ts",
+          "line": 127,
+          "snippet": "const progressLog = (pass: string, message: string) =\u003e {"
+        },
+        {
+          "file": "src/cli.ts",
+          "line": 138,
+          "snippet": "const results = await scan(options, progressLog);"
+        },
+        {
+          "file": "src/github/git-operations.ts",
+          "line": 37,
+          "snippet": "const sha = log.latest?.hash;"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "CP-10-00",
+        "title": "System Recovery / unique user authentication",
+        "requirement": "Authenticate users uniquely; no shared/anonymous access to protected functions.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-CP-10-00",
+      "kind": "presence",
+      "verdict": "PARTIAL",
+      "severity": "High",
+      "message": "User identity concepts present; confirm unique authentication.",
+      "evidence": [
+        {
+          "file": "src/github/git-operations.ts",
+          "line": 13,
+          "snippet": "const authenticatedUrl = token ? injectToken(repoUrl, token) : repoUrl;"
+        },
+        {
+          "file": "src/github/git-operations.ts",
+          "line": 16,
+          "snippet": "await git.clone(authenticatedUrl, localPath, ['--depth', '1']);"
+        },
+        {
+          "file": "src/github/git-operations.ts",
+          "line": 74,
+          "snippet": "/** Injects a GitHub token into a https:// URL for authenticated operations. */"
+        },
+        {
+          "file": "src/platform/dotnet-context.ts",
+          "line": 25,
+          "snippet": "- Never use MD5/SHA1 for passwords. Use BCrypt.Net, Argon2, or ASP.NET Core Identity's PasswordHasher."
+        },
+        {
+          "file": "src/platform/dotnet-context.ts",
+          "line": 32,
+          "snippet": "- CORS: Verify AllowAnyOrigin() is not used on authenticated endpoints."
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "AC-02-04",
+        "title": "Account Management (audit actions)",
+        "requirement": "Automatically audit account creation, modification, enabling, disabling, and removal actions.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AC-02-04",
+      "kind": "presence",
+      "verdict": "N/A",
+      "severity": "High",
+      "message": "No account-management operations found."
+    },
+    {
+      "control": {
+        "nistId": "SC-08-00",
+        "title": "Transmission Confidentiality and Integrity",
+        "requirement": "Protect the confidentiality and integrity of transmitted information (TLS in transit).",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-SC-08-00",
+      "kind": "presence",
+      "verdict": "PARTIAL",
+      "severity": "High",
+      "message": "TLS/HTTPS references found; edge termination (ALB/ingress) may satisfy this in IaC.",
+      "evidence": [
+        {
+          "file": "src/ai/batch-processor.ts",
+          "line": 43,
+          "snippet": "progressLabel?: string;"
+        },
+        {
+          "file": "src/ai/batch-processor.ts",
+          "line": 54,
+          "snippet": "const label = options?.progressLabel;"
+        },
+        {
+          "file": "src/ai/passes/comprehension.ts",
+          "line": 157,
+          "snippet": "{ progressLabel: 'Comprehension' },"
+        },
+        {
+          "file": "src/ai/passes/detection.ts",
+          "line": 542,
+          "snippet": "{ progressLabel: 'Detection' },"
+        },
+        {
+          "file": "src/ai/passes/flow-tracing.ts",
+          "line": 160,
+          "snippet": "{ progressLabel: 'FlowTracing' },"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "SC-28-00",
+        "title": "Protection of Information at Rest",
+        "requirement": "Protect the confidentiality and integrity of information at rest (encryption at rest).",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-SC-28-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "No IaC in repo to evaluate; at-rest encryption is a storage/infra property — requires attestation."
+    },
+    {
+      "control": {
+        "nistId": "CM-05-00",
+        "title": "Access Restrictions for Change / secure baseline",
+        "requirement": "Apply and enforce a secure baseline configuration (STIG/CIS) and restrict changes to it.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-CM-05-00",
+      "kind": "presence",
+      "verdict": "PASS",
+      "severity": "High",
+      "message": "Baseline/hardening references found.",
+      "evidence": [
+        {
+          "file": "src/ai/passes/remediation.ts",
+          "line": 36,
+          "snippet": "- UNLIKELY: Note the platform mitigations that reduce risk. Provide OPTIONAL hardening recommendations rather than mandatory fixes. Frame as \"defense-in-depth\" suggestions."
+        },
+        {
+          "file": "src/ai/passes/remediation.ts",
+          "line": 64,
+          "snippet": "- UNLIKELY: Note the mitigating factors. Provide OPTIONAL hardening recommendations as defense-in-depth."
+        },
+        {
+          "file": "tests/ai/passes/remediation-enhanced.property.test.ts",
+          "line": 75,
+          "snippet": "* - UNLIKELY findings should trigger \"optional hardening\" language (Req 6.2)"
+        },
+        {
+          "file": "tests/ai/passes/remediation-enhanced.property.test.ts",
+          "line": 95,
+          "snippet": "it('system prompt contains UNLIKELY → optional hardening instructions — **Validates: Requirements 6.2**', () =\u003e {"
+        },
+        {
+          "file": "tests/ai/passes/remediation-enhanced.property.test.ts",
+          "line": 99,
+          "snippet": "prompt.includes('optional') \u0026\u0026 prompt.includes('hardening'),"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "CM-06-00",
+        "title": "Configuration Settings / least functionality",
+        "requirement": "Configure the system for least functionality; disable/restrict unneeded ports, protocols, and services.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-CM-06-00",
+      "kind": "presence",
+      "verdict": "PARTIAL",
+      "severity": "High",
+      "message": "Network exposure found; confirm least-functionality (no needless ports/services).",
+      "evidence": [
+        {
+          "file": "src/ai/passes/comprehension.ts",
+          "line": 31,
+          "snippet": "- Classes and their methods, noting which are exposed (@AuraEnabled, @RestResource, VF actions)"
+        },
+        {
+          "file": "src/ai/passes/comprehension.ts",
+          "line": 58,
+          "snippet": "\"classes\": [{\"name\": \"string\", \"methods\": [{\"name\": \"string\", \"isExposed\": boolean, \"acceptsUserInput\": boolean, \"performsDataOps\": boolean, \"securityRelevantNotes\": \"string\"}]}],"
+        },
+        {
+          "file": "src/ai/passes/comprehension.ts",
+          "line": 100,
+          "snippet": "\"classes\": [{\"name\": \"string\", \"methods\": [{\"name\": \"string\", \"isExposed\": boolean, \"acceptsUserInput\": boolean, \"performsDataOps\": boolean, \"securityRelevantNotes\": \"string\"}]}],"
+        },
+        {
+          "file": "src/ai/passes/detection.ts",
+          "line": 96,
+          "snippet": "- Exposed sensitive fields in API responses"
+        },
+        {
+          "file": "src/ai/passes/detection.ts",
+          "line": 108,
+          "snippet": "- Exposed internal APIs or admin endpoints without access controls"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "AU-10-00",
+        "title": "Non-repudiation / audit retention",
+        "requirement": "Retain audit records consistent with the records-retention policy.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Maybe",
+        "class": "code"
+      },
+      "ruleId": "EPIC-AU-10-00",
+      "kind": "presence",
+      "verdict": "PARTIAL",
+      "severity": "High",
+      "message": "Retention config found.",
+      "evidence": [
+        {
+          "file": "package-lock.json",
+          "line": 923,
+          "snippet": "\"integrity\": \"sha512-UJCIkTBenHeKT1TTlKMJWy1laZewsRIzYighyYiJKZreqtdxSos/S1t+ktRMQWu2CKqaarrkeszJx1cgC5tGZw==\","
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "SI-07-00",
+        "title": "Software, Firmware, and Information Integrity",
+        "requirement": "Employ integrity verification for software/artifacts (e.g. signature/HMAC/checksum verification).",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "code"
+      },
+      "ruleId": "EPIC-SI-07-00",
+      "kind": "presence",
+      "verdict": "PASS",
+      "severity": "High",
+      "message": "The code implements genuine HMAC-SHA256 signature verification for GitHub webhooks using createHmac and timingSafeEqual for constant-time comparison, wired into the webhook service to reject invalid signatures, and covered by unit tests validating tampered payloads and wrong secrets. (LLM-reviewed)",
+      "evidence": [
+        {
+          "file": "src/api/routes/webhooks.ts",
+          "line": 6,
+          "snippet": "// Raw body needed for HMAC validation — registered with addContentTypeParser"
+        },
+        {
+          "file": "src/api/routes/webhooks.ts",
+          "line": 7,
+          "snippet": "app.post\u003c{ Headers: { 'x-github-event'?: string; 'x-hub-signature-256'?: string } }\u003e("
+        },
+        {
+          "file": "src/api/routes/webhooks.ts",
+          "line": 12,
+          "snippet": "const signature = req.headers['x-hub-signature-256'];"
+        },
+        {
+          "file": "src/api/routes/webhooks.ts",
+          "line": 14,
+          "snippet": "if (!eventType || !signature) {"
+        },
+        {
+          "file": "src/api/routes/webhooks.ts",
+          "line": 24,
+          "snippet": "const result = await webhookService.handleEvent(eventType, rawBody, signature);"
+        }
+      ]
+    },
+    {
+      "control": {
+        "nistId": "AC-10-00",
+        "title": "Concurrent Session Control (policy)",
+        "requirement": "Limit concurrent sessions per organization policy.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AC-10-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "CA-09-00",
+        "title": "Internal System Connections",
+        "requirement": "Authorize internal system connections and document interface characteristics.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CA-09-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "CP-04-00",
+        "title": "Contingency Plan Testing",
+        "requirement": "Test the contingency plan and take corrective actions as needed.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CP-04-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "PS-05-00",
+        "title": "Personnel Transfer",
+        "requirement": "Review and adjust access within 1 business day of reassignment or transfer.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-PS-05-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-12-00",
+        "title": "Information Management and Retention",
+        "requirement": "Manage and retain information per applicable laws, regulations, and policies.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SI-12-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AU-03-00",
+        "title": "Content of Audit Records",
+        "requirement": "Ensure audit records contain the individuals/subjects/objects associated with each event.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AU-03-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "CM-02-00",
+        "title": "Baseline Configuration",
+        "requirement": "Develop, document, and maintain a current baseline configuration; update on upgrades/patches/significant changes.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CM-02-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SA-11-00",
+        "title": "Developer Testing and Evaluation",
+        "requirement": "Require developers to test/evaluate and remediate flaws identified during testing.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SA-11-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SR-09-01",
+        "title": "Tamper Resistance and Detection — life cycle",
+        "requirement": "Apply anti-tamper controls across the system development life cycle.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SR-09-01",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SC-10-00",
+        "title": "Network Disconnect",
+        "requirement": "Terminate the network connection after 20 minutes of inactivity.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "unspecified"
+      },
+      "ruleId": "EPIC-SC-10-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "The framework provides no machine-evaluable criterion for this control; manual review required."
+    },
+    {
+      "control": {
+        "nistId": "RA-08-00",
+        "title": "Privacy Impact Assessments",
+        "requirement": "Conduct privacy impact assessments where applicable.",
+        "baseline": null,
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-RA-08-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AU-05-00",
+        "title": "Response to Audit Logging Process Failures",
+        "requirement": "Alert on and respond to audit logging process failures.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AU-05-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "IA-11-00",
+        "title": "Re-Authentication",
+        "requirement": "Require re-authentication after a password reset or when required by applicable regulations.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-IA-11-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-19-00",
+        "title": "De-identification",
+        "requirement": "De-identify data as required.",
+        "baseline": null,
+        "appApplicability": "Maybe",
+        "class": "unspecified"
+      },
+      "ruleId": "EPIC-SI-19-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "The framework provides no machine-evaluable criterion for this control; manual review required."
+    },
+    {
+      "control": {
+        "nistId": "CM-08-00",
+        "title": "System Component Inventory",
+        "requirement": "Maintain an inventory of system components and update on component change.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CM-08-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-07-15",
+        "title": "Code Authentication",
+        "requirement": "Authenticate organization-defined software/firmware components prior to installation.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "unspecified"
+      },
+      "ruleId": "EPIC-SI-07-15",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "The framework provides no machine-evaluable criterion for this control; manual review required."
+    },
+    {
+      "control": {
+        "nistId": "SI-12-03",
+        "title": "Information Disposal",
+        "requirement": "Dispose of information using organization-defined techniques.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "unspecified"
+      },
+      "ruleId": "EPIC-SI-12-03",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "The framework provides no machine-evaluable criterion for this control; manual review required."
+    },
+    {
+      "control": {
+        "nistId": "SA-10-01",
+        "title": "Developer CM — software/firmware integrity verification",
+        "requirement": "Require developers to verify integrity of software and firmware components.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SA-10-01",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SR-05-02",
+        "title": "Acquisition Strategies — modification/update",
+        "requirement": "Apply controls when acquiring, modifying, or updating supply-chain elements.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SR-05-02",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "CM-09-00",
+        "title": "Configuration Management Plan",
+        "requirement": "Develop and protect a configuration management plan from unauthorized disclosure/modification.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CM-09-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "IA-08-00",
+        "title": "Identification and Authentication (non-organizational users)",
+        "requirement": "Uniquely identify and authenticate non-organizational users (or processes acting on their behalf).",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-IA-08-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "RA-03-00",
+        "title": "Risk Assessment",
+        "requirement": "Conduct and maintain risk assessments of the system and its environment.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-RA-03-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-16-00",
+        "title": "Memory Protection",
+        "requirement": "Implement organization-defined controls to protect memory from unauthorized code execution.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SI-16-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SR-06-00",
+        "title": "Supplier Assessments and Reviews",
+        "requirement": "Assess and review suppliers per organization-defined procedures.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SR-06-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "RA-05-00",
+        "title": "Vulnerability Monitoring and Scanning",
+        "requirement": "Monitor and scan for vulnerabilities with the capability to update the vulnerabilities scanned.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-RA-05-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SA-10-04",
+        "title": "Developer CM — trusted generation",
+        "requirement": "Compare generated versions of security-relevant hardware/source/object code with previous versions.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SA-10-04",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AC-02-13",
+        "title": "Account Management — disable high-risk accounts",
+        "requirement": "Disable accounts of individuals posing significant risk within a defined time period.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AC-02-13",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SA-17-00",
+        "title": "Developer Security and Privacy Architecture and Design",
+        "requirement": "Require a developer security/privacy architecture with a unified protection approach.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SA-17-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SA-21-00",
+        "title": "Developer Screening",
+        "requirement": "Screen developers against organization-defined screening criteria.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SA-21-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AU-03-03",
+        "title": "Content of Audit Records — additional elements",
+        "requirement": "Include organization-defined additional elements in audit records per the privacy risk assessment.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AU-03-03",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SA-10-02",
+        "title": "Developer CM — alternative configuration management",
+        "requirement": "Provide an independent/dedicated developer configuration management capability.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SA-10-02",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-12-01",
+        "title": "Information Management — limit PII elements",
+        "requirement": "Limit personally identifiable information elements retained/processed.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "unspecified"
+      },
+      "ruleId": "EPIC-SI-12-01",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "The framework provides no machine-evaluable criterion for this control; manual review required."
+    },
+    {
+      "control": {
+        "nistId": "CA-03-00",
+        "title": "Information Exchange",
+        "requirement": "Approve and manage system interconnection/information-exchange agreements; review every 3 years or on posture change.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CA-03-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SA-10-00",
+        "title": "Developer Configuration Management",
+        "requirement": "Require developers to perform configuration management during development/maintenance.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SA-10-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SA-10-05",
+        "title": "Developer CM — mapping integrity for version control",
+        "requirement": "Maintain an on-site master copy of data for the current version under version control.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SA-10-05",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AC-02-03",
+        "title": "Account Management — disable inactive accounts",
+        "requirement": "Disable accounts that are in violation of policy or inactive for 60 business days.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AC-02-03",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AC-02-05",
+        "title": "Account Management — inactivity logout",
+        "requirement": "Require users to log out when leaving a system unattended (process/runtime enforcement).",
+        "baseline": [
+          "Medium",
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AC-02-05",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AC-05-00",
+        "title": "Separation of Duties",
+        "requirement": "Define and enforce separation of duties across roles and system access authorizations.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AC-05-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "CM-03-00",
+        "title": "Configuration Change Control",
+        "requirement": "Operate a Configuration Change Control Board (CAB) convening at least monthly.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CM-03-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "CM-07-00",
+        "title": "Least Functionality (policy)",
+        "requirement": "Prohibit/restrict organization-defined functions, ports, protocols, and software.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CM-07-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-04-00",
+        "title": "System Monitoring",
+        "requirement": "Monitor the system to detect attacks and indicators of potential attacks.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SI-04-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "CM-04-00",
+        "title": "Impact Analysis",
+        "requirement": "Analyze changes to the system for security/privacy impact before implementation.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CM-04-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-03-00",
+        "title": "Malicious Code Protection",
+        "requirement": "Employ malicious-code detection/eradication mechanisms.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SI-03-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-05-00",
+        "title": "Security Alerts, Advisories, and Directives",
+        "requirement": "Receive, generate, and disseminate security alerts/advisories/directives.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SI-05-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AU-12-00",
+        "title": "Audit Record Generation (coverage)",
+        "requirement": "Provide audit record generation capability for the defined auditable events across the system.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AU-12-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SA-10-06",
+        "title": "Developer CM — trusted distribution",
+        "requirement": "Execute procedures for ensuring trusted distribution from master copies.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SA-10-06",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "CA-08-00",
+        "title": "Penetration Testing",
+        "requirement": "Conduct penetration testing on organization-defined (e.g. external-facing) systems.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CA-08-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SC-04-00",
+        "title": "Information in Shared System Resources",
+        "requirement": "Prevent unauthorized information transfer via shared system resources.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Maybe",
+        "class": "unspecified"
+      },
+      "ruleId": "EPIC-SC-04-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "The framework provides no machine-evaluable criterion for this control; manual review required."
+    },
+    {
+      "control": {
+        "nistId": "CM-08-09",
+        "title": "Assignment of Components to Systems",
+        "requirement": "Assign system components to a system and document the application owner of the assignment.",
+        "baseline": null,
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CM-08-09",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "CP-02-00",
+        "title": "Contingency Plan",
+        "requirement": "Develop and maintain a contingency plan including testing and training.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-CP-02-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "PL-02-00",
+        "title": "System Security and Privacy Plans",
+        "requirement": "Develop, document, and maintain system security and privacy plans.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-PL-02-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-12-02",
+        "title": "Information Management — minimize PII for research/testing",
+        "requirement": "Minimize use of PII for research, testing, or training via defined techniques.",
+        "baseline": null,
+        "appApplicability": "Yes",
+        "class": "unspecified"
+      },
+      "ruleId": "EPIC-SI-12-02",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "Medium",
+      "message": "The framework provides no machine-evaluable criterion for this control; manual review required."
+    },
+    {
+      "control": {
+        "nistId": "IA-12-00",
+        "title": "Identity Proofing",
+        "requirement": "Identity-proof individuals before issuing credentials.",
+        "baseline": [
+          "High",
+          "Medium"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-IA-12-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "MP-02-00",
+        "title": "Media Access",
+        "requirement": "Restrict access to organization-defined types of digital and non-digital media.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Maybe",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-MP-02-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "PS-04-00",
+        "title": "Personnel Termination",
+        "requirement": "Disable access and recover assets upon personnel termination.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-PS-04-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "SI-02-00",
+        "title": "Flaw Remediation",
+        "requirement": "Identify, report, and remediate system flaws via the configuration management process.",
+        "baseline": [
+          "High",
+          "Medium",
+          "Low"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-SI-02-00",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AC-02-11",
+        "title": "Account Management — usage conditions",
+        "requirement": "Enforce organization-defined circumstances/usage conditions for accounts.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AC-02-11",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    },
+    {
+      "control": {
+        "nistId": "AC-02-12",
+        "title": "Account Management — monitoring for atypical usage",
+        "requirement": "Monitor and report atypical usage of system accounts to Cybersecurity.",
+        "baseline": [
+          "High"
+        ],
+        "appApplicability": "Yes",
+        "class": "manual"
+      },
+      "ruleId": "EPIC-AC-02-12",
+      "kind": "presence",
+      "verdict": "MANUAL",
+      "severity": "High",
+      "message": "Requires human/runtime attestation — this control (personnel, process, or operational evidence) cannot be verified from source code."
+    }
+  ]
+}

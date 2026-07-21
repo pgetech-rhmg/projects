@@ -1,0 +1,59 @@
+###############################################################################
+# Go Tests (gotestsum)
+#
+# Runs `go test` with coverage via gotestsum, producing:
+#   .reports/junit.xml    — JUnit test-execution report (SonarQube reads this)
+#   .reports/coverage.out — Go coverage profile (sonar.go.coverage.reportPaths)
+#
+# gotestsum wraps `go test` to emit a JUnit XML report while still running the
+# native Go toolchain, so coverage and test results feed straight into
+# SonarQube (see scan/sonarqube/prepare.yml, gotestsum case).
+###############################################################################
+steps:
+
+  #############################################################################
+  # Install Go
+  #############################################################################
+  - task: GoTool@0
+    displayName: "Use Go ${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
+    inputs:
+      version: "${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
+
+
+  #############################################################################
+  # Verify Go
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      echo ">> Go version"
+      go version
+    displayName: "Verify Go"
+
+
+  #############################################################################
+  # Test with Coverage
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Downloading modules"
+      go mod download
+
+      echo ">> Installing gotestsum"
+      go install gotest.tools/gotestsum@latest
+      export PATH="$(go env GOPATH)/bin:$PATH"
+
+      mkdir -p .reports
+
+      echo ">> Running tests with coverage"
+      gotestsum \
+        --junitfile .reports/junit.xml \
+        --format testname \
+        -- -coverprofile=.reports/coverage.out -covermode=atomic ./...
+
+      echo ">> Coverage summary"
+      go tool cover -func=.reports/coverage.out | tail -1
+    displayName: "Execute tests with coverage (gotestsum)"

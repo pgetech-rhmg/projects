@@ -116,7 +116,7 @@ module "postgres" {
 | Requirement | Version |
 |-------------|---------|
 | Terraform | `>= 1.5.0` |
-| `hashicorp/azurerm` | `~> 3.100` |
+| `hashicorp/azurerm` | `~> 4.0` |
 | `hashicorp/random` | `~> 3.5` |
 
 ## Notes

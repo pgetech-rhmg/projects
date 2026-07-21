@@ -1,0 +1,186 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1420" viewBox="0 0 1120 1420" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b6fb5"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a8a4a"/>
+    </marker>
+    <marker id="arrowPurple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7a5aa0"/>
+    </marker>
+  </defs>
+
+  <style>
+    .lbl   { font-size: 15px; fill: #1a1a1a; }
+    .lblSm { font-size: 12px; fill: #444; }
+    .title { font-size: 17px; font-weight: bold; fill: #1a1a1a; }
+    .zone  { font-size: 13px; font-weight: bold; fill: #666; letter-spacing: 1px; }
+    .edge  { stroke: #333; stroke-width: 1.6; fill: none; }
+    .edgeB { stroke: #3b6fb5; stroke-width: 1.6; fill: none; }
+    .edgeG { stroke: #4a8a4a; stroke-width: 1.6; fill: none; }
+    .edgeP { stroke: #7a5aa0; stroke-width: 1.6; fill: none; }
+    .box   { fill: #ffffff; stroke: #333; stroke-width: 1.5; }
+    .boxB  { fill: #dbe7f5; stroke: #3b6fb5; stroke-width: 1.5; }
+    .boxG  { fill: #dcecd9; stroke: #4a8a4a; stroke-width: 1.5; }
+  </style>
+
+  <!-- ============ USERS ============ -->
+  <text x="560" y="30" text-anchor="middle" class="zone">USERS  (identity carried on every request via SSO / IdP)</text>
+
+  <!-- captions ABOVE icons so no arrow crosses them -->
+  <text x="190" y="66" text-anchor="middle" class="lblSm" fill="#666" font-weight="bold">Web App users</text>
+  <text x="560" y="60" text-anchor="middle" class="lblSm" fill="#7a5aa0" font-weight="bold">Blue + Green</text>
+  <text x="560" y="76" text-anchor="middle" class="lblSm" fill="#7a5aa0">(dual-access)</text>
+  <text x="930" y="66" text-anchor="middle" class="lblSm" fill="#666" font-weight="bold">Desktop App users</text>
+
+  <!-- Web App users: one blue, one green -->
+  <g>
+    <circle cx="150" cy="108" r="18" fill="#dbe7f5" stroke="#3b6fb5"/>
+    <rect x="128" y="128" width="44" height="34" rx="14" fill="#dbe7f5" stroke="#3b6fb5"/>
+    <text x="150" y="151" text-anchor="middle" class="lbl">1</text>
+    <circle cx="235" cy="108" r="18" fill="#dcecd9" stroke="#4a8a4a"/>
+    <rect x="213" y="128" width="44" height="34" rx="14" fill="#dcecd9" stroke="#4a8a4a"/>
+    <text x="235" y="151" text-anchor="middle" class="lbl">2</text>
+  </g>
+  <!-- Dual user -->
+  <g>
+    <circle cx="560" cy="108" r="18" fill="#e6dcf0" stroke="#7a5aa0"/>
+    <rect x="538" y="128" width="44" height="34" rx="14" fill="#e6dcf0" stroke="#7a5aa0"/>
+    <text x="560" y="151" text-anchor="middle" class="lbl">5</text>
+  </g>
+  <!-- Desktop App users: one blue, one green -->
+  <g>
+    <circle cx="885" cy="108" r="18" fill="#dbe7f5" stroke="#3b6fb5"/>
+    <rect x="863" y="128" width="44" height="34" rx="14" fill="#dbe7f5" stroke="#3b6fb5"/>
+    <text x="885" y="151" text-anchor="middle" class="lbl">3</text>
+    <circle cx="975" cy="108" r="18" fill="#dcecd9" stroke="#4a8a4a"/>
+    <rect x="953" y="128" width="44" height="34" rx="14" fill="#dcecd9" stroke="#4a8a4a"/>
+    <text x="975" y="151" text-anchor="middle" class="lbl">4</text>
+  </g>
+
+  <!-- ============ CLIENTS ============ -->
+  <rect x="90" y="215" width="200" height="70" class="box"/>
+  <text x="190" y="255" text-anchor="middle" class="lbl">Web App (unchanged)</text>
+  <rect x="830" y="215" width="200" height="70" class="box"/>
+  <text x="930" y="255" text-anchor="middle" class="lbl">Desktop App (unchanged)</text>
+
+  <!-- users -> clients (start below icons, clear of captions), colored per user -->
+  <path class="edgeB" d="M155,164 L182,213" marker-end="url(#arrowBlue)"/>
+  <path class="edgeG" d="M232,164 L212,213" marker-end="url(#arrowGreen)"/>
+  <path class="edgeB" d="M888,164 L912,213" marker-end="url(#arrowBlue)"/>
+  <path class="edgeG" d="M972,164 L948,213" marker-end="url(#arrowGreen)"/>
+  <!-- dual user reaches both clients -->
+  <path class="edgeP" d="M545,164 L282,216" stroke-dasharray="5,4" marker-end="url(#arrowPurple)"/>
+  <path class="edgeP" d="M575,164 L838,216" stroke-dasharray="5,4" marker-end="url(#arrowPurple)"/>
+
+  <!-- ============ ALB ============ -->
+  <rect x="450" y="345" width="220" height="70" rx="12" class="box"/>
+  <text x="560" y="374" text-anchor="middle" class="lbl">ALB  (abc.com)</text>
+  <text x="560" y="396" text-anchor="middle" class="lblSm">dumb L7 balancer — no user context</text>
+
+  <path class="edge" d="M190,285 L470,346" marker-end="url(#arrow)"/>
+  <path class="edge" d="M930,285 L650,346" marker-end="url(#arrow)"/>
+
+  <!-- ============ ARCGIS ENTERPRISE ZONE ============ -->
+  <rect x="60" y="450" width="1000" height="510" rx="10" fill="#fafafa" stroke="#bbb" stroke-dasharray="6,5"/>
+  <text x="80" y="477" class="zone">ARCGIS ENTERPRISE  (single site)</text>
+
+  <!-- Portal / identity+authz -->
+  <rect x="360" y="495" width="400" height="86" rx="8" class="box"/>
+  <text x="560" y="524" text-anchor="middle" class="title">Portal for ArcGIS</text>
+  <text x="560" y="546" text-anchor="middle" class="lblSm">maps IdP group claim → Portal group (role)</text>
+  <text x="560" y="564" text-anchor="middle" class="lblSm">token-secured services enforce visibility</text>
+
+  <path class="edge" d="M560,415 L560,493" marker-end="url(#arrow)"/>
+
+  <!-- Portal groups (sides) -->
+  <rect x="150" y="630" width="230" height="58" rx="8" class="boxB"/>
+  <text x="265" y="655" text-anchor="middle" class="lbl" fill="#2a4f80">Blue group (role)</text>
+  <text x="265" y="675" text-anchor="middle" class="lblSm" fill="#2a4f80">users 1, 2, 5</text>
+
+  <rect x="740" y="630" width="230" height="58" rx="8" class="boxG"/>
+  <text x="855" y="655" text-anchor="middle" class="lbl" fill="#2f6030">Green group (role)</text>
+  <text x="855" y="675" text-anchor="middle" class="lblSm" fill="#2f6030">users 3, 4, 5</text>
+
+  <!-- portal -> groups through side gutters -->
+  <path class="edgeB" d="M370,570 C280,600 265,600 265,628" marker-end="url(#arrowBlue)"/>
+  <path class="edgeG" d="M750,570 C840,600 855,600 855,628" marker-end="url(#arrowGreen)"/>
+
+  <!-- Service folders -->
+  <rect x="150" y="748" width="230" height="66" rx="8" class="boxB"/>
+  <text x="265" y="775" text-anchor="middle" class="lbl" fill="#2a4f80">/Blue service folder</text>
+  <text x="265" y="796" text-anchor="middle" class="lblSm" fill="#2a4f80">maps/layers → Blue SDE</text>
+
+  <rect x="740" y="748" width="230" height="66" rx="8" class="boxG"/>
+  <text x="855" y="775" text-anchor="middle" class="lbl" fill="#2f6030">/Green service folder</text>
+  <text x="855" y="796" text-anchor="middle" class="lblSm" fill="#2f6030">maps/layers → Green SDE</text>
+
+  <path class="edgeB" d="M265,688 L265,746" marker-end="url(#arrowBlue)"/>
+  <text x="295" y="722" class="lblSm" fill="#2a4f80">shared to</text>
+  <path class="edgeG" d="M855,688 L855,746" marker-end="url(#arrowGreen)"/>
+  <text x="770" y="722" class="lblSm" fill="#2f6030">shared to</text>
+
+  <!-- Data stores -->
+  <rect x="150" y="868" width="230" height="54" rx="8" class="boxB"/>
+  <text x="265" y="900" text-anchor="middle" class="lbl" fill="#2a4f80">Blue data store (SDE)</text>
+  <rect x="740" y="868" width="230" height="54" rx="8" class="boxG"/>
+  <text x="855" y="900" text-anchor="middle" class="lbl" fill="#2f6030">Green data store (SDE)</text>
+
+  <path class="edgeB" d="M265,814 L265,866" marker-end="url(#arrowBlue)"/>
+  <path class="edgeG" d="M855,814 L855,866" marker-end="url(#arrowGreen)"/>
+
+  <!-- ============ DUAL USER CALLOUT (center column, empty space) ============ -->
+  <rect x="415" y="628" width="290" height="294" rx="8" fill="#f6f0fb" stroke="#7a5aa0" stroke-dasharray="5,4"/>
+  <text x="560" y="654" text-anchor="middle" class="lbl" fill="#7a5aa0" font-weight="bold">Dual-access user (5)</text>
+  <text x="560" y="676" text-anchor="middle" class="lblSm" fill="#5a4a70" font-weight="bold">Web App OR Desktop App —</text>
+  <text x="560" y="692" text-anchor="middle" class="lblSm" fill="#5a4a70" font-weight="bold">same result (routing is on</text>
+  <text x="560" y="708" text-anchor="middle" class="lblSm" fill="#5a4a70" font-weight="bold">identity, not client).</text>
+  <text x="560" y="732" text-anchor="middle" class="lblSm" fill="#5a4a70">Member of BOTH groups → Portal</text>
+  <text x="560" y="748" text-anchor="middle" class="lblSm" fill="#5a4a70">surfaces both folders. Routing</text>
+  <text x="560" y="764" text-anchor="middle" class="lblSm" fill="#5a4a70">decided per request by which</text>
+  <text x="560" y="780" text-anchor="middle" class="lblSm" fill="#5a4a70">map/layer they open — NOT a</text>
+  <text x="560" y="796" text-anchor="middle" class="lblSm" fill="#5a4a70">sticky session flag.</text>
+  <text x="560" y="820" text-anchor="middle" class="lblSm" fill="#5a4a70">Blue task → /Blue svc → Blue DB</text>
+  <text x="560" y="840" text-anchor="middle" class="lblSm" fill="#5a4a70">Green task → /Green svc → Green DB</text>
+
+  <path class="edgeP" d="M415,760 C398,762 388,772 383,780" stroke-dasharray="4,3" marker-end="url(#arrowPurple)"/>
+  <path class="edgeP" d="M705,760 C722,762 732,772 737,780" stroke-dasharray="4,3" marker-end="url(#arrowPurple)"/>
+
+  <!-- ============ DATABASES (below the zone) ============ -->
+  <g>
+    <path d="M200,990 L200,1055 A65,18 0 0,0 330,1055 L330,990 Z" class="boxB"/>
+    <ellipse cx="265" cy="990" rx="65" ry="18" class="boxB"/>
+    <text x="265" y="1030" text-anchor="middle" class="lbl" fill="#2a4f80">Blue DB</text>
+  </g>
+  <g>
+    <path d="M790,990 L790,1055 A65,18 0 0,0 920,1055 L920,990 Z" class="boxG"/>
+    <ellipse cx="855" cy="990" rx="65" ry="18" class="boxG"/>
+    <text x="855" y="1030" text-anchor="middle" class="lbl" fill="#2f6030">Green DB</text>
+  </g>
+
+  <path class="edgeB" d="M265,922 L265,970" marker-end="url(#arrowBlue)"/>
+  <path class="edgeG" d="M855,922 L855,970" marker-end="url(#arrowGreen)"/>
+
+  <!-- ============ KEY PRINCIPLE FOOTER (well below DBs) ============ -->
+  <rect x="60" y="1110" width="1000" height="270" rx="8" fill="#ffffff" stroke="#ccc"/>
+  <text x="80" y="1140" class="title">Key principle</text>
+  <text x="80" y="1168" class="lbl">Route on  <tspan font-weight="bold">identity → role → resource → DB</tspan>, not on network path.</text>
+  <text x="80" y="1194" class="lblSm">1.  ALB stays a dumb balancer — on a shared host with unchanged clients it has no idea who the user is.</text>
+  <text x="80" y="1216" class="lblSm">2.  SSO identity → IdP group claim → Portal group (the role). This is your "roles in the lower tier."</text>
+  <text x="80" y="1238" class="lblSm">3.  Roles gate <tspan font-weight="bold">visibility</tspan> of token-secured services — enforce at the service permission layer, never UI-only.</text>
+  <text x="80" y="1260" class="lblSm">4.  The DB is bound to the <tspan font-weight="bold">service/layer</tspan>, not the session. Hitting the resource IS the routing.</text>
+  <text x="80" y="1282" class="lblSm">5.  Dual-access user is not a special case: they just see both resource sets and pick per task.</text>
+
+  <text x="80" y="1318" class="lbl" fill="#a33">Avoid:</text>
+  <text x="148" y="1318" class="lblSm" fill="#a33">ALB user-routing / stickiness (no user context) · session-scoped DB pinning (breaks dual user) · UI-only hiding (URLs get guessed).</text>
+
+  <line x1="80" y1="1338" x2="1040" y2="1338" stroke="#e0e0e0"/>
+  <text x="80" y="1363" class="lblSm" fill="#3b6fb5">▬▬  Blue path</text>
+  <text x="230" y="1363" class="lblSm" fill="#4a8a4a">▬▬  Green path</text>
+  <text x="380" y="1363" class="lblSm" fill="#7a5aa0">┈┈  Dual-access (user 5)</text>
+  <text x="610" y="1363" class="lblSm" fill="#333">──  identity / request flow</text>
+</svg>

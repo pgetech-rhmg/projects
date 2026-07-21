@@ -1,13 +1,12 @@
-using System.Text.Json;
-
-using Amazon;
-using Amazon.Extensions.NETCore.Setup;
-using Amazon.SecretsManager;
-using Amazon.SecretsManager.Model;
-
 using Epic.Api.Data;
 using Epic.Api.Services;
+using Epic.Api.Startup;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Http.Resilience;
+using Microsoft.IdentityModel.Tokens;
+using Polly;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,94 +19,10 @@ builder.Configuration
     .AddEnvironmentVariables();
 
 // ---------------------------------------------------------------------------
-// AWS Secrets Manager (non-development only)
+// AWS Secrets Manager (non-development only) — loads app + RDS secrets into
+// configuration. See Epic.Api.Startup.SecretsLoader.
 // ---------------------------------------------------------------------------
-if (!builder.Environment.IsDevelopment())
-{
-    var secretName =
-        builder.Configuration["AWS_SECRETS_NAME"]
-        ?? throw new InvalidOperationException("AWS_SECRETS_NAME not configured.");
-
-    var regionName =
-        builder.Configuration["AWS_REGION"]
-        ?? Environment.GetEnvironmentVariable("AWS_REGION")
-        ?? throw new InvalidOperationException("AWS_REGION not configured.");
-
-    var awsOptions = new AWSOptions
-    {
-        Region = RegionEndpoint.GetBySystemName(regionName)
-    };
-
-    using var client = awsOptions.CreateServiceClient<IAmazonSecretsManager>();
-
-    var response = await client.GetSecretValueAsync(new GetSecretValueRequest
-    {
-        SecretId = secretName
-    });
-
-    if (string.IsNullOrWhiteSpace(response.SecretString))
-        throw new InvalidOperationException("SecretString is empty.");
-
-    Dictionary<string, string?> secrets;
-    try
-    {
-        secrets = JsonSerializer.Deserialize<Dictionary<string, string?>>(
-            response.SecretString,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        ) ?? throw new InvalidOperationException("Failed to deserialize secrets.");
-    }
-    catch (JsonException ex)
-    {
-        throw new InvalidOperationException(
-            $"Secret '{secretName}' is not a valid JSON object of string-to-string entries.", ex);
-    }
-
-    // Convert double-underscore keys to colon notation for .NET configuration
-    // (e.g., ConnectionStrings__EpicDb → ConnectionStrings:EpicDb)
-    var normalizedSecrets = secrets.ToDictionary(
-        kvp => kvp.Key.Replace("__", ":"),
-        kvp => kvp.Value
-    );
-
-    builder.Configuration.AddInMemoryCollection(normalizedSecrets);
-
-    // -----------------------------------------------------------------------
-    // Build DB connection string from RDS-managed secret
-    // -----------------------------------------------------------------------
-    var rdsSecretArn = builder.Configuration["AWS_RDS_SECRET_ARN"];
-    var dbHost       = builder.Configuration["AWS_RDS_ENDPOINT"];
-
-    if (!string.IsNullOrEmpty(rdsSecretArn) && !string.IsNullOrEmpty(dbHost))
-    {
-        var rdsResponse = await client.GetSecretValueAsync(new GetSecretValueRequest
-        {
-            SecretId = rdsSecretArn
-        });
-
-        Dictionary<string, string?> rdsSecret;
-        try
-        {
-            rdsSecret = JsonSerializer.Deserialize<Dictionary<string, string?>>(
-                rdsResponse.SecretString!,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-            ) ?? throw new InvalidOperationException("Failed to deserialize RDS secret.");
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidOperationException(
-                $"RDS secret '{rdsSecretArn}' is not a valid JSON object.", ex);
-        }
-
-        var username = rdsSecret.GetValueOrDefault("username") ?? "epic";
-        var password = rdsSecret.GetValueOrDefault("password")
-            ?? throw new InvalidOperationException("RDS secret missing password.");
-
-        var connectionString = $"Host={dbHost};Port=5432;Database=epicdb;Username={username};Password={password}";
-
-        builder.Configuration.AddInMemoryCollection(
-            new Dictionary<string, string?> { ["ConnectionStrings:EpicDb"] = connectionString });
-    }
-}
+await SecretsLoader.LoadAsync(builder);
 
 // ---------------------------------------------------------------------------
 // CORS
@@ -127,10 +42,60 @@ builder.Services.AddCors(options =>
 });
 
 // ---------------------------------------------------------------------------
+// Authentication & Authorization
+//
+// Validates Entra ID (MSAL) ID tokens: RS256 via the tenant JWKS (auto-fetched
+// and cached), issuer = login.microsoftonline.com/{tenant}/v2.0, audience =
+// the app registration's client ID (ID tokens always carry the client ID in
+// `aud`). Mirrors the CMA authorizer's validation semantics.
+//
+// In Development, authentication is bypassed entirely: endpoints allow
+// anonymous access and identity comes from DevCurrentUser, so local `dotnet
+// run` works without a real token.
+// ---------------------------------------------------------------------------
+var authEnabled = !builder.Environment.IsDevelopment();
+
+if (authEnabled)
+{
+    var tenantId = builder.Configuration["AzureAd:TenantId"]
+        ?? throw new InvalidOperationException("AzureAd:TenantId not configured.");
+    var clientId = builder.Configuration["AzureAd:ClientId"]
+        ?? throw new InvalidOperationException("AzureAd:ClientId not configured.");
+    var instance = builder.Configuration["AzureAd:Instance"] ?? "https://login.microsoftonline.com/";
+    var authority = $"{instance.TrimEnd('/')}/{tenantId}/v2.0";
+
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.Authority = authority;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = authority,
+                ValidateAudience = true,
+                ValidAudience = clientId,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+            };
+        });
+
+    // Deny by default: every endpoint requires an authenticated user unless it
+    // opts out with [AllowAnonymous].
+    builder.Services.AddAuthorizationBuilder()
+        .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build());
+}
+else
+{
+    builder.Services.AddAuthorization();
+}
+
+// ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
-builder.Services.AddDbContext<EpicDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("EpicDb")));
+DatabaseSetup.AddEpicDatabase(builder);
 
 // ---------------------------------------------------------------------------
 // Services
@@ -156,9 +121,45 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddMemoryCache(options => options.SizeLimit = 50_000);
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<Epic.Api.Auth.ICurrentUser, Epic.Api.Auth.HeaderCurrentUser>();
+if (authEnabled)
+    builder.Services.AddScoped<Epic.Api.Auth.ICurrentUser, Epic.Api.Auth.ClaimsCurrentUser>();
+else
+    builder.Services.AddScoped<Epic.Api.Auth.ICurrentUser, Epic.Api.Auth.DevCurrentUser>();
+builder.Services.AddScoped<Epic.Api.Auth.IAuditLog, Epic.Api.Auth.AuditLog>();
+// GitHub origins (org + host + PAT) EPIC can read from — one, or several for
+// multi-org/Enterprise setups. Singleton: derived once from configuration.
+builder.Services.AddSingleton<IGitHubSourceRegistry, GitHubSourceRegistry>();
 builder.Services.AddHttpClient<IGitHubService, GitHubService>(c => c.Timeout = TimeSpan.FromSeconds(60));
-builder.Services.AddHttpClient<IAdoService, AdoService>(c => c.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<IAdoService, AdoService>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(60);
+    // Azure DevOps throttles unidentified traffic first (lower TSTU budget) and
+    // asks all clients to send a User-Agent — sending a stable one is the cheapest
+    // 429 mitigation. Accept keeps the JSON responses explicit.
+    c.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("EPIC-API", "1.0"));
+    c.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+})
+    // Retry-only resilience: retries transient failures (5xx, 408) and, crucially,
+    // 429 throttling — honoring ADO's Retry-After header (ShouldRetryAfterHeader).
+    // Deliberately NOT AddStandardResilienceHandler: its circuit breaker throws
+    // BrokenCircuitException, which would break AdoService's "return null / serve
+    // stale on failure" contract. A retry strategy returns the final response, so
+    // the existing IsSuccessStatusCode handling stays intact.
+    .AddResilienceHandler("ado-retry", b => b.AddRetry(new HttpRetryStrategyOptions
+    {
+        ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+            .HandleResult(r => r.StatusCode is System.Net.HttpStatusCode.TooManyRequests
+                or System.Net.HttpStatusCode.RequestTimeout
+                or >= System.Net.HttpStatusCode.InternalServerError)
+            .Handle<HttpRequestException>(),
+        MaxRetryAttempts = 3,
+        BackoffType = DelayBackoffType.Exponential,
+        UseJitter = true,
+        Delay = TimeSpan.FromSeconds(1),
+        // Respect ADO's Retry-After (seconds or HTTP-date) when present, overriding
+        // the computed backoff so we wait exactly as long as the server asks.
+        ShouldRetryAfterHeader = true,
+    }));
 builder.Services.AddScoped<IAppService, AppService>();
 
 // ---------------------------------------------------------------------------
@@ -168,19 +169,43 @@ var app = builder.Build();
 
 // Apply pending EF Core migrations on startup (idempotent).
 // Set EPIC_RUN_MIGRATIONS=false on additional instances to avoid concurrent migrate races.
+//
+// Retry with backoff so a transient DB blip at boot (e.g. a rotation landing
+// exactly at startup, or Aurora Serverless resuming from zero) doesn't throw out
+// of Program before app.RunAsync() — which would leave the process not listening
+// at all, so even the [AllowAnonymous] /api/health probe can't answer. With
+// retries a cold DB delays startup instead of killing it.
 var runMigrations = !string.Equals(
     builder.Configuration["EPIC_RUN_MIGRATIONS"], "false", StringComparison.OrdinalIgnoreCase);
 if (runMigrations)
 {
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<EpicDbContext>();
-    db.Database.Migrate();
+    const int maxAttempts = 5;
+    for (var attempt = 1; ; attempt++)
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<EpicDbContext>();
+            await db.Database.MigrateAsync();
+            break;
+        }
+        catch (Exception ex) when (attempt < maxAttempts)
+        {
+            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt)); // 2s, 4s, 8s, 16s
+            app.Logger.LogWarning(ex,
+                "Startup migration attempt {Attempt}/{MaxAttempts} failed; retrying in {Delay}s.",
+                attempt, maxAttempts, delay.TotalSeconds);
+            await Task.Delay(delay);
+        }
+    }
 }
 
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("ApiCorsPolicy");
+if (authEnabled)
+    app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

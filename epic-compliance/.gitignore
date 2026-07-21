@@ -1,0 +1,14 @@
+# Build output
+/bin/
+/dist/
+/epic-compliance
+*.exe
+
+# Local scan artifacts
+*.sarif
+compliance.json
+compliance-report.*
+
+# Go
+*.test
+*.out

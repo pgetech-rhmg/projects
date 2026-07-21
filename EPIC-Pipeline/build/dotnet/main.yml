@@ -21,10 +21,10 @@ steps:
   # Use .NET SDK Version
   #############################################################################
   - task: UseDotNet@2
-    displayName: "Use .NET SDK ${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+    displayName: "Use .NET SDK ${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
     inputs:
       packageType: "sdk"
-      version: "${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}"
+      version: "${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
       installationPath: $(Agent.ToolsDirectory)/dotnet
 
 
@@ -153,11 +153,25 @@ steps:
 
         cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
 
-        rm -rf .scan/*
+        rm -rf .scan
+        mkdir -p .scan
 
-        cp -R $(Pipeline.Workspace)/.sonarqube/. .scan/
-        cp -R **/bin/. .scan/
-        cp -R **/obj/. .scan/
+        # The SonarScanner-for-.NET "begin" output (.sonarqube dir) produced during
+        # prepare+build is what the Scan stage's analyze step consumes — always copy it.
+        cp -R "$(Pipeline.Workspace)/.sonarqube/." .scan/
+
+        # Plus every project's compiled bin/ and obj/ so the analyzer can resolve
+        # assemblies. NOTE: the previous `cp -R **/bin/. .scan/` was broken — bash's
+        # `**` is NOT recursive unless `globstar` is set (off by default), so it
+        # matched nothing and `set -e` killed the step ("cannot stat '**/bin/.'").
+        # `find` is recursive, works regardless of shell options, and tolerates a
+        # project whose bin/obj live at the top level or nested. Relative paths are
+        # preserved so multi-project solutions don't collide.
+        find . -type d \( -name bin -o -name obj \) -not -path './.scan/*' -print0 \
+          | while IFS= read -r -d '' dir; do
+              mkdir -p ".scan/$dir"
+              cp -R "$dir/." ".scan/$dir/"
+            done
       displayName: "Copy scan artifacts"
 
 

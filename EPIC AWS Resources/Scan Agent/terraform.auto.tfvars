@@ -10,7 +10,7 @@ aws_region     = "us-west-2"
 # Agent Host
 ###############################################################################
 
-instance_type    = "m5.large"
+instance_type    = "m5.2xlarge"
 root_volume_size = 60
 
 # Shared EPIC nonprod VPC + the subnet epic-api's app server runs in (proven

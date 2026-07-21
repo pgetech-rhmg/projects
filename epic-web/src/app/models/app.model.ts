@@ -14,9 +14,16 @@ export interface RepoCheckResult {
   masterApp?: AppLookup;
 }
 
+export interface GitHubSourceOption {
+  name: string;
+  org: string;
+  isDefault: boolean;
+}
+
 export interface ManagedApp {
   name: string;
   appName: string | null;
+  githubOrg: string | null;
   technology: string;
   lastPipelineRun: string | null;
   branch: string | null;
@@ -43,6 +50,7 @@ export interface PipelineRun {
   stages: {
     prepare: RunStatus;
     download: RunStatus;
+    review: RunStatus;
     build: RunStatus;
     test: RunStatus;
     scan: RunStatus;
@@ -112,4 +120,44 @@ export interface PipelineRunPage {
   page: number;
   pageSize: number;
   runs: PipelineRun[];
+}
+
+// Summary of the compliance-report.json produced by the Review stage — the tool
+// version plus the verdict distribution, rendered above the Download Report
+// button on the Review stage detail.
+export interface ComplianceSummary {
+  tool: string | null;
+  version: string | null;
+  specSource: string | null;
+  scannedAt: string | null;
+  total: number;
+  byVerdict: Record<string, number>;
+}
+
+// Full structured compliance report (summary + app profile + per-control
+// findings), used to render the report natively in the View Report modal.
+export interface ComplianceProfile {
+  kinds: string[] | null;
+  authModel: string | null;
+  idp: string | null;
+  narrative: string | null;
+}
+
+export interface ComplianceFinding {
+  nistId: string;
+  title: string | null;
+  requirement: string | null;
+  verdict: string;
+  kind: string | null;
+  severity: string | null;
+  message: string | null;
+  remediation: string | null;
+  inheritedFrom: string | null;
+  evidence: string[] | null;
+}
+
+export interface ComplianceReport {
+  summary: ComplianceSummary;
+  profile: ComplianceProfile | null;
+  findings: ComplianceFinding[];
 }

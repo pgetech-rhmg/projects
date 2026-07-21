@@ -16,6 +16,25 @@ jobs:
   steps:
 
     ###########################################################################
+    # Guard: .NET SonarQube scan requires a build
+    #
+    # SonarQube analyzes .NET in MSBuild (dotnet) mode — analysis is a byproduct
+    # of the compile, and the instrumentation output is handed to the Scan stage
+    # via the 'epic-scan' artifact published by the Build stage. With build off
+    # that artifact never exists, so a "scan only" .NET run cannot work. Fail
+    # fast with a clear message instead of the cryptic "epic-scan not found".
+    ###########################################################################
+    - ${{ if and(eq(parameters.scanTool, 'sonarqube'), or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')), ne(parameters.build, 'true')) }}:
+      - bash: |
+          echo "SonarQube cannot analyze a .NET app without a build."
+          echo "The .NET scanner instruments the compile, and the Scan stage"
+          echo "consumes the 'epic-scan' artifact produced by the Build stage."
+          echo "Re-run this pipeline with Build enabled."
+          exit 1
+        displayName: ".NET scan requires build"
+
+
+    ###########################################################################
     # Download App Artifact
     ###########################################################################
     - task: DownloadPipelineArtifact@2
@@ -48,7 +67,11 @@ jobs:
     ###########################################################################
     - ${{ if eq(parameters.scanTool, 'sonarqube') }}:
     
-      - ${{ if or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')) }}:
+      # Coverage normalization only makes sense when build tests actually ran
+      # and produced a coverage.xml. On a scan-only run (tests off) the report
+      # never exists, so skip normalize — matching the test-artifact download
+      # guard above and prepare.yml zeroing out the coverage properties.
+      - ${{ if and(or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')), eq(parameters.tests, 'true'), ne(parameters.buildTestTool, '')) }}:
         #######################################################################
         # Normalize Coverage File
         #######################################################################

@@ -50,8 +50,12 @@ public interface IAdoService
     Task<(int Total, int Successful, TimeSpan TotalDuration)> GetCompletedRunCountsAsync(string repo, CancellationToken ct = default);
     Task<int> GetTotalRunCountAsync(string repo, CancellationToken ct = default);
     Task<AdoRunsPage> GetRunsPageAsync(string repo, int page, int pageSize, CancellationToken ct = default);
-    Task<AdoTriggerResult> TriggerOrchestratorAsync(string repo, string branch, string environment, string config, bool build, bool tests, bool scan, bool deploy, bool integrations, string deployInfra, CancellationToken ct = default);
+    Task<AdoTriggerResult> TriggerOrchestratorAsync(string repo, string branch, string environment, string config, bool review, bool build, bool tests, bool scan, bool deploy, bool integrations, string deployInfra, bool forceStateCopy, string triggeredBy, string owner, string githubHost, CancellationToken ct = default);
     Task CancelBuildAsync(int buildId, CancellationToken ct = default);
     Task<StageDetail?> GetStageDetailAsync(int buildId, string stageName, CancellationToken ct = default);
     Task<string?> GetStepLogAsync(int buildId, int logId, CancellationToken ct = default);
+    Task<string?> GetScanResultUrlAsync(int buildId, CancellationToken ct = default);
+    Task<string?> GetComplianceReportAsync(int buildId, CancellationToken ct = default);
+    Task<ComplianceSummary?> GetComplianceSummaryAsync(int buildId, CancellationToken ct = default);
+    Task<ComplianceReport?> GetComplianceReportJsonAsync(int buildId, CancellationToken ct = default);
 }

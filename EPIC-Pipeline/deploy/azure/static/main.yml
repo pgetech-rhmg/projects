@@ -1,0 +1,70 @@
+###############################################################################
+# Azure Static Website Deploy
+#
+# Uploads a built SPA (index.html + assets) to a Storage Account's implicit
+# $web container (static-website hosting). Used for react/angular/html appTypes
+# on Azure — the counterpart to the AWS S3+CloudFront static path.
+#
+# Storage account name resolution (nothing hardcoded):
+#   1. Terraform outputs (frontend_storage_account), if a TF artifact exists
+#   2. cloud.staticStorageAccount from epic.json
+###############################################################################
+steps:
+
+  #############################################################################
+  # Resolve target storage account
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      STORAGE_ACCOUNT=""
+
+      # 1. Terraform outputs (when this app also ran a DeployInfra stage)
+      if [ -f "${{ parameters.terraformOutputPath }}" ]; then
+        STORAGE_ACCOUNT=$(jq -r '.frontend_storage_account.value // empty' "${{ parameters.terraformOutputPath }}")
+      fi
+
+      # 2. Fall back to epic.json cloud.staticStorageAccount
+      CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
+      if [ -z "$STORAGE_ACCOUNT" ]; then
+        STORAGE_ACCOUNT=$(jq -r '.cloud.staticStorageAccount // empty' "$CONFIG")
+      fi
+
+      if [ -z "$STORAGE_ACCOUNT" ]; then
+        echo "##vso[task.logissue type=error]No static storage account found — set cloud.staticStorageAccount in epic.json or provide a frontend_storage_account Terraform output"
+        exit 1
+      fi
+
+      echo "##vso[task.setvariable variable=STATIC_STORAGE_ACCOUNT]$STORAGE_ACCOUNT"
+      echo ">> Static storage account: $STORAGE_ACCOUNT"
+    displayName: "Resolve static storage account"
+
+
+  #############################################################################
+  # Upload build output to $web
+  #############################################################################
+  - task: AzureCLI@2
+    displayName: "Upload ${{ parameters.appType }} to \\$web"
+    inputs:
+      azureSubscription: ${{ parameters.azureServiceConnection }}
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        set -euo pipefail
+
+        BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+
+        if [ ! -d "$BUILD_PATH" ]; then
+          echo "##vso[task.logissue type=error]Build output not found at $BUILD_PATH"
+          exit 1
+        fi
+
+        echo ">> Uploading $BUILD_PATH -> \$web of $(STATIC_STORAGE_ACCOUNT)"
+
+        # --overwrite refreshes changed files; the $web container serves the SPA.
+        az storage blob upload-batch \
+          --account-name "$(STATIC_STORAGE_ACCOUNT)" \
+          --auth-mode login \
+          --destination '$web' \
+          --source "$BUILD_PATH" \
+          --overwrite true

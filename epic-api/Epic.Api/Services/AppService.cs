@@ -6,9 +6,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Epic.Api.Services;
 
-public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoService ado, ICurrentUser currentUser, ILogger<AppService> logger) : IAppService
+public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IGitHubSourceRegistry sources, IAdoService ado, ICurrentUser currentUser, IAuditLog audit, ILogger<AppService> logger) : IAppService
 {
+    // Display technology shared by the hcl/infra appTypes (and its reverse map).
+    private const string TechnologyTerraform = "Terraform";
+
+    // Shown when a run has no resolvable appType (e.g. a contract-less
+    // Review-only run with no epic.json) — a blank cell would look like a bug.
+    private const string TechnologyUnknown = "[UNKNOWN]";
+
+    // Stable identity key (corpId) — scopes which apps a user owns.
     private string CurrentUserId => currentUser.UserId;
+
+    // Human-readable name for audit/display fields (CreatedBy, ADO triggeredBy).
+    private string CurrentUserDisplayName => currentUser.DisplayName;
 
     public async Task<List<ManagedApp>> GetUserAppsAsync(CancellationToken ct = default)
     {
@@ -71,7 +82,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             : null;
 
         var detail = ToAppDetail(entity, successRate, avgDuration);
-        detail.Technology = latest?.AppType is not null ? MapAppTypeToTechnology(latest.AppType) : "-";
+        detail.Technology = latest is not null ? ResolveTechnology(latest.AppType, entity.Technology) : "-";
         detail.Cloud = latest?.Cloud is not null ? MapCloud(latest.Cloud) : "-";
         return detail;
     }
@@ -129,6 +140,38 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         return await ado.GetStepLogAsync(runId, logId, ct);
     }
 
+    public async Task<string?> GetScanResultUrlAsync(string appName, int runId, CancellationToken ct = default)
+    {
+        var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == appName, ct);
+        if (entity is null) return null;
+
+        return await ado.GetScanResultUrlAsync(runId, ct);
+    }
+
+    public async Task<string?> GetComplianceReportAsync(string appName, int runId, CancellationToken ct = default)
+    {
+        var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == appName, ct);
+        if (entity is null) return null;
+
+        return await ado.GetComplianceReportAsync(runId, ct);
+    }
+
+    public async Task<ComplianceSummary?> GetComplianceSummaryAsync(string appName, int runId, CancellationToken ct = default)
+    {
+        var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == appName, ct);
+        if (entity is null) return null;
+
+        return await ado.GetComplianceSummaryAsync(runId, ct);
+    }
+
+    public async Task<ComplianceReport?> GetComplianceReportJsonAsync(string appName, int runId, CancellationToken ct = default)
+    {
+        var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == appName, ct);
+        if (entity is null) return null;
+
+        return await ado.GetComplianceReportJsonAsync(runId, ct);
+    }
+
     private async Task<Dictionary<string, (string? Cloud, string? Environment, string? AppType, string? AppName)>> RefreshRecentRunsFromAdoAsync(List<AppEntity> apps, CancellationToken ct)
     {
         var lastRunTags = new Dictionary<string, (string? Cloud, string? Environment, string? AppType, string? AppName)>();
@@ -173,7 +216,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                     }
                     else
                     {
-                        // New run we haven't seen — add a lightweight record (no stage detail)
+                        // New run we haven't seen — add a lightweight record (no stage
+                        // detail). Every stage defaults to Skipped on the entity, so
+                        // we don't restate them here.
                         app.Runs.Add(new PipelineRunEntity
                         {
                             Id = run.Id,
@@ -183,13 +228,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                             Branch = run.Branch,
                             Environment = run.Environment,
                             StartedAt = run.StartedAt,
-                            Duration = run.Duration,
-                            StageBuild = "Skipped",
-                            StageTest = "Skipped",
-                            StageScan = "Skipped",
-                            StageInfraDeploy = "Skipped",
-                            StageAppDeploy = "Skipped",
-                            StageIntegrationTest = "Skipped"
+                            Duration = run.Duration
                         });
                         hasChanges = true;
                     }
@@ -211,7 +250,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
     {
         try
         {
-            var repoInfo = await gitHub.GetRepoAsync(entity.GithubRepo, ct);
+            var repoInfo = await gitHub.GetRepoAsync(entity.GithubRepo, entity.GithubSource, ct);
             if (!repoInfo.Exists) return;
 
             var hasChanges = false;
@@ -222,8 +261,22 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
                 hasChanges = true;
             }
 
+            // Keep the GitHub-derived technology fresh — it's the Technology
+            // fallback for contract-less runs (empty appType tag). Only overwrite
+            // when GitHub actually reports a language, so we never clobber a good
+            // value with "Unknown" during a transient/empty GitHub response.
+            if (repoInfo.Language is not null)
+            {
+                var technology = MapLanguageToTechnology(repoInfo.Language);
+                if (entity.Technology != technology)
+                {
+                    entity.Technology = technology;
+                    hasChanges = true;
+                }
+            }
+
             // Re-check .infra/ folder existence
-            var hasInfra = await gitHub.PathExistsAsync(entity.GithubRepo, ".infra", entity.GithubBranch, ct);
+            var hasInfra = await gitHub.PathExistsAsync(entity.GithubRepo, ".infra", entity.GithubBranch, entity.GithubSource, ct);
             if (entity.HasInfra != hasInfra)
             {
                 entity.HasInfra = hasInfra;
@@ -242,13 +295,14 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         }
     }
 
-    public async Task<RepoCheckResult> CheckRepoAsync(string repo, CancellationToken ct = default)
+    public async Task<RepoCheckResult> CheckRepoAsync(string repo, string? source = null, CancellationToken ct = default)
     {
-        var app = await db.Apps.FirstOrDefaultAsync(a => a.GithubRepo == repo, ct);
+        var sourceName = sources.Resolve(source).Name;
+        var app = await db.Apps.FirstOrDefaultAsync(a => a.GithubRepo == repo && a.GithubSource == sourceName, ct);
 
         if (app is null)
         {
-            var repoInfo = await gitHub.GetRepoAsync(repo, ct);
+            var repoInfo = await gitHub.GetRepoAsync(repo, source, ct);
             return new RepoCheckResult
             {
                 Status = repoInfo.Exists ? "available" : "not-found"
@@ -288,6 +342,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         });
 
         await db.SaveChangesAsync(ct);
+        audit.Record("app.add_to_my_apps", $"app:{app.Name}");
 
         var lastRunTags = await RefreshRecentRunsFromAdoAsync([app], ct);
         var stats = (await GetRunStatsAsync([app], ct)).GetValueOrDefault(app.Name);
@@ -295,15 +350,16 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         return ToManagedApp(app, stats, lastRunTags.GetValueOrDefault(app.Name));
     }
 
-    public async Task<AppDetail> OnboardAppAsync(string repo, CancellationToken ct = default)
+    public async Task<AppDetail> OnboardAppAsync(string repo, string? source = null, CancellationToken ct = default)
     {
-        var repoInfo = await gitHub.GetRepoAsync(repo, ct);
+        var sourceName = sources.Resolve(source).Name;
+        var repoInfo = await gitHub.GetRepoAsync(repo, source, ct);
         if (!repoInfo.Exists)
             throw new KeyNotFoundException($"GitHub repo '{repo}' not found");
 
         var resolvedBranch = repoInfo.DefaultBranch ?? "main";
 
-        var hasInfra = await gitHub.PathExistsAsync(repo, ".infra", resolvedBranch, ct);
+        var hasInfra = await gitHub.PathExistsAsync(repo, ".infra", resolvedBranch, source, ct);
 
         var appType = MapTechnologyToAppType(MapLanguageToTechnology(repoInfo.Language));
         var technology = MapAppTypeToTechnology(appType);
@@ -321,10 +377,11 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             Team = "unassigned",
             Domain = "",
             GithubRepo = repo,
+            GithubSource = sourceName,
             GithubBranch = resolvedBranch,
             HasInfra = hasInfra,
-            CreatedBy = CurrentUserId,
-            LastUpdatedBy = CurrentUserId
+            CreatedBy = CurrentUserDisplayName,
+            LastUpdatedBy = CurrentUserDisplayName
         };
 
         db.Apps.Add(entity);
@@ -336,6 +393,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         });
 
         await db.SaveChangesAsync(ct);
+        audit.Record("app.onboard", $"app:{entity.Name}", detail: $"repo={repo}");
 
         await RefreshRecentRunsFromAdoAsync([entity], ct);
 
@@ -348,7 +406,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         "c#" => ".NET",
         "python" => "Python",
         "java" or "kotlin" => "Java",
-        "hcl" => "Terraform",
+        "hcl" => TechnologyTerraform,
         "html" or "css" => "HTML",
         "go" => "Go",
         "ruby" => "Ruby",
@@ -364,9 +422,24 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         "Python" => "python",
         "Java" => "java",
         "HTML" => "html",
-        "Terraform" => "hcl",
+        TechnologyTerraform => "hcl",
         _ => "unknown"
     };
+
+    /// <summary>
+    /// Technology shown in the dashboard. Prefer the last run's tagged appType.
+    /// A contract-less Review-only run (no epic.json) tags an empty appType, so
+    /// fall back to the primary language EPIC recorded from GitHub, and only show
+    /// [UNKNOWN] when even that is unavailable — never a blank cell.
+    /// </summary>
+    private static string ResolveTechnology(string? runAppType, string? githubTechnology)
+    {
+        if (!string.IsNullOrWhiteSpace(runAppType))
+            return MapAppTypeToTechnology(runAppType);
+        if (!string.IsNullOrWhiteSpace(githubTechnology))
+            return githubTechnology;
+        return TechnologyUnknown;
+    }
 
     private static string MapAppTypeToTechnology(string appType) => appType switch
     {
@@ -375,25 +448,34 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         "dotnet" or "dotnet_framework" => ".NET",
         "python" => "Python",
         "java" => "Java",
+        "go" => "Go",
         "html" => "HTML",
-        "hcl" => "Terraform",
+        "hcl" => TechnologyTerraform,
         "ami" => "AMI",
-        "btp" => "SAP",
-        "cap" => "SAP",
-        "infra" => "Terraform",
+        "btp" => "SAP BTP",
+        "cap" => "SAP CAP",
+        "infra" => TechnologyTerraform,
         _ => appType
     };
 
+    /// <summary>Maps an ADO cloud tag to its display value.</summary>
+    /// <remarks>
+    /// Legacy pipeline runs (pre-2026-06) tagged the cloud provider as "btp";
+    /// current runs tag it "sap". Both map to SAP so historical tags stay
+    /// connected to the same display value as new ones.
+    /// </remarks>
     private static string MapCloud(string? cloud) => cloud?.ToLowerInvariant() switch
     {
         "aws" => "AWS",
         "azure" => "Azure",
-        "btp" => "BTP",
+        "btp" or "sap" => "SAP",
         _ => cloud ?? "AWS"
     };
 
+    private static readonly char[] DisplayNameSeparators = ['-', '_'];
+
     private static string FormatDisplayName(string repo) =>
-        string.Join(' ', repo.Split('-', '_')
+        string.Join(' ', repo.Split(DisplayNameSeparators)
             .Select(w => w.Length > 0 ? char.ToUpper(w[0]) + w[1..] : w));
 
     public async Task RemoveFromMyAppsAsync(string name, CancellationToken ct = default)
@@ -407,19 +489,30 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
 
         db.UserApps.Remove(userApp);
         await db.SaveChangesAsync(ct);
+        audit.Record("app.remove_from_my_apps", $"app:{name}");
     }
 
     public async Task<TriggerRunResponse> TriggerRunAsync(
         string appName, string branch, string environment, string config,
-        bool build, bool tests, bool scan, bool deploy, bool integrations,
-        string deployInfra, CancellationToken ct = default)
+        bool review, bool build, bool tests, bool scan, bool deploy, bool integrations,
+        string deployInfra, bool forceStateCopy, CancellationToken ct = default)
     {
         var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == appName, ct)
             ?? throw new KeyNotFoundException($"App '{appName}' not found");
 
+        // Resolve the app's GitHub source to the org + host the agent must clone from.
+        var src = sources.Resolve(entity.GithubSource);
+        var githubHost = new Uri(src.ApiBase).Host is var h && h.Equals("api.github.com", StringComparison.OrdinalIgnoreCase)
+            ? "github.com"
+            : h;
+
         var result = await ado.TriggerOrchestratorAsync(
             entity.GithubRepo, branch, environment, config.TrimStart('/'),
-            build, tests, scan, deploy, integrations, deployInfra, ct);
+            review, build, tests, scan, deploy, integrations, deployInfra, forceStateCopy, CurrentUserDisplayName,
+            src.Org, githubHost, ct);
+
+        audit.Record("pipeline.trigger_run", $"app:{appName};run:{result.RunId}",
+            detail: $"branch={branch};env={environment};config={config}");
 
         return new TriggerRunResponse
         {
@@ -459,6 +552,9 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         foreach (var buildId in buildIds)
             await ado.CancelBuildAsync(buildId, ct);
 
+        audit.Record("pipeline.cancel_run", $"app:{appName};run:{runId}",
+            detail: $"builds={string.Join(',', buildIds)}");
+
         // Update local DB record if we have it (match on either build id of the pair)
         var run = await db.Set<PipelineRunEntity>()
             .FirstOrDefaultAsync(r => buildIds.Contains(r.Id) && r.AppId == entity.Id, ct);
@@ -469,19 +565,19 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         }
     }
 
-    public async Task<List<string>> FindConfigsAsync(string repo, string branch, CancellationToken ct = default)
+    public async Task<List<string>> FindConfigsAsync(string repo, string branch, string? source = null, CancellationToken ct = default)
     {
-        return await gitHub.FindEpicConfigsAsync(repo, branch, ct);
+        return await gitHub.FindEpicConfigsAsync(repo, branch, source, ct);
     }
 
-    public async Task<ConfigCheckResult> CheckConfigInfraAsync(string repo, string branch, string configPath, CancellationToken ct = default)
+    public async Task<ConfigCheckResult> CheckConfigInfraAsync(string repo, string branch, string configPath, string? source = null, CancellationToken ct = default)
     {
-        return await gitHub.CheckInfraAsync(repo, branch, configPath, ct);
+        return await gitHub.CheckInfraAsync(repo, branch, configPath, source, ct);
     }
 
     // ----- Mapping helpers -----
 
-    private static ManagedApp ToManagedApp(AppEntity entity, (int Total, int Successful, TimeSpan TotalDuration) stats, (string? Cloud, string? Environment, string? AppType, string? AppName) lastRunTags = default)
+    private ManagedApp ToManagedApp(AppEntity entity, (int Total, int Successful, TimeSpan TotalDuration) stats, (string? Cloud, string? Environment, string? AppType, string? AppName) lastRunTags = default)
     {
         var lastRun = entity.Runs.MaxBy(r => r.StartedAt);
 
@@ -489,7 +585,8 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
         {
             Name = entity.Name,
             AppName = lastRunTags.AppName,
-            Technology = lastRunTags.AppType is not null ? MapAppTypeToTechnology(lastRunTags.AppType) : "-",
+            Technology = lastRun is not null ? ResolveTechnology(lastRunTags.AppType, entity.Technology) : "-",
+            GithubOrg = ResolveGithubOrg(entity.GithubSource),
             Cloud = lastRunTags.Cloud is not null ? MapCloud(lastRunTags.Cloud) : "-",
             Environment = lastRunTags.Environment ?? "-",
             LastPipelineRun = lastRun?.StartedAt.ToString("o"),
@@ -500,6 +597,15 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IAdoServ
             SuccessRate = stats.Total > 0 ? Math.Round((double)stats.Successful / stats.Total * 100, 2) : null,
             AvgDuration = stats.Total > 0 ? FormatDurationFromTimeSpan(stats.TotalDuration / stats.Total) : null
         };
+    }
+
+    // Resolves the app's stored source name to its GitHub org for display.
+    // Falls back gracefully if the source is unknown/misconfigured so a bad
+    // config never breaks the app list.
+    private string? ResolveGithubOrg(string source)
+    {
+        try { return sources.Resolve(source).Org; }
+        catch (InvalidOperationException) { return null; }
     }
 
     private static string FormatDurationFromTimeSpan(TimeSpan ts)

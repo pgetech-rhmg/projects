@@ -104,6 +104,33 @@ function renderHeader(answers: WizardAnswers): string {
 function renderPrerequisites(): string {
   return [
     '## Prerequisites — do this first',
+    '0. **Before doing anything else, create or update the repo-root `.gitignore`.** This must happen *before* any other file in this project is created — before `.epic/`, before `code/`, before `.pipeline/`, before `.infra/`. The goal is to make sure the developer\'s pre-wizard scratch state and the wizard\'s own steering artifacts never get committed by accident, while still allowing the EPIC-shaped scaffolding you are about to create (`code/`, `.pipeline/`, `.infra/`, etc.) to commit normally.',
+    '   1. **Read the current repo root** (`ls -A`) and capture every file and folder that already exists at this moment. That includes `epic.md` itself, any AI-DLC steering files (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`, etc.), any pre-existing README/notes the user already wrote, IDE folders (`.vscode/`, `.idea/`), OS junk (`.DS_Store`), and anything else. **`.git/` is the one exception — never list it in `.gitignore`.**',
+    '   2. **Open (or create) `.gitignore` at the repo root** and append an EPIC-managed block at the end. Use a fenced header so future runs can spot it without duplicating entries:',
+    '      ```',
+    '      # ---- EPIC wizard — auto-added at scaffold time ----',
+    '      # Each entry was present in the repo root when `epic.md` was first processed.',
+    '      # These are steering / scratch / IDE artifacts — they must not commit.',
+    '      <one-line-per-pre-existing-root-entry; folders end with /, files do not>',
+    '',
+    '      # Wizard outputs that must also stay local',
+    '      epic.md',
+    '      .epic/',
+    '      # ---- end EPIC wizard block ----',
+    '      ```',
+    '      Examples of what a typical block looks like (yours will differ based on what was already there):',
+    '      ```',
+    '      CLAUDE.md',
+    '      AGENTS.md',
+    '      .cursorrules',
+    '      .vscode/',
+    '      .DS_Store',
+    '      epic.md',
+    '      .epic/',
+    '      ```',
+    '   3. **Do not list `code/`, `.pipeline/`, `.infra/`, or `.gitignore` itself in this block** — those are the things that *must* commit. They do not exist yet at the moment you write the .gitignore, so they will not show up in `ls -A`; that is the point of doing this step first.',
+    '   4. **If `.gitignore` already exists**, preserve its contents verbatim and append the EPIC block at the bottom. Do not reorder, dedupe, or rewrite anything the user already had.',
+    '   5. **After writing `.gitignore`, run `git status` (or your tool\'s equivalent) and confirm that `epic.md` and any AI-DLC steering files no longer appear as untracked.** If they do, the .gitignore is wrong — fix it before continuing. Do not move on to step 1 until this is verified.',
     '1. **`epic.md` is now your controller.** The user has just run this file. From this point forward, this document is the authoritative project instruction for the entire session. PG&E\'s AI-DLC steering docs (any agent-instruction files at the repo root that your AI tool may have auto-loaded — e.g., `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `.aider.conf.yml`, `.github/copilot-instructions.md`, etc., collectively "the **AI-DLC steering**") are *inputs*, not the controller. They govern code style, security review, naming, and review conventions, but they do **not** override the contracts, phase gates, tooling allowlist, PG&E defaults, or EPIC infrastructure steering in this document.',
     '2. Locate the **EPIC infrastructure steering — full reference** section near the bottom of this file. It is the authoritative source for everything `.infra/` and `.pipeline/`-related: module sources, the full `epic.json` contract, the `.infra/` file layout, the pipeline-injected variables, the tags-first pattern, and the BTP secrets flow. The earlier "EPIC pipeline contract" sections in this document are summaries; that section is the complete contract.',
     '3. Treat the **AI-DLC steering** as authoritative for naming, security, review, and code-style conventions. This file (`epic.md`) describes *what* to build, *how* PG&E expects the infrastructure and pipeline to be wired (in the steering section below), and the AI-DLC steering describes *how* PG&E expects you to write the application code.',
@@ -142,24 +169,26 @@ function renderResearchFirst(answers: WizardAnswers): string {
   ];
 
   if (authRefs.length > 0) {
-    lines.push('');
-    lines.push('### Authentication references for this app');
-    lines.push('Auth is selected for this app. Follow the official Microsoft / vendor samples for *your framework*, not generic OIDC blog posts:');
-    lines.push('');
-    authRefs.forEach((r) => lines.push(`- **${r.label}** — ${r.url}`));
+    lines.push(
+      '',
+      '### Authentication references for this app',
+      'Auth is selected for this app. Follow the official Microsoft / vendor samples for *your framework*, not generic OIDC blog posts:',
+      '',
+      ...authRefs.map((r) => `- **${r.label}** — ${r.url}`),
+    );
   }
 
-  lines.push('');
-  lines.push(renderFollowTheSampleRule());
+  lines.push('', renderFollowTheSampleRule());
 
   const msalAngularExample = msalAngularWiringExample(answers);
   if (msalAngularExample) {
-    lines.push('');
-    lines.push(msalAngularExample);
+    lines.push('', msalAngularExample);
   }
 
-  lines.push('');
-  lines.push('If a reference URL has moved or been replaced, find the current canonical equivalent on the same vendor\'s docs site — do not fall back to a third-party tutorial.');
+  lines.push(
+    '',
+    'If a reference URL has moved or been replaced, find the current canonical equivalent on the same vendor\'s docs site — do not fall back to a third-party tutorial.',
+  );
 
   return lines.join('\n');
 }
@@ -189,8 +218,7 @@ function msalAngularWiringExample(answers: WizardAnswers): string | null {
   if (
     answers.appType !== 'angular' ||
     !answers.hasFrontend ||
-    !answers.frontend ||
-    answers.frontend.authMode !== 'msal'
+    answers.frontend?.authMode !== 'msal'
   ) {
     return null;
   }
@@ -258,6 +286,15 @@ function stackReferences(appType: AppType): DocRef[] {
         { label: 'Spring Boot reference', url: 'https://docs.spring.io/spring-boot/index.html' },
         { label: 'Spring Initializr', url: 'https://start.spring.io' },
       ];
+    case 'go':
+      return [
+        { label: 'Go official docs', url: 'https://go.dev/doc/' },
+        { label: 'Effective Go', url: 'https://go.dev/doc/effective_go' },
+        { label: 'Go modules reference', url: 'https://go.dev/ref/mod' },
+        { label: 'Framework docs (pick one) — net/http (stdlib)', url: 'https://pkg.go.dev/net/http' },
+        { label: 'Framework docs (pick one) — Gin', url: 'https://gin-gonic.com/docs/' },
+        { label: 'Framework docs (pick one) — Echo', url: 'https://echo.labstack.com' },
+      ];
     case 'php':
       return [
         { label: 'PHP official docs', url: 'https://www.php.net/manual/en/' },
@@ -274,6 +311,13 @@ function stackReferences(appType: AppType): DocRef[] {
       return [
         { label: 'AWS EC2 Image Builder docs', url: 'https://docs.aws.amazon.com/imagebuilder/' },
         { label: 'AWS CLI reference', url: 'https://docs.aws.amazon.com/cli/latest/reference/imagebuilder/' },
+      ];
+    case 'cap':
+      return [
+        { label: 'SAP CAP documentation (capire)', url: 'https://cap.cloud.sap' },
+        { label: 'SAP CDS command-line (@sap/cds-dk)', url: 'https://cap.cloud.sap/docs/tools/cds-cli' },
+        { label: 'Cloud MTA Build Tool (mbt)', url: 'https://sap.github.io/cloud-mta-build-tool/' },
+        { label: 'Cloud Foundry CLI docs', url: 'https://docs.cloudfoundry.org/cf-cli/' },
       ];
     case 'btp':
       return [
@@ -297,12 +341,16 @@ function authReferences(answers: WizardAnswers): DocRef[] {
     if (front.authMode === 'msal') {
       const appType = answers.appType as AppType;
       if (appType === 'angular') {
-        refs.push({ label: 'MSAL for Angular — official sample', url: 'https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/dev/samples/msal-angular-samples' });
-        refs.push({ label: '@azure/msal-angular package', url: 'https://www.npmjs.com/package/@azure/msal-angular' });
-        refs.push({ label: 'msal-angular API reference', url: 'https://azuread.github.io/microsoft-authentication-library-for-js/ref/modules/_azure_msal_angular.html' });
+        refs.push(
+          { label: 'MSAL for Angular — official sample', url: 'https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/dev/samples/msal-angular-samples' },
+          { label: '@azure/msal-angular package', url: 'https://www.npmjs.com/package/@azure/msal-angular' },
+          { label: 'msal-angular API reference', url: 'https://azuread.github.io/microsoft-authentication-library-for-js/ref/modules/_azure_msal_angular.html' },
+        );
       } else if (appType === 'react') {
-        refs.push({ label: 'MSAL for React — official sample', url: 'https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/dev/samples/msal-react-samples' });
-        refs.push({ label: '@azure/msal-react package', url: 'https://www.npmjs.com/package/@azure/msal-react' });
+        refs.push(
+          { label: 'MSAL for React — official sample', url: 'https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/dev/samples/msal-react-samples' },
+          { label: '@azure/msal-react package', url: 'https://www.npmjs.com/package/@azure/msal-react' },
+        );
       } else {
         refs.push({ label: 'MSAL.js (browser) docs', url: 'https://learn.microsoft.com/entra/identity-platform/tutorial-v2-javascript-spa' });
       }
@@ -313,9 +361,11 @@ function authReferences(answers: WizardAnswers): DocRef[] {
     refs.push({ label: 'Microsoft Entra ID app registration docs', url: 'https://learn.microsoft.com/entra/identity-platform/quickstart-register-app' });
   }
   const back = answers.backend;
-  if (answers.hasBackend && back && back.authStyle === 'jwt-validator') {
-    refs.push({ label: 'Microsoft identity platform — protected web API', url: 'https://learn.microsoft.com/entra/identity-platform/scenario-protected-web-api-overview' });
-    refs.push({ label: 'JWT validation guidance (Microsoft)', url: 'https://learn.microsoft.com/entra/identity-platform/access-tokens#validating-tokens' });
+  if (answers.hasBackend && back?.authStyle === 'jwt-validator') {
+    refs.push(
+      { label: 'Microsoft identity platform — protected web API', url: 'https://learn.microsoft.com/entra/identity-platform/scenario-protected-web-api-overview' },
+      { label: 'JWT validation guidance (Microsoft)', url: 'https://learn.microsoft.com/entra/identity-platform/access-tokens#validating-tokens' },
+    );
   }
   return refs;
 }
@@ -367,7 +417,7 @@ function renderWorkflow(answers: WizardAnswers): string {
     '**Phase 2 must finish with a fully provisioned local environment, not just source files.** Before declaring Phase 2 complete:',
     '- **Install all dependencies** (`npm install`, `pip install -r requirements.txt` / `uv sync` / `poetry install`, `dotnet restore`, `mvn install -DskipTests`, `composer install`, etc.) and confirm exit code 0. The user must be able to run `npm start` / `dotnet run` immediately after pulling, with no extra "first install the deps" step.',
     '- **Resolve every tooling-configuration diagnostic.** Per the **Bootstrap a working project** protocol above, every `tsconfig*.json` / `angular.json` / `.csproj` / `pyproject.toml` / `pom.xml` / `composer.json` / `eslint.config.*` / `*.tf` must compile or validate with zero warnings *about the config itself*. Specifically: `tsc --noEmit` produces no diagnostics, `ng build` shows no `Angular compiler` config warnings, `dotnet build` shows no `MSBxxxx`/`CSxxxx` project warnings, `npx eslint --max-warnings=0 .` exits 0, `terraform validate` exits 0, etc. **No editor tooltip on a config field is acceptable.** Do not silence diagnostics with flags like `--legacy-peer-deps`, `--quiet`, `--no-error-on-unmatched-pattern`, or by suppressing rule IDs — fix the underlying configuration.',
-    '- **Generate trusted local TLS certs** per the **Local-development TLS / HTTPS** section above (`mkcert`, `dotnet dev-certs https --trust`, etc.) and wire them into the dev server. The user must not see a "Not Secure" badge on `https://localhost:*`, and Entra-backed auth must redirect cleanly without browser warnings.',
+    '- **Generate trusted local TLS certs and serve the dev server over HTTPS** per the **Local-development TLS / HTTPS** section above (`mkcert`, `dotnet dev-certs https --trust`, etc.) and wire them into the dev server. **For `angular` / `react` / `html` / `node` apps this is a hard gate: the dev server must answer on `https://localhost:4200` (HTTPS, port 4200) — not plain HTTP, not another port — even if auth is not wired yet.** Confirm by loading `https://localhost:4200` with no "Not Secure" badge. If it currently serves plain HTTP or a different port, Phase 2 is not complete.',
     '- **Smoke-test the boot.** Actually run the dev server / runtime once and confirm it serves the expected URL with no startup errors *and no tooling warnings*. A boot test is mandatory; "I wrote the code, the test runner exits 0" is not enough.',
     '- **Validate auth wiring (if any).** If the design uses MSAL, OIDC/Entra, JWT validation, or any other auth, *prove* it actually works locally before the gate — do not stop at "the package is installed and the import compiles." Concretely: (1) for **frontend** auth, walk a sign-in round-trip through the dev server (load the app, click sign-in, verify the redirect to `login.microsoftonline.com/<tenantId>` with the expected `client_id` and `redirect_uri`, complete the redirect back, confirm an account is present and a token can be acquired silently); (2) for **backend** JWT validation, hit a protected endpoint with no token (expect 401), then with an expired/wrong-audience token (expect 401), then with a valid token (expect 200) — using a small script or a documented `curl` recipe in the README; (3) confirm the configured `tenantId`, `clientId`, audience, and redirect URI exactly match the values in the **Architecture** section above and the local-dev defaults from **PG&E defaults**. **The redirect URI in code (e.g., `MsalConfiguration.auth.redirectUri`, `PublicClientApplication` config, OIDC PKCE `redirect_uri`) must be byte-identical to the value registered with Entra — including scheme, host, port, and trailing slash; no `/redirect` / `/auth/callback` / `/signin-oidc` / etc. suffixes unless the framework genuinely requires one *and* the user added that exact path to the Entra app registration.** Mismatch produces `AADSTS50011`; if you see that error during validation, the wiring is wrong, fix it before declaring Phase 2 complete. Capture the validation steps you ran (and any "to be provided by IDM" placeholders that blocked full validation) in `overview.md` so the user can re-run them.',
     '',
@@ -404,7 +454,7 @@ function renderCloudTarget(answers: WizardAnswers): string {
 
   const includeInfra = shouldIncludeInfra(answers);
 
-  if (answers.cloudProvider === 'aws' || answers.appType === 'btp') {
+  if (answers.cloudProvider === 'aws' || answers.appType === 'btp' || answers.appType === 'cap') {
     lines.push(`- AWS account: ${answers.awsAccountId || '_(unspecified)_'}`);
     if (includeInfra) lines.push(`- AWS region: ${answers.awsRegion}`);
   }
@@ -412,12 +462,19 @@ function renderCloudTarget(answers: WizardAnswers): string {
     lines.push(`- Azure subscription: ${answers.azureSubscriptionId || '_(unspecified)_'}`);
     if (includeInfra) lines.push(`- Azure resource group: ${answers.azureResourceGroup || '_(unspecified)_'}`);
   }
+  if (answers.appType === 'cap') {
+    lines.push(
+      `- Cloud Foundry API: ${answers.cfApi || '_(unspecified)_'}`,
+      `- Cloud Foundry org: ${answers.cfOrg || '_(unspecified)_'}`,
+      `- Cloud Foundry space: ${answers.cfSpace || '_(unspecified)_'}`,
+      `- Cloud Foundry origin: ${answers.cfOrigin || '_(unspecified)_'}`,
+    );
+  }
 
   if (!includeInfra && answers.appType) {
-    const targetKeys = relevantDeployTargetKeys(answers.appType as AppType, answers.cloudProvider);
+    const targetKeys = relevantDeployTargetKeys(answers.appType, answers.cloudProvider);
     if (targetKeys.length > 0) {
-      lines.push('');
-      lines.push(...renderDeployTarget(answers.deployTarget, targetKeys));
+      lines.push('', ...renderDeployTarget(answers.deployTarget, targetKeys));
     }
   }
 
@@ -425,11 +482,12 @@ function renderCloudTarget(answers: WizardAnswers): string {
 }
 
 function renderDeployTarget(deployTarget: DeployTarget, keys: (keyof DeployTarget)[]): string[] {
-  const lines: string[] = ['### Deploy target — where this app will land', ''];
-  lines.push(
+  const lines: string[] = [
+    '### Deploy target — where this app will land',
+    '',
     'No Terraform was generated for this app — the user opted out of `.infra/` on the Architecture page. **EPIC still needs to know which existing infrastructure to push artifacts to** — the keys below are read directly by the EPIC deploy stage (`epic-pipeline/deploy/main.yml`) and must be set in `.pipeline/epic.json` under `cloud.*`. Leave blanks as `"TODO"` placeholders and capture them in `overview.md` under "Action required before deploy". When Terraform is present, EPIC instead reads the deploy target from Terraform outputs — these flat `cloud.*` fields are not used.',
-  );
-  lines.push('');
+    '',
+  ];
   for (const key of keys) {
     lines.push(`- \`cloud.${key}\` — ${describeDeployKey(key)}: ${formatField(deployTarget[key])}`);
   }
@@ -454,75 +512,91 @@ function describeDeployKey(key: keyof DeployTarget): string {
       return 'SSM document prefix for AMI build config';
     case 'testDocPrefix':
       return 'SSM document prefix for AMI test runs';
-    case 'imageRecipeName':
-      return 'EC2 Image Builder recipe name';
     case 'appUrl':
       return 'deployed app URL (used by integration tests as `BASE_URL` when no Terraform `app_url` output exists)';
   }
 }
 
 function formatField(value: string): string {
-  return value && value.trim() ? `\`${value}\`` : '_(TODO — populate before deploy)_';
+  return value?.trim() ? `\`${value}\`` : '_(TODO — populate before deploy)_';
+}
+
+// Renders an Entra client-ID value or the "request app registration" placeholder.
+// Extracted to keep the nested conditional out of a template literal.
+function entraClientIdValue(authClientId: string): string {
+  return authClientId
+    ? `\`${authClientId}\``
+    : '_(to be provided by PG&E IDM team — request app registration before wiring auth)_';
+}
+
+function renderFrontendArchitecture(answers: WizardAnswers): string[] {
+  const front = answers.frontend;
+  if (!answers.hasFrontend || !front) return [];
+  const lines = ['### Frontend Auth', `- Auth mode: ${front.authMode}`];
+  if (frontendAuthUsesEntra(front.authMode)) {
+    lines.push(
+      `- Entra tenant ID: \`${ENTRA_TENANT_ID}\` (PG&E lab tenant)`,
+      `- Entra client ID: ${entraClientIdValue(front.authClientId)}`,
+    );
+  }
+  lines.push(`- Needs API base URL config: ${front.apiBaseUrlNeeded ? 'yes' : 'no'}`);
+  return lines;
+}
+
+function renderBackendArchitecture(answers: WizardAnswers): string[] {
+  const back = answers.backend;
+  if (!answers.hasBackend || !back) return [];
+  const runtimeFallback = `_(use AI-DLC default for ${answers.appType})_`;
+  const lines = [
+    '### Backend',
+    `- Style: ${back.style}`,
+    `- Runtime: ${back.runtime || runtimeFallback}`,
+    `- Auth: ${back.authStyle}`,
+  ];
+  if (back.authStyle === 'jwt-validator') {
+    lines.push(
+      `- Entra tenant ID: \`${ENTRA_TENANT_ID}\` (PG&E lab tenant)`,
+      `- Entra client ID (audience): ${entraClientIdValue(back.authClientId)}`,
+    );
+  }
+  return lines;
 }
 
 function renderArchitecture(answers: WizardAnswers): string {
   const lines: string[] = ['## Architecture'];
 
-  if (answers.appType === 'btp' || answers.appType === 'infra' || answers.appType === 'ami') {
-    lines.push(deploymentShapeForSpecialType(answers.appType));
-    lines.push('');
-    lines.push(`Infrastructure: ${shouldIncludeInfra(answers) ? 'included' : 'not included'}`);
+  if (answers.appType === 'cap' || answers.appType === 'btp' || answers.appType === 'infra' || answers.appType === 'ami') {
+    lines.push(
+      deploymentShapeForSpecialType(answers.appType),
+      '',
+      `Infrastructure: ${shouldIncludeInfra(answers) ? 'included' : 'not included'}`,
+    );
     return lines.join('\n');
   }
 
-  if (answers.hasFrontend && answers.frontend) {
-    lines.push('### Frontend Auth');
-    lines.push(`- Auth mode: ${answers.frontend.authMode}`);
-    if (frontendAuthUsesEntra(answers.frontend.authMode)) {
-      lines.push(`- Entra tenant ID: \`${ENTRA_TENANT_ID}\` (PG&E lab tenant)`);
-      lines.push(`- Entra client ID: ${answers.frontend.authClientId ? `\`${answers.frontend.authClientId}\`` : '_(to be provided by PG&E IDM team — request app registration before wiring auth)_'}`);
-    }
-    lines.push(`- Needs API base URL config: ${answers.frontend.apiBaseUrlNeeded ? 'yes' : 'no'}`);
-  }
-
-  if (answers.hasBackend && answers.backend) {
-    lines.push('### Backend');
-    lines.push(`- Style: ${answers.backend.style}`);
-    lines.push(`- Runtime: ${answers.backend.runtime || '_(use AI-DLC default for ' + answers.appType + ')_'}`);
-    lines.push(`- Auth: ${answers.backend.authStyle}`);
-    if (answers.backend.authStyle === 'jwt-validator') {
-      lines.push(`- Entra tenant ID: \`${ENTRA_TENANT_ID}\` (PG&E lab tenant)`);
-      lines.push(`- Entra client ID (audience): ${answers.backend.authClientId ? `\`${answers.backend.authClientId}\`` : '_(to be provided by PG&E IDM team — request app registration before wiring auth)_'}`);
-    }
-  }
+  lines.push(...renderFrontendArchitecture(answers), ...renderBackendArchitecture(answers));
 
   if (answers.needsDatabase && answers.database) {
-    lines.push('### Database');
-    lines.push(`- Engine: ${answers.database.engine}`);
-    lines.push(`- Scale: ${answers.database.scale}`);
+    lines.push('### Database', `- Engine: ${answers.database.engine}`, `- Scale: ${answers.database.scale}`);
   }
 
   if (answers.needsQueue && answers.queue) {
-    lines.push('### Messaging');
-    lines.push(`- ${answers.queue.kind}`);
+    lines.push('### Messaging', `- ${answers.queue.kind}`);
   }
 
   if (answers.needsScheduler) {
-    lines.push('### Scheduler');
-    lines.push(`- Schedule: ${answers.schedulerCron || '_(rule TBD — confirm with user)_'}`);
+    lines.push('### Scheduler', `- Schedule: ${answers.schedulerCron || '_(rule TBD — confirm with user)_'}`);
   }
 
   if (answers.needsStorage && answers.storage) {
-    lines.push('### Object storage');
-    lines.push(`- ${answers.storage.kind}`);
+    lines.push('### Object storage', `- ${answers.storage.kind}`);
   }
 
   if (lines.length === 1) {
     lines.push('_(no architecture toggles selected; this is a minimal scaffold)_');
   }
 
-  lines.push('');
-  lines.push(`Infrastructure: ${shouldIncludeInfra(answers) ? 'included' : 'not included'}`);
+  lines.push('', `Infrastructure: ${shouldIncludeInfra(answers) ? 'included' : 'not included'}`);
 
   return lines.join('\n');
 }
@@ -550,8 +624,8 @@ function renderWhatYouMustProduce(answers: WizardAnswers): string {
       '- _(No `.infra/` folder.)_ The user did not select infrastructure for this app — do not generate Terraform. `epic-pipeline` will skip the infra stage automatically because the folder is absent.',
     );
   }
-  lines.push('');
   lines.push(
+    '',
     'Do not commit secrets. List required Secrets Manager keys in the README and let PG&E ops populate them.',
   );
   return lines.join('\n');
@@ -561,21 +635,37 @@ function renderToolingAllowlist(answers: WizardAnswers): string {
   const appType = answers.appType as AppType;
   if (NO_ARCHITECTURE_APP_TYPES.includes(appType)) return '';
 
-  const supportedTestTools = BUILD_TEST_TOOL_OPTIONS[appType] ?? [];
+  const supportedTestTools = BUILD_TEST_TOOL_OPTIONS[appType];
   const supportedScanTools = SCAN_TOOL_OPTIONS;
-  const supportedIntegrationTools = INTEGRATION_TEST_TOOL_OPTIONS[appType] ?? [];
+  const supportedIntegrationTools = INTEGRATION_TEST_TOOL_OPTIONS[appType];
 
   const testList = supportedTestTools.length
     ? supportedTestTools.map((t) => `\`${t}\``).join(', ')
     : '_(none — `appType: ' + appType + '` has no EPIC-supported unit-test runner)_';
   const scanList = supportedScanTools.map((t) => `\`${t}\``).join(', ');
+  // Every code-bearing appType that reaches here has an integration runner (the
+  // architecture-less types returned early above), so the empty branch is guarded
+  // for completeness only.
   const integrationList = supportedIntegrationTools.length
     ? supportedIntegrationTools.map((t) => `\`${t}\``).join(', ')
-    : '_(none — `appType: ' + appType + '` has no EPIC-supported integration-test runner)_';
+    : /* istanbul ignore next -- unreachable: all code-bearing appTypes have an integration runner */
+      '_(none — `appType: ' + appType + '` has no EPIC-supported integration-test runner)_';
 
   const userTestTool = answers.buildTestTool;
   const userScanTool = answers.scanTool;
   const userIntegrationTool = answers.integrationTestTool;
+
+  // Pre-compute the per-tool fragments so the Phase 2/3 lines below don't nest
+  // template literals inside their `${...}` interpolations (SonarQube S4624).
+  const testSelected = userTestTool ? ` (**\`${userTestTool}\`**)` : ' (the user did not select one)';
+  const scanSelected = userScanTool ? ` (**\`${userScanTool}\`**)` : ' (the user did not select one)';
+  const integrationSelected = userIntegrationTool
+    ? ` (**\`${userIntegrationTool}\`**)`
+    : ' (the user did not select one)';
+  const omitIfUnselected = '**only if** the user selected one (they did not — omit this field entirely)';
+  const testPhase3 = userTestTool ? `as \`"${userTestTool}"\`` : omitIfUnselected;
+  const scanPhase3 = userScanTool ? `as \`"${userScanTool}"\`` : omitIfUnselected;
+  const integrationPhase3 = userIntegrationTool ? `as \`"${userIntegrationTool}"\`` : omitIfUnselected;
 
   const lines: string[] = [
     '## Tooling allowlist — only these tools may be added to `code/`',
@@ -588,9 +678,9 @@ function renderToolingAllowlist(answers: WizardAnswers): string {
     '',
     'Apply this rule consistently across both phases:',
     '',
-    `**Phase 2 (\`code/\`)** — install, configure, and write tests using **only** the test runner the user selected${userTestTool ? ` (**\`${userTestTool}\`**)` : ' (the user did not select one)'}. Install **only** the scan tool the user selected${userScanTool ? ` (**\`${userScanTool}\`**)` : ' (the user did not select one)'}. Install **only** the integration-test runner the user selected${userIntegrationTool ? ` (**\`${userIntegrationTool}\`**)` : ' (the user did not select one)'}. ${describeToolingPhase2Behavior(answers)}`,
+    `**Phase 2 (\`code/\`)** — install, configure, and write tests using **only** the test runner the user selected${testSelected}. Install **only** the scan tool the user selected${scanSelected}. Install **only** the integration-test runner the user selected${integrationSelected}. ${describeToolingPhase2Behavior(answers)}`,
     '',
-    `**Phase 3 (\`epic.json\`)** — write \`buildTestTool\` ${userTestTool ? `as \`"${userTestTool}"\`` : '**only if** the user selected one (they did not — omit this field entirely)'}. Write \`scanTool\` ${userScanTool ? `as \`"${userScanTool}"\`` : '**only if** the user selected one (they did not — omit this field entirely)'}. Write \`integrationTestTool\` ${userIntegrationTool ? `as \`"${userIntegrationTool}"\`` : '**only if** the user selected one (they did not — omit this field entirely)'}.`,
+    `**Phase 3 (\`epic.json\`)** — write \`buildTestTool\` ${testPhase3}. Write \`scanTool\` ${scanPhase3}. Write \`integrationTestTool\` ${integrationPhase3}.`,
     '',
     'If the user later asks to add an unsupported tool, push back: tell them EPIC won\'t run it, and ask whether to (a) drop the request, (b) pick a supported alternative from the list above, or (c) request a new EPIC pipeline capability via the platform team.',
   ];
@@ -675,7 +765,11 @@ function renderPgeDefaults(answers: WizardAnswers): string {
     'Production redirect URIs are not assumed — leave them as TODOs in `overview.md` for the user to confirm.',
     '',
     '### Local-development TLS / HTTPS',
-    'Any app that runs on `https://localhost:*` locally — which includes every SPA / Node app on `4200` because Entra requires HTTPS for redirect URIs — **must serve a trusted local certificate** so the browser does not display the "Not Secure" badge or block MSAL redirects. As part of Phase 2, scaffold trusted local TLS:',
+    `**The SPA / Node dev server runs on \`https://localhost:4200\` — HTTPS, port 4200, always.** This is not conditional on auth being wired yet. ${https4200Applicability(answers.appType as AppType)} Even a bare "Hello World" with no MSAL/OIDC yet must boot over HTTPS on 4200, because the Entra redirect URI is registered as \`https://localhost:4200\` from day one and the cert must already be trusted when auth is added.`,
+    '',
+    '**Plain HTTP on 4200 is forbidden.** Do not configure the dev server as `http://localhost:4200`, do not leave HTTPS "for when auth is added," and do not pick a different port to dodge the cert. A common AI failure mode is scaffolding the Vite/Angular default (plain HTTP, sometimes port 5173/3000) and deferring TLS — that is a defect, not a valid intermediate state. If you catch yourself writing a task like "configure dev server on port 4200 (plain HTTP)", stop and fix it to HTTPS.',
+    '',
+    'So the dev server **must serve a trusted local certificate** — both so the browser shows no "Not Secure" badge and so MSAL/OIDC redirects are not blocked later. As part of Phase 2, scaffold trusted local TLS:',
     '',
     '1. **Generate trusted local certs** with the right tool for the platform:',
     '   - **Node / SPA / cross-platform** → `mkcert` (preferred — installs a local trust root once, then `mkcert localhost 127.0.0.1 ::1` produces a cert + key the OS already trusts).',
@@ -685,22 +779,95 @@ function renderPgeDefaults(answers: WizardAnswers): string {
     '3. **Add a one-shot setup script** (`npm run setup:certs`, `make certs`, or equivalent) that the README points at. The user runs it once per machine; from then on `npm start` / `dotnet run` "just works" with HTTPS and no browser warnings.',
     '4. **Document it in the README** under a "Local development" section: the prerequisite (`mkcert` install or `dotnet dev-certs --trust`), the one-shot command, and the URL the dev server lands on.',
     '',
+    '**Dev-cert wiring MUST NOT break production builds.** `.certs/` is gitignored, so it does not exist in the EPIC build agent. Config files that unconditionally read cert files at load time (the most common offender is `vite.config.ts` calling `fs.readFileSync(\'.certs/localhost-key.pem\')` at the top level) will fail `vite build` / `ng build` / `dotnet publish` in the pipeline with `ENOENT: no such file or directory`. The cert wiring must be guarded so the production build path never touches the filesystem for certs:',
+    '',
+    '- **Vite (`vite.config.ts`)** — wrap the `server.https` config in `defineConfig(({ command }) => ...)` and only read the cert files when `command === \'serve\'` **and** both files exist (`fs.existsSync`). Never read cert files at module top level. Example shape:',
+    '',
+    '```ts',
+    'import { defineConfig } from \'vite\';',
+    'import fs from \'node:fs\';',
+    '',
+    'export default defineConfig(({ command }) => {',
+    '  const keyPath = \'.certs/localhost-key.pem\';',
+    '  const certPath = \'.certs/localhost.pem\';',
+    '  const https =',
+    '    command === \'serve\' && fs.existsSync(keyPath) && fs.existsSync(certPath)',
+    '      ? { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) }',
+    '      : undefined;',
+    '  return { server: { https, host: \'localhost\', port: 4200 } };',
+    '});',
+    '```',
+    '',
+    '- **Angular (`angular.json`)** — keep `ssl`, `sslKey`, `sslCert` under the `serve` target only. Never reference them under `build`. The production `build` configuration must not depend on `.certs/`.',
+    '- **ASP.NET** — `app.UseHttpsRedirection()` is safe in any environment, but anything that loads a PFX/PEM from disk (e.g. `KestrelServerOptions.ConfigureHttpsDefaults` reading a file path) must be inside an `if (env.IsDevelopment())` block.',
+    '- **Python / Node servers (FastAPI, Express, etc.)** — only pass `--ssl-keyfile` / `https.createServer({ key, cert })` in the dev entry point. Production entry points (`gunicorn`, `node dist/server.js`, container `CMD`) must not reference `.certs/`.',
+    '',
+    'Rule of thumb: if removing `code/.certs/` from a clean checkout breaks `npm run build` / `ng build` / `dotnet publish`, the cert wiring is wrong. The build must succeed on a machine that has never run the cert setup script.',
+    '',
     'If the user explicitly opted out of local HTTPS in the **Detailed Description / Notes**, skip this — but log the deviation in `overview.md` under "Assumptions made," because Entra-backed auth will not work without HTTPS.',
     '',
     '### CloudFront / public exposure',
     '**Default access posture is PG&E-internal only.** Do not configure a CloudFront distribution (or any other resource) for public-internet access unless the user explicitly asked for it in the **Detailed Description / Notes**. When in doubt, scope to PG&E\'s internal network — viewer-restriction policy, internal WAF rule set, no public OAI bypass — and note the choice in `overview.md`.',
     '',
-    '### `.infra/terraform.auto.tfvars` placeholders',
-    'For any value in `.infra/terraform.auto.tfvars` that the user did not pin down in the wizard or hints (account IDs, ARNs, hostnames, certificate ARNs, KMS key IDs, alert email recipients, etc.), write a **TODO placeholder** in the file rather than guessing or omitting the variable. Example:',
-    '',
-    '```hcl',
-    'aws_account_id = "TODO" # 12-digit AWS account ID — required before deploy',
-    'alarm_email    = "TODO" # ops contact for CloudWatch alarms',
-    '```',
-    '',
-    'Every TODO must be listed in `overview.md` under **Action required before deploy** so the user has one place to clear them.',
+    ...renderTfvarsPlaceholderGuidance(answers),
   ];
   return lines.join('\n');
+}
+
+// Guidance for `.infra/terraform.auto.tfvars` — what goes in it, what must NOT (pipeline-injected
+// values), and how to placeholder unknowns *without* breaking the tags module's typed/validated
+// inputs. A bare placeholder string in a `number` (`appid`, `order`) or `list(string)` (`owner`,
+// `notify`) field fails `terraform plan` before validation even runs, so those need type-correct
+// placeholders. Cloud-aware: AWS pins `principal_orgid`; Azure has no equivalent.
+function renderTfvarsPlaceholderGuidance(answers: WizardAnswers): string[] {
+  const cloud = effectiveInfraCloud(answers);
+  const injected =
+    cloud === 'azure'
+      ? '`subscription_id`, `tenant_id`, `azure_region`, and `environment`'
+      : '`aws_account_id`, `aws_region`, and `environment`';
+
+  const lines: string[] = [
+    '### `.infra/terraform.auto.tfvars`',
+    `This file holds the **static** inputs Terraform loads automatically. Two rules govern what belongs here.`,
+    '',
+    `**1. Never put pipeline-injected values in this file.** ${injected} are passed by \`epic-pipeline\` via \`-var\` flags on every plan/apply (resolved from \`epic.json\` and the run's target environment). Declare them in \`variables.tf\`, but do **not** assign them in \`terraform.auto.tfvars\` — a static value here is ignored at best and misleading at worst. ${cloud === 'aws' ? 'VPC/subnet IDs are also out — resolve them from SSM at plan time, never from tfvars.' : ''}`,
+  ];
+
+  if (cloud === 'aws') {
+    lines.push(
+      '',
+      '**`principal_orgid` is a fixed literal — always `principal_orgid = "o-7vgpdbu22o"`** (the PG&E AWS Org ID). Never a TODO, never per-environment.',
+    );
+  }
+
+  lines.push(
+    '',
+    '**2. Placeholders must match the variable\'s type, or `terraform plan` fails before it starts.** The `tags` module inputs are typed and validated — a bare `"TODO"` string in a numeric or list field is a hard type error, not a deferrable TODO. When the user did not supply a governance value in the wizard or **Detailed Description / Notes**, write a **type-correct placeholder** and flag it:',
+    '',
+    '```hcl',
+    '# Standard EPIC tag governance — required by the tags module. Replace every',
+    '# placeholder with the real value before the first plan; the module validates these.',
+    'appid              = 0                                  # TODO — AMPS APP ID (number, no quotes); rendered as APP-<appid>',
+    'owner              = ["TODO1", "TODO2", "TODO3"]        # TODO — EXACTLY 3 LANIDs (AMPS Director, Client Owner, IT Lead)',
+    'notify             = ["TODO@pge.com"]                   # TODO — failure/maintenance email(s); each must be a valid address',
+    'order              = 1000000                            # TODO — cost-center order (number, 7–9 digits)',
+    'dataclassification = "Internal"                         # default; one of Public/Internal/Confidential/Restricted/Privileged/Confidential-BCSI/Restricted-BCSI',
+    'compliance         = ["None"]                           # default; subset of SOX/HIPAA/CCPA/BCSI/None',
+    'cris               = "Low"                              # default Cyber Risk Impact Score; High/Medium/Low',
+    '```',
+    '',
+    'Note the shapes: `appid`/`order` are **numbers** (no quotes), `owner`/`notify`/`compliance` are **lists**. `owner` must have exactly three entries and `order` must be 7–9 digits, or the module rejects the plan. The three placeholder values above (`appid = 0`, `order = 1000000`, the `TODO*` LANIDs/email) are intentionally invalid-looking but type-correct so the project parses; they are **not** safe to deploy.',
+    '',
+    '**3. String unknowns stay as `"TODO"`.** For genuinely free-form string inputs the user has not provided (ARNs, certificate ARNs, KMS key IDs, hostnames, alert email recipients on non-tag resources), a quoted `"TODO"` placeholder is correct:',
+    '',
+    '```hcl',
+    'certificate_arn = "TODO" # ACM cert ARN — required before deploy',
+    '```',
+    '',
+    'Every placeholder — typed or string — must be listed in `overview.md` under **Action required before deploy** so the user has one place to clear them.',
+  );
+
+  return lines;
 }
 
 function renderEpicJsonContract(answers: WizardAnswers): string {
@@ -712,11 +879,12 @@ function renderEpicJsonContract(answers: WizardAnswers): string {
     '- `app.appName` (string) — must match the directory and ADO build tag.',
     `- \`app.appType\` (string) — must be \`${answers.appType}\`. The engine dispatches build/test/scan templates by this exact value.`,
     '- `app.codePath` (string, default `/`) — path to source under the repo root. With this template, set to `code/`.',
-    '- `app.infraPath` (string, default `.infra`) — path to the Terraform project. The orchestrator skips the infra stage entirely when this folder is missing.',
-    '- `cloud.*` — cloud-target fields. The orchestrator detects provider via this rule:',
-    '  - `app.appType == "btp"` → BTP (with AWS Secrets Manager for credentials).',
+    '- `app.infraPath` (string, default `.infra`) — path to the Terraform project. The orchestrator skips the infra stage entirely when this folder is missing (except for `appType: "btp"`, where infrastructure provisioning is mandatory).',
+    '- `cloud.*` — cloud-target fields. The orchestrator detects provider via this rule (first match wins):',
+    '  - `app.appType == "btp"` or `app.appType == "cap"` → SAP (credentials pulled from AWS Secrets Manager).',
     '  - `cloud.awsAccountId` present → AWS.',
     '  - `cloud.azureSubscriptionId` present → Azure.',
+    '  - otherwise → AWS.',
     `- **Deploy-target fields under \`cloud.*\` (only when \`.infra/\` is absent).** ${describeDeployTargetContract(answers)}`,
     '',
     'Write `.pipeline/epic.json` exactly like this (replace placeholder values; keep keys and nesting):',
@@ -748,6 +916,67 @@ function describeToolFieldOmissions(answers: WizardAnswers): string {
   return `The user did not select ${omitted.join(' or ')} in the wizard, so **omit ${omitted.length === 1 ? 'this field' : 'these fields'} entirely** from \`.pipeline/epic.json\`.`;
 }
 
+// Default Secrets Manager keys when the user supplied none — CAP needs only the
+// Cloud Foundry creds; BTP also needs the BTP platform creds.
+function defaultSecretsManagerKeys(appType: AppType): string[] {
+  return appType === 'btp'
+    ? ['BTP_USERNAME', 'BTP_PASSWORD', 'CF_USER', 'CF_PASSWORD']
+    : ['CF_USER', 'CF_PASSWORD'];
+}
+
+// The provider identity block (AWS account/region or Azure subscription). BTP/CAP
+// live in AWS Secrets Manager, so they also carry the AWS account fields.
+function addCloudProviderIdentity(cloud: Record<string, any>, answers: WizardAnswers): void {
+  if (answers.cloudProvider === 'aws' || answers.appType === 'btp' || answers.appType === 'cap') {
+    cloud['awsAccountId'] = answers.awsAccountId || '<12-digit-account-id>';
+    cloud['awsRegion'] = answers.awsRegion;
+  }
+  if (answers.cloudProvider === 'azure') {
+    cloud['azureSubscriptionId'] = answers.azureSubscriptionId || '<subscription-uuid>';
+  }
+}
+
+// CAP's four Cloud Foundry fields + the Secrets Manager entry (BTP/CAP) that holds
+// their credentials.
+function addSapCloudFields(cloud: Record<string, any>, answers: WizardAnswers): void {
+  if (answers.appType === 'cap') {
+    // CAP deploys to a pre-existing Cloud Foundry space — all four CF fields are
+    // required by the deploy stage, plus the Secrets Manager entry holding CF creds.
+    cloud['cfApi'] = answers.cfApi || '<cf-api-endpoint>';
+    cloud['cfOrg'] = answers.cfOrg || '<cf-org>';
+    cloud['cfSpace'] = answers.cfSpace || '<cf-space>';
+    cloud['cfOrigin'] = answers.cfOrigin || '<cf-origin>';
+  }
+  if (answers.appType === 'btp' || answers.appType === 'cap') {
+    const keys = answers.secretsManagerKeys.map((k) => k.trim()).filter(Boolean);
+    cloud['secretsManager'] = {
+      name: answers.secretsManagerName || `<${answers.appType}-secrets-manager-name>`,
+      keys: keys.length ? keys : defaultSecretsManagerKeys(answers.appType),
+    };
+  }
+}
+
+// Builds the `cloud` block of epic.json from the wizard answers. Split out of
+// renderEpicJsonSkeleton to keep each function's cognitive complexity in bounds.
+function buildEpicJsonCloud(answers: WizardAnswers): Record<string, any> {
+  const cloud: Record<string, any> = {};
+  addCloudProviderIdentity(cloud, answers);
+  addSapCloudFields(cloud, answers);
+  if (answers.appType === 'ami') {
+    // AMI triggers one EC2 Image Builder pipeline per component — cloud.components
+    // is required by the build stage (build/ami/main.yml).
+    const components = answers.amiComponents.map((c) => c.trim()).filter(Boolean);
+    cloud['components'] = components.length ? components : ['<component-name>'];
+  }
+  if (!shouldIncludeInfra(answers) && answers.appType) {
+    const targetKeys = relevantDeployTargetKeys(answers.appType, answers.cloudProvider);
+    for (const key of targetKeys) {
+      cloud[key] = answers.deployTarget[key]?.trim() ? answers.deployTarget[key] : 'TODO';
+    }
+  }
+  return cloud;
+}
+
 function renderEpicJsonSkeleton(answers: WizardAnswers): string {
   const appType = answers.appType as AppType;
   const app: Record<string, any> = {
@@ -761,35 +990,16 @@ function renderEpicJsonSkeleton(answers: WizardAnswers): string {
   if (answers.scanTool) app['scanTool'] = answers.scanTool;
   if (answers.buildTestTool) app['buildTestTool'] = answers.buildTestTool;
   if (answers.integrationTestTool) app['integrationTestTool'] = answers.integrationTestTool;
-  const cloud: Record<string, any> = {};
-  if (answers.cloudProvider === 'aws' || answers.appType === 'btp') {
-    cloud['awsAccountId'] = answers.awsAccountId || '<12-digit-account-id>';
-    cloud['awsRegion'] = answers.awsRegion;
-  }
-  if (answers.cloudProvider === 'azure') {
-    cloud['azureSubscriptionId'] = answers.azureSubscriptionId || '<subscription-uuid>';
-  }
-  if (answers.appType === 'btp') {
-    cloud['secretsManager'] = {
-      name: `${answers.appName}-btp-secrets`,
-      keys: ['BTP_USERNAME', 'BTP_PASSWORD', 'CF_USER', 'CF_PASSWORD'],
-    };
-  }
-  if (!shouldIncludeInfra(answers) && answers.appType) {
-    const targetKeys = relevantDeployTargetKeys(answers.appType as AppType, answers.cloudProvider);
-    for (const key of targetKeys) {
-      cloud[key] = answers.deployTarget[key] && answers.deployTarget[key].trim() ? answers.deployTarget[key] : 'TODO';
-    }
-  }
-  return JSON.stringify({ app, cloud }, null, 2);
+  return JSON.stringify({ app, cloud: buildEpicJsonCloud(answers) }, null, 2);
 }
 
 function describeDeployTargetContract(answers: WizardAnswers): string {
   if (shouldIncludeInfra(answers)) {
     return 'This app is generating a `.infra/` Terraform project, so the EPIC deploy stage reads the deploy target from Terraform outputs (e.g. the `app_url` output). Do not add deploy-target fields under `cloud.*` for this app.';
   }
+  /* istanbul ignore next -- defensive: renderEpicMd is only called with a chosen appType */
   if (!answers.appType) return 'No appType selected.';
-  const keys = relevantDeployTargetKeys(answers.appType as AppType, answers.cloudProvider);
+  const keys = relevantDeployTargetKeys(answers.appType, answers.cloudProvider);
   if (keys.length === 0) {
     return 'This appType has no flat deploy-target keys defined under `cloud.*`.';
   }
@@ -810,6 +1020,7 @@ function renderInfraContract(answers: WizardAnswers): string {
     `**Required folder layout** under \`.infra/\` (the project root the pipeline cd's into):`,
     '```',
     '.infra/',
+    '  .gitignore              # MUST ignore `.terraform/` and `.terraform.lock.hcl`',
     '  terraform.tf            # required_providers + backend block',
     '  providers.tf            # provider configuration (AWS/Azure)',
     '  variables.tf            # MUST declare the variables the pipeline injects',
@@ -817,6 +1028,15 @@ function renderInfraContract(answers: WizardAnswers): string {
     '  outputs.tf              # whatever you need surfaced',
     '  terraform.auto.tfvars   # static values (use TODO placeholders for unknowns — see PG&E defaults section)',
     '```',
+    '',
+    '**`.infra/.gitignore` is required** and must exclude Terraform working state from the repo. Generate it with exactly these entries (one per line):',
+    '',
+    '```',
+    '.terraform/',
+    '.terraform.lock.hcl',
+    '```',
+    '',
+    '`.terraform/` is the local provider/module cache and is recreated by `terraform init`. `.terraform.lock.hcl` pins provider versions on the machine that ran `init`; in EPIC the pipeline runs `init` on every plan/apply, so a committed lock file only causes drift between local runs and pipeline runs. Do not add anything else to this file — the `code/` folder has its own `.gitignore` and is out of scope here.',
     '',
     `**Backend (do not change keys; the pipeline supplies values via \`-backend-config\`):**`,
     '',
@@ -921,7 +1141,7 @@ function renderRepoLayout(answers: WizardAnswers): string {
   const layout = [
     '<repo-root>/',
     '  AGENTS.md / CLAUDE.md / .cursorrules / etc.   # PG&E AI-DLC steering (already in place, read-only)',
-    '  .epic/         # design docs from Phase 1 (kept in the repo)',
+    '  .epic/         # design docs from Phase 1 (gitignored — local-only, not committed)',
     '  .pipeline/',
     '    epic.json',
     includeInfra ? '  .infra/          # Terraform project' : null,
@@ -943,6 +1163,7 @@ function renderModuleCatalog(answers: WizardAnswers): string {
   if (!shouldIncludeInfra(answers)) return '';
 
   const modules = modulesForAnswers(answers);
+  /* istanbul ignore next -- unreachable: modulesForAnswers always returns a non-empty catalog */
   if (modules.length === 0) return '';
 
   const lines: string[] = [
@@ -990,11 +1211,25 @@ function frontendAuthUsesEntra(authMode: string): boolean {
   return authMode === 'oidc-entra' || authMode === 'msal';
 }
 
+// SPA/Node app types whose local dev server is https://localhost:4200 (the registered Entra
+// redirect origin). Kept in sync with defaultLocalRedirectUri's 4200 branch.
+function spaOrNode(appType: AppType): boolean {
+  return appType === 'angular' || appType === 'react' || appType === 'html' || appType === 'node';
+}
+
+// One-liner stating whether the HTTPS-on-4200 rule applies to THIS app, used inline in the
+// TLS section. Extracted to avoid nesting a template literal inside a `${...}` expression.
+function https4200Applicability(appType: AppType): string {
+  return spaOrNode(appType)
+    ? `This app (\`appType: ${appType}\`) is one of these — its dev server **must** be \`https://localhost:4200\`.`
+    : 'It applies to every `angular` / `react` / `html` / `node` app.';
+}
+
 function defaultLocalRedirectUri(appType: AppType): string {
-  if (appType === 'angular' || appType === 'react' || appType === 'html' || appType === 'node') {
+  if (spaOrNode(appType)) {
     return 'https://localhost:4200';
   }
-  if (appType === 'dotnet' || appType === 'python' || appType === 'java' || appType === 'php') {
+  if (appType === 'dotnet' || appType === 'python' || appType === 'java' || appType === 'go' || appType === 'php') {
     return 'http://localhost:5000';
   }
   return '_(no default — this app type does not host an HTTP entrypoint)_';
@@ -1005,8 +1240,10 @@ function shouldIncludeInfra(answers: WizardAnswers): boolean {
   return answers.includeInfra;
 }
 
-function deploymentShapeForSpecialType(appType: 'btp' | 'infra' | 'ami'): string {
+function deploymentShapeForSpecialType(appType: 'cap' | 'btp' | 'infra' | 'ami'): string {
   switch (appType) {
+    case 'cap':
+      return 'This is a SAP CAP (Cloud Application Programming) project. The deliverable is the CAP application (CDS models, services, and `mta.yaml`) built into an MTA archive and deployed to a pre-existing Cloud Foundry space. EPIC does not provision infrastructure for CAP — the target CF org/space must already exist.';
     case 'btp':
       return 'This is a SAP BTP / Cloud Foundry deployment. There is no separate frontend/backend/database to scaffold — the deliverable is the BTP environment definition plus its Terraform.';
     case 'infra':

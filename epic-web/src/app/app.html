@@ -55,7 +55,7 @@
     <div class="section-header">
       <h2>My Apps</h2>
       <div class="section-header__actions">
-        <button class="add-btn" (click)="onAddApp()" title="Onboard an existing GitHub repo into EPIC">
+        <button class="add-btn" (click)="onAddApp()" [disabled]="backendOnline() === false" title="Onboard an existing GitHub repo into EPIC">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -63,7 +63,7 @@
           </svg>
           Existing App
         </button>
-        <button class="add-btn add-btn--secondary" (click)="onCreateNewApp()" title="Generate an epic.md steering doc for a brand-new app">
+        <button class="add-btn add-btn--secondary" (click)="onCreateNewApp()" [disabled]="backendOnline() === false" title="Generate an epic.md steering doc for a brand-new app">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -137,11 +137,27 @@
     <div class="table-wrapper">
       @if (dataLoading()) {
         <div class="table-loading">Loading...</div>
+      } @else if (backendOnline() === false) {
+        <div class="backend-offline">
+          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 1l22 22"/>
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+            <path d="M10.71 5.05A16 16 0 0 1 22.58 9"/>
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+          </svg>
+          <p class="backend-offline__title">Can't reach the EPIC API</p>
+          <p class="backend-offline__hint">The EPIC API isn't responding. If you're off the PG&amp;E network, connect to VPN and refresh the page to try again.</p>
+        </div>
       } @else {
       <table>
         <thead>
           <tr>
             <th>GitHub Repo</th>
+            <th>Organization</th>
             <th>Technology</th>
             <th>Cloud</th>
             <th>Last Pipeline Run</th>
@@ -154,8 +170,9 @@
         </thead>
         <tbody>
           @for (app of pagedApps(); track app.name) {
-            <tr class="app-row" (click)="onManageApp(app)" title="View {{ app.name }}">
+            <tr class="app-row" (click)="onManageApp(app)" (keydown.enter)="onManageApp(app)" (keydown.space)="onManageApp(app)" tabindex="0" title="View {{ app.name }}">
               <td class="app-name">{{ app.name }}</td>
+              <td>{{ app.githubOrg ?? '-' }}</td>
               <td>
                 <span class="badge badge--tech">{{ app.technology }}</span>
               </td>
@@ -180,19 +197,23 @@
               </td>
               <td class="timestamp">{{ app.avgDuration ?? '—' }}</td>
               <td>
-                <div class="user-chip" [class.user-chip--you]="app.triggeredBy === currentUser()" [class.user-chip--system]="app.triggeredBy === 'System'">
-                  @if (app.triggeredBy === currentUser() && currentUserPhoto()) {
-                    <img class="user-chip__avatar" [src]="currentUserPhoto()" alt="">
-                  } @else {
-                    <span class="user-chip__avatar">{{ initialsFor(app.triggeredBy) }}</span>
-                  }
-                  <span class="user-chip__name">{{ app.triggeredBy === currentUser() ? 'You' : app.triggeredBy }}</span>
-                </div>
+                @if (app.runStatus === null) {
+                  <span class="timestamp">—</span>
+                } @else {
+                  <div class="user-chip" [class.user-chip--you]="triggeredByLabel(app.triggeredBy) === currentUser()" [class.user-chip--system]="triggeredByLabel(app.triggeredBy) === 'System'">
+                    @if (triggeredByLabel(app.triggeredBy) === currentUser() && currentUserPhoto()) {
+                      <img class="user-chip__avatar" [src]="currentUserPhoto()" alt="">
+                    } @else {
+                      <span class="user-chip__avatar">{{ initialsFor(triggeredByLabel(app.triggeredBy)) }}</span>
+                    }
+                    <span class="user-chip__name">{{ triggeredByLabel(app.triggeredBy) === currentUser() ? 'You' : triggeredByLabel(app.triggeredBy) }}</span>
+                  </div>
+                }
               </td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="9" class="no-results">
+              <td colspan="10" class="no-results">
                 {{ apps().length === 0 ? 'No records found.' : 'No apps match your search or filters.' }}
               </td>
             </tr>
@@ -232,8 +253,8 @@
 </div>
 
 @if (showManageModal() && selectedApp()) {
-  <div class="modal-overlay" (click)="closeManageModal()">
-    <div class="modal modal--wide" (click)="$event.stopPropagation()">
+  <div class="modal-overlay">
+    <div class="modal modal--wide" [class.modal--fullscreen]="manageModalFullscreen()">
 
       <div class="modal-header">
         <div>
@@ -242,13 +263,35 @@
             <p class="modal-subtitle">{{ appDetail()!.description }}</p>
           }
         </div>
-        <button class="modal-close" (click)="closeManageModal()" title="Close">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+        <div class="modal-header__controls">
+          <button class="modal-close" (click)="toggleManageModalFullscreen()"
+            [title]="manageModalFullscreen() ? 'Exit fullscreen' : 'Fullscreen'">
+            @if (manageModalFullscreen()) {
+              <!-- Exit fullscreen: window-over-window -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="8" width="13" height="13" rx="1.5"/>
+                <path d="M8 8V5.5A1.5 1.5 0 0 1 9.5 4H19a1.5 1.5 0 0 1 1.5 1.5V15a1.5 1.5 0 0 1-1.5 1.5h-3"/>
+              </svg>
+            } @else {
+              <!-- Enter fullscreen: expand arrows -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+                <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+                <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
+                <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+              </svg>
+            }
+          </button>
+          <button class="modal-close" (click)="closeManageModal()" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       @if (!appDetail() || runsLoading()) {
@@ -292,6 +335,7 @@
                   <th>Duration</th>
                   <th class="stage-col">Prepare</th>
                   <th class="stage-col">Download</th>
+                  <th class="stage-col">Review</th>
                   <th class="stage-col">Build</th>
                   <th class="stage-col">Test</th>
                   <th class="stage-col">Scan</th>
@@ -302,7 +346,7 @@
               </thead>
               <tbody>
                 @for (run of pagedRuns(); track run.id) {
-                  <tr (click)="collapseStageDetail()">
+                  <tr (click)="collapseStageDetail()" (keydown.escape)="collapseStageDetail()">
                     <td class="run-id"><a class="run-link" [href]="getRunUrl(run.id)" target="_blank" rel="noopener" (click)="$event.stopPropagation()">#{{ run.id }}</a></td>
                     <td [title]="run.appName ?? ''">{{ run.appName ?? '—' }}</td>
                     <td>
@@ -322,13 +366,13 @@
                     <td><span class="badge badge--cloud badge--cloud-{{ run.cloud | lowercase }}">{{ run.cloud }}</span></td>
                     <td><span class="badge badge--env badge--env-{{ run.environment }}">{{ run.environment }}</span></td>
                     <td>
-                      <div class="user-chip" [class.user-chip--you]="run.triggeredBy === currentUser()" [class.user-chip--system]="run.triggeredBy === 'System'">
-                        @if (run.triggeredBy === currentUser() && currentUserPhoto()) {
+                      <div class="user-chip" [class.user-chip--you]="triggeredByLabel(run.triggeredBy) === currentUser()" [class.user-chip--system]="triggeredByLabel(run.triggeredBy) === 'System'">
+                        @if (triggeredByLabel(run.triggeredBy) === currentUser() && currentUserPhoto()) {
                           <img class="user-chip__avatar" [src]="currentUserPhoto()" alt="">
                         } @else {
-                          <span class="user-chip__avatar">{{ initialsFor(run.triggeredBy) }}</span>
+                          <span class="user-chip__avatar">{{ initialsFor(triggeredByLabel(run.triggeredBy)) }}</span>
                         }
-                        <span class="user-chip__name">{{ run.triggeredBy === currentUser() ? 'You' : run.triggeredBy }}</span>
+                        <span class="user-chip__name">{{ triggeredByLabel(run.triggeredBy) === currentUser() ? 'You' : triggeredByLabel(run.triggeredBy) }}</span>
                       </div>
                     </td>
                     <td class="timestamp">{{ formatDate(run.startedAt) }}</td>
@@ -337,62 +381,113 @@
                       <a class="stage-dot stage-dot--{{ run.stages.prepare | lowercase }} stage-dot--clickable"
                         [href]="getRunUrl(run.orchestratorId ?? run.id)"
                         target="_blank" rel="noopener"
+                        [attr.aria-label]="'Open run #' + run.id + ' in Azure DevOps'"
                         (click)="$event.stopPropagation()"></a>
                     </td>
                     <td class="stage-col">
                       <span class="stage-dot stage-dot--{{ run.stages.download | lowercase }}"></span>
                     </td>
-                    <td class="stage-col">
-                      <span class="stage-dot stage-dot--{{ run.stages.build | lowercase }}"
-                        [class.stage-dot--clickable]="run.stages.build !== 'Skipped' && run.stages.build !== 'Pending'"
-                        [class.stage-dot--active]="isStageExpanded(run.id, 'build')"
-                        (click)="onStageClick($event, run, 'build')"></span>
-                    </td>
-                    <td class="stage-col">
-                      <span class="stage-dot stage-dot--{{ run.stages.test | lowercase }}"
-                        [class.stage-dot--clickable]="run.stages.test !== 'Skipped' && run.stages.test !== 'Pending'"
-                        [class.stage-dot--active]="isStageExpanded(run.id, 'test')"
-                        (click)="onStageClick($event, run, 'test')"></span>
-                    </td>
-                    <td class="stage-col">
-                      <span class="stage-dot stage-dot--{{ run.stages.scan | lowercase }}"
-                        [class.stage-dot--clickable]="run.stages.scan !== 'Skipped' && run.stages.scan !== 'Pending'"
-                        [class.stage-dot--active]="isStageExpanded(run.id, 'scan')"
-                        (click)="onStageClick($event, run, 'scan')"></span>
-                    </td>
-                    <td class="stage-col">
-                      <span class="stage-dot stage-dot--{{ run.stages.infraDeploy | lowercase }}"
-                        [class.stage-dot--clickable]="run.stages.infraDeploy !== 'Skipped' && run.stages.infraDeploy !== 'Pending'"
-                        [class.stage-dot--active]="isStageExpanded(run.id, 'infraDeploy')"
-                        [title]="run.stages.infraDeploy === 'External' ? 'Infrastructure provided' : run.stages.infraDeploy"
-                        (click)="onStageClick($event, run, 'infraDeploy')"></span>
-                    </td>
-                    <td class="stage-col">
-                      <span class="stage-dot stage-dot--{{ run.stages.appDeploy | lowercase }}"
-                        [class.stage-dot--clickable]="run.stages.appDeploy !== 'Skipped' && run.stages.appDeploy !== 'Pending'"
-                        [class.stage-dot--active]="isStageExpanded(run.id, 'appDeploy')"
-                        (click)="onStageClick($event, run, 'appDeploy')"></span>
-                    </td>
-                    <td class="stage-col">
-                      <span class="stage-dot stage-dot--{{ run.stages.integrationTest | lowercase }}"
-                        [class.stage-dot--clickable]="run.stages.integrationTest !== 'Skipped' && run.stages.integrationTest !== 'Pending'"
-                        [class.stage-dot--active]="isStageExpanded(run.id, 'integrationTest')"
-                        (click)="onStageClick($event, run, 'integrationTest')"></span>
-                    </td>
+                    @for (stage of clickableStages; track stage.key) {
+                      @let status = stageStatusOf(run, stage.key);
+                      <td class="stage-col">
+                        <button type="button" class="stage-dot stage-dot--{{ status | lowercase }}"
+                          [class.stage-dot--clickable]="status !== 'Skipped' && status !== 'Pending'"
+                          [class.stage-dot--active]="isStageExpanded(run.id, stage.key)"
+                          [disabled]="status === 'Skipped' || status === 'Pending'"
+                          [title]="stage.key === 'infraDeploy' ? (status === 'External' ? 'Infrastructure provided' : status) : null"
+                          [attr.aria-label]="stage.label + ' stage: ' + status"
+                          (click)="onStageClick($event, run, stage.key)"></button>
+                      </td>
+                    }
                   </tr>
                   @if (expandedStage()?.runId === run.id) {
                     <tr class="stage-detail-row">
-                      <td colspan="17">
+                      <td colspan="18">
                         @if (stageDetailLoading()) {
                           <div class="stage-detail__loading">
                             <span class="spinner"></span> Loading steps...
                           </div>
                         } @else if (stageDetail()) {
                           <div class="stage-detail">
+                            @if (expandedStage()?.stageName === 'review' && reviewReportAvailable(run.stages.review)) {
+                              @if (complianceSummary(); as summary) {
+                                <div class="compliance-summary">
+                                  <div class="compliance-summary__header">
+                                    <span class="compliance-summary__title">Compliance Review</span>
+                                    @if (summary.version) {
+                                      <span class="compliance-summary__version">{{ summary.tool || 'epic-compliance' }} {{ summary.version }}</span>
+                                    }
+                                  </div>
+                                  <table class="compliance-summary__table">
+                                    <thead>
+                                      <tr>
+                                        <th>Verdict</th>
+                                        <th>Count</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      @for (row of complianceVerdictRows(); track row.verdict) {
+                                        <tr>
+                                          <td>
+                                            <span class="compliance-verdict compliance-verdict--{{ row.verdict.toLowerCase().replace('/', '') }}">{{ row.verdict }}</span>
+                                          </td>
+                                          <td class="compliance-summary__count">{{ row.count }}</td>
+                                        </tr>
+                                      }
+                                      <tr class="compliance-summary__total-row">
+                                        <td>Total</td>
+                                        <td class="compliance-summary__count">{{ summary.total }}</td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              }
+                              <div class="stage-detail__actions">
+                                <button class="btn-download-report"
+                                  (click)="viewComplianceReport($event)">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                  </svg>
+                                  View Report
+                                </button>
+                                <button class="btn-download-report"
+                                  [disabled]="complianceReportDownloading()"
+                                  (click)="downloadComplianceReport($event)">
+                                  @if (complianceReportDownloading()) {
+                                    <span class="spinner"></span> Downloading...
+                                  } @else {
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                      <polyline points="7 10 12 15 17 10"/>
+                                      <line x1="12" y1="15" x2="12" y2="3"/>
+                                    </svg>
+                                    Download Report
+                                  }
+                                </button>
+                              </div>
+                            }
+                            @if (expandedStage()?.stageName === 'scan' && scanResultUrl(); as sonarUrl) {
+                              <div class="stage-detail__actions">
+                                <button class="btn-download-report"
+                                  (click)="openScanResult($event)">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                                    <polyline points="15 3 21 3 21 9"/>
+                                    <line x1="10" y1="14" x2="21" y2="3"/>
+                                  </svg>
+                                  View in SonarQube
+                                </button>
+                              </div>
+                            }
                             @for (step of stageSteps(); track step.name) {
-                              <div class="stage-detail__step"
+                              <button type="button" class="stage-detail__step"
                                 [class.stage-detail__step--clickable]="step.logId"
                                 [class.stage-detail__step--active]="expandedLogId() === step.logId"
+                                [disabled]="!step.logId"
                                 (click)="onStepClick($event, step)">
                                 <span class="stage-dot stage-dot--{{ step.status | lowercase }}"></span>
                                 <span class="stage-detail__step-name">{{ step.name }}</span>
@@ -408,7 +503,7 @@
                                 @if (step.duration) {
                                   <span class="stage-detail__duration">{{ step.duration }}</span>
                                 }
-                              </div>
+                              </button>
                               @if (expandedLogId() === step.logId) {
                                 <div class="step-log">
                                   @if (stepLogLoading()) {
@@ -439,7 +534,7 @@
                   }
                 } @empty {
                   <tr>
-                    <td colspan="16" class="no-results no-results--left">No pipeline runs recorded yet.</td>
+                    <td colspan="17" class="no-results no-results--left">No pipeline runs recorded yet.</td>
                   </tr>
                 }
               </tbody>
@@ -488,8 +583,8 @@
 }
 
 @if (showBuilderModal()) {
-  <div class="modal-overlay" (click)="closeBuilder()">
-    <div class="modal modal--builder" (click)="$event.stopPropagation()">
+  <div class="modal-overlay">
+    <div class="modal modal--builder">
       <div class="modal-header">
         <div>
           <h3>Build epic.json</h3>
@@ -525,44 +620,51 @@
         @if (builderStep() === 1) {
           <div class="onboard-form">
             <div class="form-field">
-              <label for="builder-app-type">App Type <span class="form-required">*</span></label>
-              <select id="builder-app-type" [(ngModel)]="builderAppType" [ngModelOptions]="{ standalone: true }" (ngModelChange)="onBuilderAppTypeChange()">
-                <option value="angular">Angular</option>
-                <option value="react">React</option>
-                <option value="dotnet">.NET</option>
-                <option value="python">Python</option>
-                <option value="java">Java</option>
-                <option value="html">HTML / Static</option>
-                <option value="php">PHP</option>
-                <option value="cap">SAP CAP</option>
-                <option value="ami">AMI</option>
-                <option value="btp">SAP BTP</option>
-                <option value="infra">Infrastructure</option>
-              </select>
+              <label for="builder-app-name">App Name <span class="form-required">*</span></label>
+              <input id="builder-app-name" type="text" placeholder="e.g. my-angular-app" [ngModel]="builderAppName" (ngModelChange)="onBuilderAppNameChange($event)" [ngModelOptions]="{ standalone: true }" [class.input--taken]="builderAppNameError" />
+              @if (builderAppNameError) {
+                <span class="field-hint field-hint--taken">{{ builderAppNameError }}</span>
+              }
             </div>
             <div class="form-field">
-              <label for="builder-app-name">App Name <span class="form-required">*</span></label>
-              <input id="builder-app-name" type="text" placeholder="e.g. my-angular-app" [(ngModel)]="builderAppName" [ngModelOptions]="{ standalone: true }" />
+              <label for="builder-app-type">App Type <span class="form-required">*</span></label>
+              <select id="builder-app-type" [(ngModel)]="builderAppType" [ngModelOptions]="{ standalone: true }" (ngModelChange)="onBuilderAppTypeChange()">
+                <option value="" disabled>Select type...</option>
+                <option value="dotnet">.NET</option>
+                <option value="ami">AMI</option>
+                <option value="angular">Angular</option>
+                <option value="go">Go</option>
+                <option value="html">HTML / Static</option>
+                <option value="infra">Infrastructure</option>
+                <option value="java">Java</option>
+                <option value="php">PHP</option>
+                <option value="python">Python</option>
+                <option value="react">React</option>
+                <option value="btp">SAP BTP</option>
+                <option value="cap">SAP CAP</option>
+              </select>
             </div>
             <div class="form-field">
               <label for="builder-code-path">Code Path</label>
               <input id="builder-code-path" type="text" placeholder="/ (default)" [(ngModel)]="builderCodePath" [ngModelOptions]="{ standalone: true }" />
             </div>
-            @if (builderAppType !== 'btp' && builderAppType !== 'ami' && builderAppType !== 'infra') {
+            @if (builderAppType && builderAppType !== 'btp' && builderAppType !== 'ami' && builderAppType !== 'infra') {
               <div class="form-field">
                 <label for="builder-runtime">Runtime Version</label>
                 <input id="builder-runtime" type="text" [placeholder]="builderRuntimePlaceholders[builderAppType] || ''" [(ngModel)]="builderRuntimeVersion" [ngModelOptions]="{ standalone: true }" />
               </div>
             }
-            <div class="form-field">
-              <label for="builder-infra-path">Infrastructure Path</label>
-              <input id="builder-infra-path" type="text" placeholder=".infra (default)" [(ngModel)]="builderInfraPath" [ngModelOptions]="{ standalone: true }" />
-            </div>
+            @if (builderAppType !== 'cap') {
+              <div class="form-field">
+                <label for="builder-infra-path">Infrastructure Path</label>
+                <input id="builder-infra-path" type="text" placeholder=".infra (default)" [(ngModel)]="builderInfraPath" [ngModelOptions]="{ standalone: true }" />
+              </div>
+            }
             <div class="form-field">
               <label for="builder-config-path">Config Path</label>
               <input id="builder-config-path" type="text" placeholder=".pipeline (default)" [(ngModel)]="builderConfigPath" [ngModelOptions]="{ standalone: true }" />
             </div>
-            @if (builderAppType !== 'btp' && builderAppType !== 'ami' && builderAppType !== 'infra') {
+            @if (builderAppType && builderAppType !== 'btp' && builderAppType !== 'ami' && builderAppType !== 'infra') {
               <div class="form-field">
                 <label for="builder-scan-tool">Scan Tool</label>
                 <select id="builder-scan-tool" [(ngModel)]="builderScanTool" [ngModelOptions]="{ standalone: true }">
@@ -575,7 +677,16 @@
                 <label for="builder-test-tool">Unit Test Tool</label>
                 <select id="builder-test-tool" [(ngModel)]="builderUnitTestTool" [ngModelOptions]="{ standalone: true }">
                   <option value="">None</option>
-                  @for (tool of builderUnitTestOptions[builderAppType]; track tool) {
+                  @for (tool of builderUnitTestOptions[builderAppType] || []; track tool) {
+                    <option [value]="tool">{{ tool }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="builder-integration-tool">Integration Test Tool</label>
+                <select id="builder-integration-tool" [(ngModel)]="builderIntegrationTestTool" [ngModelOptions]="{ standalone: true }">
+                  <option value="">None</option>
+                  @for (tool of builderIntegrationTestOptions[builderAppType] || []; track tool) {
                     <option [value]="tool">{{ tool }}</option>
                   }
                 </select>
@@ -588,7 +699,10 @@
           <div class="onboard-form">
             <div class="form-field">
               <label for="builder-aws-account">AWS Account ID <span class="form-required">*</span></label>
-              <input id="builder-aws-account" type="text" placeholder="e.g. 123456789012" [(ngModel)]="builderAwsAccountId" [ngModelOptions]="{ standalone: true }" />
+              <input id="builder-aws-account" type="text" inputmode="numeric" placeholder="e.g. 123456789012" [ngModel]="builderAwsAccountId" (ngModelChange)="onBuilderAwsAccountIdChange($event)" [ngModelOptions]="{ standalone: true }" [class.input--taken]="builderAwsAccountIdError" />
+              @if (builderAwsAccountIdError) {
+                <span class="field-hint field-hint--taken">{{ builderAwsAccountIdError }}</span>
+              }
             </div>
             <div class="form-field">
               <label for="builder-aws-region">AWS Region <span class="form-required">*</span></label>
@@ -603,13 +717,56 @@
                 <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
               </select>
             </div>
+            @if (builderAppType === 'ami') {
+              <div class="form-field">
+                <span class="field-label">Image Components <span class="form-required">*</span></span>
+                <div class="builder-keys">
+                  @for (component of builderComponents(); track $index) {
+                    <div class="builder-keys__row builder-components__row">
+                      <input type="text" [value]="component" (input)="updateComponent($index, $any($event.target).value)" placeholder="e.g. server" />
+                      <button class="builder-keys__remove" (click)="removeComponent($index)" title="Remove component" [disabled]="builderComponents().length === 1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                      </button>
+                    </div>
+                  }
+                  <button class="builder-keys__add" (click)="addComponent()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add Component
+                  </button>
+                </div>
+              </div>
+            }
+            @if (builderAppType === 'cap') {
+              <div class="form-field">
+                <label for="builder-cf-api">Cloud Foundry API <span class="form-required">*</span></label>
+                <input id="builder-cf-api" type="text" placeholder="e.g. https://api.cf.us11.hana.ondemand.com" [(ngModel)]="builderCfApi" [ngModelOptions]="{ standalone: true }" />
+              </div>
+              <div class="form-field">
+                <label for="builder-cf-org">Cloud Foundry Org <span class="form-required">*</span></label>
+                <input id="builder-cf-org" type="text" placeholder="e.g. pge-workstream-dev" [(ngModel)]="builderCfOrg" [ngModelOptions]="{ standalone: true }" />
+              </div>
+              <div class="form-field">
+                <label for="builder-cf-space">Cloud Foundry Space <span class="form-required">*</span></label>
+                <input id="builder-cf-space" type="text" placeholder="e.g. Dev" [(ngModel)]="builderCfSpace" [ngModelOptions]="{ standalone: true }" />
+              </div>
+              <div class="form-field">
+                <label for="builder-cf-origin">Cloud Foundry Origin <span class="form-required">*</span></label>
+                <input id="builder-cf-origin" type="text" placeholder="e.g. ainbdeind-platform" [(ngModel)]="builderCfOrigin" [ngModelOptions]="{ standalone: true }" />
+              </div>
+            }
             @if (builderAppType === 'btp' || builderAppType === 'infra' || builderAppType === 'cap') {
               <div class="form-field">
                 <label for="builder-secrets-name">Secrets Manager Name <span class="form-required">*</span></label>
                 <input id="builder-secrets-name" type="text" placeholder="e.g. my-btp-secrets" [(ngModel)]="builderSecretsManagerName" [ngModelOptions]="{ standalone: true }" />
               </div>
               <div class="form-field">
-                <label>Secrets Manager Keys</label>
+                <span class="field-label">Secrets Manager Keys</span>
                 <div class="builder-keys">
                   @for (key of builderSecretsManagerKeys(); track $index) {
                     <div class="builder-keys__row">
@@ -669,8 +826,8 @@
 }
 
 @if (showCreateAppWizard()) {
-  <div class="modal-overlay" (click)="closeCreateAppWizard()">
-    <div class="modal modal--builder modal--wizard" (click)="$event.stopPropagation()">
+  <div class="modal-overlay">
+    <div class="modal modal--builder modal--wizard">
       <div class="modal-header">
         <div>
           <h3>Create New App</h3>
@@ -722,7 +879,7 @@
                 type="text"
                 placeholder="e.g. my-new-app (kebab-case)"
                 [ngModel]="wizardAnswers().appName"
-                (ngModelChange)="wizardUpdate('appName', $event)"
+                (ngModelChange)="wizardUpdate('appName', normalizeAppName($event))"
                 [ngModelOptions]="{ standalone: true }"
                 [class.input--taken]="wizardAppNameError()"
               />
@@ -801,29 +958,37 @@
                 [ngModel]="wizardAnswers().cloudProvider"
                 (ngModelChange)="wizardOnCloudChange($event)"
                 [ngModelOptions]="{ standalone: true }"
-                [disabled]="wizardAnswers().appType === 'btp'"
+                [disabled]="wizardAnswers().appType === 'btp' || wizardAnswers().appType === 'cap'"
               >
                 <option value="aws">AWS</option>
                 <option value="azure">Azure</option>
-                <option value="btp">SAP BTP</option>
+                <option value="sap">SAP BTP</option>
               </select>
               @if (wizardAnswers().appType === 'btp') {
                 <span class="field-hint field-hint--info">BTP apps require AWS for Secrets Manager.</span>
               }
+              @if (wizardAnswers().appType === 'cap') {
+                <span class="field-hint field-hint--info">CAP apps require AWS for Secrets Manager (Cloud Foundry credentials).</span>
+              }
             </div>
-            @if (wizardAnswers().cloudProvider === 'aws' || wizardAnswers().appType === 'btp') {
+            @if (wizardAnswers().cloudProvider === 'aws' || wizardAnswers().appType === 'btp' || wizardAnswers().appType === 'cap') {
               <div class="form-field">
-                <label for="wiz-aws-account">AWS Account ID @if (wizardAnswers().includeInfra) { <span class="form-required">*</span> }</label>
+                <label for="wiz-aws-account">AWS Account ID @if (wizardAnswers().includeInfra || wizardAnswers().appType === 'cap' || wizardAnswers().appType === 'ami') { <span class="form-required">*</span> }</label>
                 <input
                   id="wiz-aws-account"
                   type="text"
+                  inputmode="numeric"
                   placeholder="12-digit account ID"
                   [ngModel]="wizardAnswers().awsAccountId"
-                  (ngModelChange)="wizardUpdate('awsAccountId', $event)"
+                  (ngModelChange)="wizardUpdate('awsAccountId', normalizeAwsAccountId($event))"
                   [ngModelOptions]="{ standalone: true }"
+                  [class.input--taken]="wizardAwsAccountIdError()"
                 />
+                @if (wizardAwsAccountIdError()) {
+                  <span class="field-hint field-hint--taken">{{ wizardAwsAccountIdError() }}</span>
+                }
               </div>
-              @if (wizardAnswers().includeInfra) {
+              @if (wizardAnswers().includeInfra || wizardAnswers().appType === 'cap' || wizardAnswers().appType === 'ami') {
                 <div class="form-field">
                   <label for="wiz-aws-region">AWS Region <span class="form-required">*</span></label>
                   <select
@@ -839,6 +1004,78 @@
                   </select>
                 </div>
               }
+              @if (wizardAnswers().appType === 'ami') {
+                <div class="form-field">
+                  <span class="field-label">Image Components <span class="form-required">*</span></span>
+                  <div class="builder-keys">
+                    @for (component of wizardAnswers().amiComponents; track $index) {
+                      <div class="builder-keys__row wizard-components__row">
+                        <input type="text" [value]="component" (input)="wizardUpdateComponent($index, $any($event.target).value)" placeholder="e.g. server" />
+                        <button class="builder-keys__remove" (click)="wizardRemoveComponent($index)" title="Remove component" [disabled]="wizardAnswers().amiComponents.length === 1">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </div>
+                    }
+                    <button class="builder-keys__add" (click)="wizardAddComponent()">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                      Add Component
+                    </button>
+                  </div>
+                </div>
+              }
+              @if (wizardAnswers().appType === 'cap') {
+                <div class="form-field">
+                  <label for="wiz-cf-api">Cloud Foundry API <span class="form-required">*</span></label>
+                  <input id="wiz-cf-api" type="text" placeholder="e.g. https://api.cf.us11.hana.ondemand.com" [ngModel]="wizardAnswers().cfApi" (ngModelChange)="wizardUpdate('cfApi', $event)" [ngModelOptions]="{ standalone: true }" />
+                </div>
+                <div class="form-field">
+                  <label for="wiz-cf-org">Cloud Foundry Org <span class="form-required">*</span></label>
+                  <input id="wiz-cf-org" type="text" placeholder="e.g. pge-workstream-dev" [ngModel]="wizardAnswers().cfOrg" (ngModelChange)="wizardUpdate('cfOrg', $event)" [ngModelOptions]="{ standalone: true }" />
+                </div>
+                <div class="form-field">
+                  <label for="wiz-cf-space">Cloud Foundry Space <span class="form-required">*</span></label>
+                  <input id="wiz-cf-space" type="text" placeholder="e.g. Dev" [ngModel]="wizardAnswers().cfSpace" (ngModelChange)="wizardUpdate('cfSpace', $event)" [ngModelOptions]="{ standalone: true }" />
+                </div>
+                <div class="form-field">
+                  <label for="wiz-cf-origin">Cloud Foundry Origin <span class="form-required">*</span></label>
+                  <input id="wiz-cf-origin" type="text" placeholder="e.g. ainbdeind-platform" [ngModel]="wizardAnswers().cfOrigin" (ngModelChange)="wizardUpdate('cfOrigin', $event)" [ngModelOptions]="{ standalone: true }" />
+                </div>
+              }
+              @if (wizardAnswers().appType === 'btp' || wizardAnswers().appType === 'cap') {
+                <div class="form-field">
+                  <label for="wiz-secrets-name">Secrets Manager Name <span class="form-required">*</span></label>
+                  <input id="wiz-secrets-name" type="text" placeholder="e.g. my-btp-secrets" [ngModel]="wizardAnswers().secretsManagerName" (ngModelChange)="wizardUpdate('secretsManagerName', $event)" [ngModelOptions]="{ standalone: true }" />
+                </div>
+                <div class="form-field">
+                  <span class="field-label">Secrets Manager Keys</span>
+                  <div class="builder-keys">
+                    @for (key of wizardAnswers().secretsManagerKeys; track $index) {
+                      <div class="builder-keys__row wizard-keys__row">
+                        <input type="text" [value]="key" (input)="wizardUpdateSecretKey($index, $any($event.target).value)" placeholder="e.g. BTP_USERNAME" />
+                        <button class="builder-keys__remove" (click)="wizardRemoveSecretKey($index)" title="Remove key" [disabled]="wizardAnswers().secretsManagerKeys.length === 1">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </div>
+                    }
+                    <button class="builder-keys__add" (click)="wizardAddSecretKey()">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                      Add Key
+                    </button>
+                  </div>
+                </div>
+              }
             }
             @if (wizardAnswers().cloudProvider === 'azure') {
               <div class="form-field">
@@ -848,9 +1085,13 @@
                   type="text"
                   placeholder="UUID"
                   [ngModel]="wizardAnswers().azureSubscriptionId"
-                  (ngModelChange)="wizardUpdate('azureSubscriptionId', $event)"
+                  (ngModelChange)="wizardUpdate('azureSubscriptionId', normalizeAzureSubscriptionId($event))"
                   [ngModelOptions]="{ standalone: true }"
+                  [class.input--taken]="wizardAzureSubscriptionIdError()"
                 />
+                @if (wizardAzureSubscriptionIdError()) {
+                  <span class="field-hint field-hint--taken">{{ wizardAzureSubscriptionIdError() }}</span>
+                }
               </div>
               @if (wizardAnswers().includeInfra) {
                 <div class="form-field">
@@ -869,7 +1110,7 @@
 
             @if (wizardShowDeployTargetSection) {
               <div class="form-field wizard-deploy-target">
-                <label class="wizard-deploy-target__heading">Deploy target — where this app will land</label>
+                <span class="field-label wizard-deploy-target__heading">Deploy target — where this app will land</span>
                 <p class="field-hint field-hint--info">
                   No <code>.infra/</code> selected. EPIC won't generate Terraform for this app — it needs to know which <strong>existing</strong> resources to push artifacts to. These values flow into <code>cloud.*</code> in <code>epic.json</code> and are read by the EPIC deploy stage. Leave any blank to render as a <code>"TODO"</code> placeholder.
                 </p>
@@ -898,9 +1139,6 @@
                   @if (wizardShowDeployTargetKey('testDocPrefix')) {
                     <input type="text" placeholder="SSM test document prefix (cloud.testDocPrefix)" [ngModel]="wizardAnswers().deployTarget.testDocPrefix" (ngModelChange)="wizardUpdateDeployTarget('testDocPrefix', $event)" [ngModelOptions]="{ standalone: true }" />
                   }
-                  @if (wizardShowDeployTargetKey('imageRecipeName')) {
-                    <input type="text" placeholder="EC2 Image Builder recipe name (cloud.imageRecipeName)" [ngModel]="wizardAnswers().deployTarget.imageRecipeName" (ngModelChange)="wizardUpdateDeployTarget('imageRecipeName', $event)" [ngModelOptions]="{ standalone: true }" />
-                  }
                   @if (wizardShowDeployTargetKey('appUrl')) {
                     <input type="text" placeholder="Deployed app URL (cloud.appUrl, e.g. https://app.lab.pge.com)" [ngModel]="wizardAnswers().deployTarget.appUrl" (ngModelChange)="wizardUpdateDeployTarget('appUrl', $event)" [ngModelOptions]="{ standalone: true }" />
                   }
@@ -914,9 +1152,9 @@
           <div class="onboard-form">
             @if (wizardArchitectureSkipped()) {
               <p class="field-hint field-hint--info">
-                Architecture toggles don't apply to <strong>{{ wizardAppTypeLabel() }}</strong> apps. The AI will derive what's needed from the app type and the AI-DLC steering docs.
+                Architecture toggles don't apply to <strong>{{ wizardAppTypeLabel() }}</strong> projects. The AI will derive what's needed from the app type and the AI-DLC steering docs.
               </p>
-              @if (wizardAnswers().appType !== 'infra') {
+              @if (wizardAnswers().appType !== 'infra' && wizardAnswers().appType !== 'btp' && wizardAnswers().appType !== 'cap') {
                 <div class="form-field">
                   <label class="checkbox-label">
                     <input
@@ -1176,8 +1414,8 @@
 }
 
 @if (showAddModal()) {
-  <div class="modal-overlay" (click)="closeAddModal()">
-    <div class="modal" (click)="$event.stopPropagation()">
+  <div class="modal-overlay">
+    <div class="modal">
       <div class="modal-header">
         <div>
           <h3>Onboard New App</h3>
@@ -1193,6 +1431,21 @@
       </div>
       <div class="modal-body">
         <div class="onboard-form">
+          @if (githubSources().length > 1) {
+            <div class="form-field">
+              <label for="onboard-source">GitHub Organization <span class="form-required">*</span></label>
+              <select
+                id="onboard-source"
+                [ngModel]="selectedSource()"
+                [ngModelOptions]="{ standalone: true }"
+                (ngModelChange)="selectedSource.set($event); onSourceChange()"
+              >
+                @for (src of githubSources(); track src.name) {
+                  <option [value]="src.name">{{ src.org }}</option>
+                }
+              </select>
+            </div>
+          }
           <div class="form-field">
             <label for="onboard-repo">GitHub Repository <span class="form-required">*</span></label>
             <input
@@ -1236,8 +1489,8 @@
 }
 
 @if (showNewRunModal() && newRunApp()) {
-  <div class="modal-overlay" (click)="closeNewRunModal()">
-    <div class="modal" [class.modal--loading]="newRunValidating()" (click)="$event.stopPropagation()">
+  <div class="modal-overlay">
+    <div class="modal" [class.modal--loading]="newRunValidating()">
       <div class="modal-header">
         <div>
           <h3>New Pipeline Run</h3>
@@ -1295,13 +1548,16 @@
               @if (newRunEnvLocked()) {
                 <option value="prod">prod</option>
               }
+              @if (newRunConfigAppType() === 'btp') {
+                <option value="other">other</option>
+              }
             </select>
             @if (newRunEnvLocked()) {
               <span class="field-hint field-hint--info">Release branches always deploy to prod.</span>
             }
           </div>
           <div class="form-field">
-            <label>EPIC Config <span class="form-required">*</span></label>
+            <span class="field-label">EPIC Config <span class="form-required">*</span></span>
             @if (configSearchStatus() === 'idle') {
               <span class="field-hint">Enter a branch to discover config files.</span>
             } @else if (configSearchStatus() === 'searching') {
@@ -1310,6 +1566,7 @@
               </span>
             } @else if (configSearchStatus() === 'not-found') {
               <span class="field-hint field-hint--taken">No epic.json found in this repo/branch.</span>
+              <span class="field-hint field-hint--info field-hint--block">Without an EPIC config only the <strong>Review App</strong> compliance gate can run — Build, Tests, Scan, Deploy, and Infrastructure need a config and are locked. Add an <code>epic.json</code> to enable the full pipeline.</span>
               <button class="builder-header-btn" style="margin-top: 8px; align-self: flex-start" (click)="openBuilderFromNewRun()" title="Build epic.json config">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1332,7 +1589,7 @@
           </div>
 
           <div class="form-field">
-            <label>{{ newRunConfigAppType() === 'btp' || newRunConfigAppType() === 'infra' ? 'Actions' : 'Stages' }}</label>
+            <span class="field-label">{{ newRunConfigAppType() === 'btp' || newRunConfigAppType() === 'infra' ? 'Actions' : 'Stages' }}</span>
             <div class="checkbox-group">
               @if (newRunConfigAppType() === 'btp' || newRunConfigAppType() === 'infra') {
                 <label class="checkbox-label" [class.checkbox-label--disabled]="!newRunConfig">
@@ -1344,18 +1601,25 @@
                   Run Linting Tool
                 </label>
               } @else {
+                <label class="checkbox-label" [class.checkbox-label--disabled]="reviewDisabled">
+                  <input type="checkbox" [(ngModel)]="newRunReview" [ngModelOptions]="{ standalone: true }" [disabled]="reviewDisabled" />
+                  Review App
+                </label>
                 <label class="checkbox-label" [class.checkbox-label--disabled]="!newRunConfig">
                   <input type="checkbox" [(ngModel)]="newRunBuild" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunConfig" (ngModelChange)="onBuildToggle($event)" />
                   Build App
                 </label>
-                <label class="checkbox-label" [class.checkbox-label--disabled]="!newRunConfig">
-                  <input type="checkbox" [(ngModel)]="newRunTests" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunConfig" />
+                <label class="checkbox-label" [class.checkbox-label--disabled]="buildTestsDisabled">
+                  <input type="checkbox" [(ngModel)]="newRunTests" [ngModelOptions]="{ standalone: true }" [disabled]="buildTestsDisabled" />
                   Run Build Tests
                 </label>
-                <label class="checkbox-label" [class.checkbox-label--disabled]="!newRunConfig">
-                  <input type="checkbox" [(ngModel)]="newRunScan" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunConfig" />
+                <label class="checkbox-label" [class.checkbox-label--disabled]="scanDisabled">
+                  <input type="checkbox" [(ngModel)]="newRunScan" [ngModelOptions]="{ standalone: true }" [disabled]="scanDisabled" />
                   Scan App
                 </label>
+                @if (newRunConfigAppType() === 'dotnet' && !newRunBuild && newRunConfig) {
+                  <span class="field-hint field-hint--info">.NET scans are compile-instrumented — enable Build to scan.</span>
+                }
                 <label class="checkbox-label" [class.checkbox-label--disabled]="deployDisabled">
                   <input type="checkbox" [(ngModel)]="newRunDeploy" [ngModelOptions]="{ standalone: true }" [disabled]="deployDisabled" />
                   Deploy App
@@ -1369,24 +1633,43 @@
           </div>
 
           <div class="form-field">
-            <label>Infrastructure Deployment</label>
+            <span class="field-label">Infrastructure Deployment</span>
             @if (!newRunHasInfra() && !newRunHasInfraParams() && !newRunValidating() && configSearchStatus() === 'found' && newRunConfig) {
               <span class="field-hint field-hint--taken">No infrastructure path or cloud infrastructure parameters found in this config.</span>
             }
+            @if (missingS3Backend && !newRunValidating()) {
+              <span class="field-hint field-hint--taken field-hint--block">No S3 remote backend (<code>backend "s3" &#123;&#125;</code>) found in this Terraform, so EPIC can't manage your state. Add one, commit, and re-run to deploy infrastructure.</span>
+            }
             <div class="radio-group">
-              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra()">
-                <input type="radio" name="deployInfra" value="none" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra()" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingS3Backend">
+                <input type="radio" name="deployInfra" value="none" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingS3Backend" />
                 None
               </label>
-              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra()">
-                <input type="radio" name="deployInfra" value="apply" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra()" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingS3Backend">
+                <input type="radio" name="deployInfra" value="plan" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingS3Backend" />
+                Plan ONLY
+              </label>
+              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingS3Backend">
+                <input type="radio" name="deployInfra" value="apply" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingS3Backend" />
                 Apply
               </label>
-              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra()">
-                <input type="radio" name="deployInfra" value="destroy" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra()" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingS3Backend">
+                <input type="radio" name="deployInfra" value="destroy" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingS3Backend" />
                 Destroy
               </label>
             </div>
+            @if (planOnlyWithDeploy) {
+              <span class="field-hint field-hint--info field-hint--block">Plan ONLY won't provision infrastructure this run; Deploy will target your existing infrastructure (from <code>epic.json</code>).</span>
+            }
+            @if (showForceStateCopy) {
+              <div class="force-state-copy">
+                <span class="field-hint field-hint--info field-hint--block">A Terraform state file (<code>terraform.tfstate</code>) was found committed in this repo. Would you like EPIC to manage it going forward by copying it into the S3 remote backend? After a successful force copy, remove <code>terraform.tfstate</code> from your repo so the S3 backend stays the single source of truth.</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" [(ngModel)]="newRunForceStateCopy" [ngModelOptions]="{ standalone: true }" />
+                  Force State Copy
+                </label>
+              </div>
+            }
           </div>
         </div>
       </div>
@@ -1405,21 +1688,30 @@
 }
 
 @if (showHowToModal()) {
-  <div class="modal-overlay" (click)="closeHowTo()">
-    <div class="modal modal--wide" (click)="$event.stopPropagation()">
+  <div class="modal-overlay">
+    <div class="modal modal--wide">
 
       <div class="modal-header">
         <div>
           <h3>How to Use EPIC</h3>
           <p class="modal-subtitle">Get your application configured and deploying through EPIC.</p>
         </div>
-        <button class="modal-close" (click)="closeHowTo()" title="Close">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+        <div class="modal-header__actions">
+          <button class="builder-header-btn" (click)="openBuilder()" title="Build epic.json config">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+            Build Config
+          </button>
+          <button class="modal-close" (click)="closeHowTo()" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="modal-body howto-body">
@@ -1437,25 +1729,80 @@
 
         <div class="howto-section">
           <h4>The epic.json File</h4>
-          <p>Create <code>.pipeline/epic.json</code> at the root of your repository. This file has two sections:</p>
+          <p>Create <code>.pipeline/epic.json</code> at the root of your repository (or point to it with <code>app.configPath</code>). This file has two sections:</p>
           <ul>
-            <li><strong>app</strong> — Your application's identity, build configuration, and tooling</li>
-            <li><strong>cloud</strong> — Your deployment target (AWS account, region, and any app-type-specific settings)</li>
+            <li><strong>app</strong> — Your application's identity, source layout, runtime, and tooling</li>
+            <li><strong>cloud</strong> — Your deployment target. EPIC supports <strong>AWS</strong>, <strong>Azure</strong>, and <strong>SAP</strong>; the fields you supply depend on the target (see <em>Cloud Targets</em> below)</li>
           </ul>
 
+          <p>The <code>app</code> section:</p>
           <table class="howto-fields">
             <thead>
               <tr><th>Field</th><th>Required</th><th>Description</th></tr>
             </thead>
             <tbody>
               <tr><td><code>app.appName</code></td><td>Yes</td><td>Unique name for your application in EPIC</td></tr>
-              <tr><td><code>app.appType</code></td><td>Yes</td><td>angular, react, dotnet, python, java, html, php, cap, ami, btp, or infra</td></tr>
+              <tr><td><code>app.appType</code></td><td>Yes</td><td>angular, react, dotnet, python, java, go, html, php, ami, cap, btp, or infra</td></tr>
               <tr><td><code>app.codePath</code></td><td>No</td><td>Path to source code relative to repo root (default: <code>/</code>)</td></tr>
-              <tr><td><code>app.runtimeVersion</code></td><td>No</td><td>Runtime version override — defaults per appType: angular/react/html <code>18</code>, dotnet <code>9.x</code>, python <code>3.11</code>, java <code>17</code>, php <code>8.3</code>, cap <code>22</code></td></tr>
-              <tr><td><code>app.scanTool</code></td><td>No</td><td>Code scan tool (e.g., <code>sonarqube</code>)</td></tr>
-              <tr><td><code>app.buildTestTool</code></td><td>No</td><td>Test runner: jest, vitest, pytest, junit, xunit, phpunit</td></tr>
-              <tr><td><code>cloud.awsAccountId</code></td><td>Yes</td><td>Target AWS account ID</td></tr>
-              <tr><td><code>cloud.awsRegion</code></td><td>Yes</td><td>Target AWS region (e.g., <code>us-west-2</code>)</td></tr>
+              <tr><td><code>app.infraPath</code></td><td>No</td><td>Path to the Terraform folder (default: <code>.infra</code>); required for <code>btp</code></td></tr>
+              <tr><td><code>app.configPath</code></td><td>No</td><td>Path to the <code>.pipeline</code> folder if not at repo root</td></tr>
+              <tr><td><code>app.runtimeVersion</code></td><td>No</td><td>Runtime version override — defaults per appType: angular/react/html/cap <code>20</code>, dotnet <code>9.x</code>, python <code>3.11</code>, java <code>17</code>, go <code>1.23</code>, php <code>8.3</code></td></tr>
+              <tr><td><code>app.scanTool</code></td><td>No</td><td>Code scan tool (e.g., <code>sonarqube</code>) — enables the <strong>Scan App</strong> stage</td></tr>
+              <tr><td><code>app.buildTestTool</code></td><td>No</td><td>Build/unit test runner: karma, jest, vitest, pytest, junit, xunit, gotestsum, phpunit — enables <strong>Run Build Tests</strong></td></tr>
+              <tr><td><code>app.integrationTestTool</code></td><td>No</td><td>Integration test runner (e.g., <code>playwright</code>) — enables <strong>Run Integration Tests</strong></td></tr>
+            </tbody>
+          </table>
+          <p class="howto-note">The optional tooling fields determine which stages you can select when triggering a run. <strong>Run Build Tests</strong>, <strong>Scan App</strong>, and <strong>Run Integration Tests</strong> are only selectable when <code>buildTestTool</code>, <code>scanTool</code>, and <code>integrationTestTool</code> are set, respectively. <strong>Deploy App</strong> requires either a <code>.infra/</code> folder or cloud deployment parameters in your config.</p>
+        </div>
+
+        <div class="howto-section">
+          <h4>Cloud Targets</h4>
+          <p>EPIC auto-detects your cloud provider from the config — you don't set it directly:</p>
+          <ul>
+            <li><code>appType</code> is <code>btp</code> or <code>cap</code> → <strong>SAP</strong></li>
+            <li>otherwise <code>cloud.awsAccountId</code> is present → <strong>AWS</strong></li>
+            <li>otherwise <code>cloud.azureSubscriptionId</code> is present → <strong>Azure</strong></li>
+            <li>otherwise defaults to <strong>AWS</strong></li>
+          </ul>
+
+          <p><strong>AWS</strong> — the most common target:</p>
+          <table class="howto-fields">
+            <thead>
+              <tr><th>Field</th><th>Required</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>cloud.awsAccountId</code></td><td>Yes</td><td>Target AWS account ID (12 digits)</td></tr>
+              <tr><td><code>cloud.awsRegion</code></td><td>No</td><td>Target AWS region (default: <code>us-west-2</code>)</td></tr>
+              <tr><td><code>cloud.s3</code> / <code>cloud.cloudfront</code></td><td>No</td><td>SPA targets (angular/react/html) — S3 bucket and CloudFront distribution ID. Auto-filled from your <code>.infra/</code> Terraform outputs when present</td></tr>
+              <tr><td><code>cloud.ec2InstanceId</code> / <code>cloud.appExecutable</code></td><td>No</td><td>Server targets (dotnet/python/java) — EC2 instance and launch executable. Auto-filled from Terraform outputs when present</td></tr>
+            </tbody>
+          </table>
+          <p class="howto-note">When you provision infrastructure through EPIC (a <code>.infra/</code> folder), the deploy stage reads the Terraform outputs automatically, so the optional deploy fields above are only needed when targeting <em>pre-existing</em> infrastructure. <code>ami</code> apps use a separate set of fields (component recipes, SSM document prefixes) — see the AMI sample.</p>
+
+          <p><strong>Azure</strong> — App Service deployment:</p>
+          <table class="howto-fields">
+            <thead>
+              <tr><th>Field</th><th>Required</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>cloud.azureSubscriptionId</code></td><td>Yes</td><td>Target Azure subscription ID</td></tr>
+              <tr><td><code>cloud.azureRegion</code></td><td>No</td><td>Target Azure region (default: <code>westus2</code>)</td></tr>
+              <tr><td><code>cloud.appServiceName</code></td><td>No</td><td>App Service name to deploy to. Auto-filled from Terraform outputs when present</td></tr>
+              <tr><td><code>cloud.resourceGroupName</code></td><td>No</td><td>Resource group of the App Service. Auto-filled from Terraform outputs when present</td></tr>
+            </tbody>
+          </table>
+
+          <p><strong>SAP</strong> — used by <code>btp</code> and <code>cap</code> apps. Credentials are pulled from AWS Secrets Manager, so an AWS account is still required:</p>
+          <table class="howto-fields">
+            <thead>
+              <tr><th>Field</th><th>Required</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>cloud.awsAccountId</code></td><td>Yes</td><td>AWS account holding the Secrets Manager secret</td></tr>
+              <tr><td><code>cloud.awsRegion</code></td><td>No</td><td>AWS region of the secret (default: <code>us-west-2</code>)</td></tr>
+              <tr><td><code>cloud.secretsManager.name</code></td><td>Yes</td><td>Secrets Manager secret name holding the SAP/CF credentials</td></tr>
+              <tr><td><code>cloud.secretsManager.keys</code></td><td>Yes</td><td>Array of keys to load from that secret as environment variables</td></tr>
+              <tr><td><code>cloud.cfApi</code> / <code>cloud.cfOrg</code> / <code>cloud.cfSpace</code> / <code>cloud.cfOrigin</code></td><td>cap only</td><td>Cloud Foundry endpoint, org, space, and identity origin for CAP deployment</td></tr>
             </tbody>
           </table>
         </div>
@@ -1465,25 +1812,19 @@
           <p>Select your application type to see a sample <code>epic.json</code>:</p>
           <div class="howto-sample-controls">
             <select [(ngModel)]="howToAppType" [ngModelOptions]="{ standalone: true }">
-              <option value="angular">Angular</option>
-              <option value="react">React</option>
               <option value="dotnet">.NET</option>
-              <option value="python">Python</option>
-              <option value="java">Java</option>
-              <option value="html">HTML / Static</option>
-              <option value="php">PHP</option>
-              <option value="cap">SAP CAP</option>
               <option value="ami">AMI</option>
-              <option value="btp">SAP BTP</option>
+              <option value="angular">Angular</option>
+              <option value="go">Go</option>
+              <option value="html">HTML / Static</option>
               <option value="infra">Infrastructure</option>
+              <option value="java">Java</option>
+              <option value="php">PHP</option>
+              <option value="python">Python</option>
+              <option value="react">React</option>
+              <option value="btp">SAP BTP</option>
+              <option value="cap">SAP CAP</option>
             </select>
-            <button class="builder-header-btn" (click)="openBuilder()" title="Build epic.json config">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-              </svg>
-              Build Config
-            </button>
           </div>
           <pre class="howto-code">{{ currentSample }}</pre>
         </div>
@@ -1492,37 +1833,68 @@
           <h4>Infrastructure (Optional)</h4>
           <p>If your app requires AWS infrastructure (EC2, S3, CloudFront, Aurora, etc.), add a <code>.infra/</code> folder at the root of your repository with standard Terraform files:</p>
           <ul>
-            <li><code>terraform.tf</code> — Backend and provider configuration</li>
+            <li><code>terraform.tf</code> — Backend and provider configuration. <strong>Must declare an S3 remote backend</strong> (see below)</li>
             <li><code>main.tf</code> — Resource definitions</li>
             <li><code>variables.tf</code> — Input variables</li>
             <li><code>outputs.tf</code> — Output values</li>
             <li><code>terraform.auto.tfvars</code> — Variable values</li>
           </ul>
           <p>EPIC will automatically detect the <code>.infra/</code> folder and enable the Infrastructure Deployment option when triggering runs.</p>
+          <p class="howto-note howto-note--important"><strong>An S3 remote backend is required.</strong> Your Terraform <strong>must</strong> include a <code>backend "s3" &#123;&#125;</code> block so EPIC can manage your state. EPIC supplies the backend configuration (bucket, key, region) at init time, so the block can be empty — but it must be present. Without it, EPIC can't manage your state and the Infrastructure Deployment options stay disabled when you trigger a run.</p>
+          <pre class="howto-code">terraform &#123;
+  backend "s3" &#123;&#125;
+&#125;</pre>
         </div>
 
         <div class="howto-section">
-          <h4>SAP BTP Applications</h4>
-          <p>For SAP Business Technology Platform apps, set <code>app.appType</code> to <code>"btp"</code>. BTP apps use Terraform for infrastructure provisioning and have a different cloud configuration:</p>
+          <h4>SAP BTP Infrastructure</h4>
+          <p>Set <code>app.appType</code> to <code>"btp"</code> to provision SAP Business Technology Platform infrastructure (subaccounts, entitlements, Cloud Foundry environments) with Terraform. BTP is <strong>infrastructure-only</strong> — it provisions the BTP estate; it does not build or deploy an application.</p>
           <table class="howto-fields">
             <thead>
               <tr><th>Field</th><th>Required</th><th>Description</th></tr>
             </thead>
             <tbody>
               <tr><td><code>app.appType</code></td><td>Yes</td><td>Must be <code>"btp"</code></td></tr>
-              <tr><td><code>app.infraPath</code></td><td>Yes</td><td>Path to Terraform files relative to repo root</td></tr>
+              <tr><td><code>app.infraPath</code></td><td>Yes</td><td>Path to the Terraform files (must contain <code>&lt;appName&gt;.tfvars</code>)</td></tr>
               <tr><td><code>app.configPath</code></td><td>No</td><td>Path to the <code>.pipeline</code> folder if not at repo root</td></tr>
-              <tr><td><code>cloud.awsAccountId</code></td><td>Yes</td><td>AWS account ID (for Secrets Manager access)</td></tr>
-              <tr><td><code>cloud.awsRegion</code></td><td>Yes</td><td>AWS region (e.g., <code>us-west-2</code>)</td></tr>
-              <tr><td><code>cloud.secretsManager.name</code></td><td>Yes</td><td>AWS Secrets Manager secret name containing BTP credentials</td></tr>
-              <tr><td><code>cloud.secretsManager.keys</code></td><td>Yes</td><td>Array of secret keys to retrieve (e.g., <code>BTP_USERNAME</code>, <code>BTP_PASSWORD</code>)</td></tr>
+              <tr><td><code>cloud.awsAccountId</code></td><td>Yes</td><td>AWS account holding the Secrets Manager secret</td></tr>
+              <tr><td><code>cloud.secretsManager.name</code></td><td>Yes</td><td>Secrets Manager secret name containing the BTP credentials</td></tr>
+              <tr><td><code>cloud.secretsManager.keys</code></td><td>Yes</td><td>Keys to load (typically <code>BTP_USERNAME</code>, <code>BTP_PASSWORD</code>, <code>CF_USER</code>, <code>CF_PASSWORD</code>)</td></tr>
             </tbody>
           </table>
-          <p>BTP apps differ from standard apps:</p>
+          <p>How BTP runs differ from standard apps:</p>
           <ul>
-            <li>Build, Deploy, and Integration Test stages are not available — infrastructure provisioning is the primary action</li>
-            <li>Secrets are dynamically loaded from AWS Secrets Manager and injected into Terraform steps</li>
-            <li>"Run Tests" executes <code>terraform test</code> and "Run Linting Tool" executes <code>terraform fmt</code>, <code>terraform validate</code>, and <code>tflint</code></li>
+            <li>Only the infrastructure (Terraform) stage runs — Build, Deploy, and Integration Test do not apply</li>
+            <li>Secrets are loaded from AWS Secrets Manager and sourced into every Terraform step</li>
+            <li><code>terraform fmt</code> and <code>terraform validate</code> always run; <strong>Run Linting Tool</strong> additionally runs <code>tflint</code>, and <strong>Run Tests</strong> runs <code>terraform test</code> (both only on an Apply)</li>
+            <li>Infrastructure provisioning is mandatory — BTP always runs Terraform even without a detected <code>.infra/</code> folder</li>
+          </ul>
+        </div>
+
+        <div class="howto-section">
+          <h4>SAP CAP Applications</h4>
+          <p>Set <code>app.appType</code> to <code>"cap"</code> for SAP Cloud Application Programming model apps. Unlike BTP, CAP <strong>builds and deploys an application</strong>: EPIC compiles your CDS models into an MTA archive and deploys it to a <em>pre-existing</em> Cloud Foundry space. CAP apps do not provision infrastructure.</p>
+          <table class="howto-fields">
+            <thead>
+              <tr><th>Field</th><th>Required</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>app.appType</code></td><td>Yes</td><td>Must be <code>"cap"</code></td></tr>
+              <tr><td><code>app.codePath</code></td><td>No</td><td>Path to the CAP project (must contain <code>mta.yaml</code>; default: <code>/</code>)</td></tr>
+              <tr><td><code>cloud.awsAccountId</code></td><td>Yes</td><td>AWS account holding the Secrets Manager secret</td></tr>
+              <tr><td><code>cloud.secretsManager.name</code></td><td>Yes</td><td>Secrets Manager secret name containing the Cloud Foundry credentials</td></tr>
+              <tr><td><code>cloud.secretsManager.keys</code></td><td>Yes</td><td>Keys to load (typically <code>CF_USER</code>, <code>CF_PASSWORD</code>)</td></tr>
+              <tr><td><code>cloud.cfApi</code></td><td>Yes</td><td>Cloud Foundry API endpoint (e.g., <code>https://api.cf.us11.hana.ondemand.com</code>)</td></tr>
+              <tr><td><code>cloud.cfOrg</code></td><td>Yes</td><td>Cloud Foundry organization</td></tr>
+              <tr><td><code>cloud.cfSpace</code></td><td>Yes</td><td>Cloud Foundry space to deploy into</td></tr>
+              <tr><td><code>cloud.cfOrigin</code></td><td>Yes</td><td>Identity provider origin used for Cloud Foundry authentication</td></tr>
+            </tbody>
+          </table>
+          <p>How CAP runs work:</p>
+          <ul>
+            <li><strong>Build</strong> installs the SAP toolchain (<code>@sap/cds-dk</code>, <code>mbt</code>), runs <code>cds build --production</code>, and produces an <code>.mtar</code> archive</li>
+            <li><strong>Deploy</strong> pulls Cloud Foundry credentials from Secrets Manager and runs <code>cf deploy</code> into your target org/space — the space must already exist</li>
+            <li>Build Tests, Scan, and Integration Tests are available when their tools are set; there is no infrastructure stage</li>
           </ul>
         </div>
       </div>
@@ -1531,6 +1903,155 @@
         <div class="modal-footer__right">
           <button class="btn-secondary" (click)="closeHowTo()">Close</button>
         </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showReportModal()) {
+  <div class="modal-overlay" (click)="closeReportModal()" (keydown.escape)="closeReportModal()">
+    <div class="modal modal--wide report-modal" [class.modal--fullscreen]="reportModalFullscreen()" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <div>
+          <h3>{{ reportModalTitle() }}</h3>
+          @if (reportModalReport()?.summary?.version) {
+            <p class="modal-subtitle">
+              {{ reportModalReport()!.summary.tool || 'epic-compliance' }} {{ reportModalReport()!.summary.version }}
+              @if (reportModalReport()?.summary?.specSource) {
+                · {{ reportModalReport()!.summary.specSource }}
+              }
+            </p>
+          }
+        </div>
+        <div class="modal-header__controls">
+          <button class="modal-close" (click)="toggleReportModalFullscreen()"
+            [title]="reportModalFullscreen() ? 'Exit fullscreen' : 'Fullscreen'">
+            @if (reportModalFullscreen()) {
+              <!-- Exit fullscreen: window-over-window -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="8" width="13" height="13" rx="1.5"/>
+                <path d="M8 8V5.5A1.5 1.5 0 0 1 9.5 4H19a1.5 1.5 0 0 1 1.5 1.5V15a1.5 1.5 0 0 1-1.5 1.5h-3"/>
+              </svg>
+            } @else {
+              <!-- Enter fullscreen: expand arrows -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+                <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+                <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
+                <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+              </svg>
+            }
+          </button>
+          <button class="modal-close" (click)="closeReportModal()" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-body report-modal__body">
+        @if (reportModalLoading()) {
+          <div class="stage-detail__loading"><span class="spinner"></span> Loading report...</div>
+        } @else if (reportModalReport(); as report) {
+
+          @if (report.profile?.kinds?.length) {
+            <div class="report-profile">
+              <span class="report-profile__label">App profile:</span>
+              <span class="report-profile__value">{{ report.profile!.kinds!.join(', ') }}</span>
+              @if (report.profile?.authModel) {
+                <span class="report-profile__sep">·</span>
+                <span class="report-profile__value">{{ report.profile!.authModel }}</span>
+                @if (report.profile?.idp) {
+                  <span class="report-profile__value">({{ report.profile!.idp }})</span>
+                }
+              }
+              @if (report.profile?.narrative) {
+                <p class="report-profile__narrative">{{ report.profile!.narrative }}</p>
+              }
+            </div>
+          }
+
+          <table class="compliance-summary__table report-modal__summary">
+            <thead>
+              <tr><th>Verdict</th><th>Count</th></tr>
+            </thead>
+            <tbody>
+              @for (row of complianceVerdictRows(); track row.verdict) {
+                <tr>
+                  <td><span class="compliance-verdict compliance-verdict--{{ row.verdict.toLowerCase().replace('/', '') }}">{{ row.verdict }}</span></td>
+                  <td class="compliance-summary__count">{{ row.count }}</td>
+                </tr>
+              }
+              <tr class="compliance-summary__total-row">
+                <td>Total</td>
+                <td class="compliance-summary__count">{{ report.summary.total }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          @for (group of reportFindingGroups(); track group.verdict) {
+            <div class="report-group">
+              <h4 class="report-group__heading">
+                <span class="compliance-verdict compliance-verdict--{{ group.verdict.toLowerCase().replace('/', '') }}">{{ group.verdict }}</span>
+                <span class="report-group__count">{{ group.findings.length }}</span>
+              </h4>
+              @for (f of group.findings; track f.nistId) {
+                <div class="report-finding">
+                  <div class="report-finding__title">
+                    <span class="report-finding__id">{{ f.nistId }}</span>
+                    <span class="report-finding__name">{{ f.title }}</span>
+                    @if (f.kind === 'hard') {
+                      <span class="report-finding__hard">HARD</span>
+                    }
+                  </div>
+                  @if (f.requirement) {
+                    <p class="report-finding__req"><strong>Requirement:</strong> {{ f.requirement }}</p>
+                  }
+                  @if (f.message) {
+                    <p class="report-finding__msg">{{ f.message }}</p>
+                  }
+                  @if (f.inheritedFrom) {
+                    <p class="report-finding__inherited">Inherited from {{ f.inheritedFrom }}</p>
+                  }
+                  @if (f.remediation) {
+                    <p class="report-finding__rem"><strong>Remediation:</strong> {{ f.remediation }}</p>
+                  }
+                  @if (f.evidence?.length) {
+                    <ul class="report-finding__evidence">
+                      @for (e of f.evidence; track e) {
+                        <li><code>{{ e }}</code></li>
+                      }
+                    </ul>
+                  }
+                </div>
+              }
+            </div>
+          }
+        }
+      </div>
+
+      <div class="modal-footer report-modal__footer">
+        <button class="btn-download-report"
+          [disabled]="complianceReportDownloading()"
+          (click)="downloadComplianceReport($event)">
+          @if (complianceReportDownloading()) {
+            <span class="spinner"></span> Downloading...
+          } @else {
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download Markdown
+          }
+        </button>
       </div>
     </div>
   </div>

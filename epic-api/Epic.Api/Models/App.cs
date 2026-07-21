@@ -16,6 +16,9 @@ public sealed class ManagedApp
     public required string Name { get; set; }
     public string? AppName { get; set; }
     public required string Technology { get; set; }
+    // GitHub org the app's repo lives in (resolved from the app's source), e.g.
+    // "pgetech" or "PGEDigitalCatalyst".
+    public string? GithubOrg { get; set; }
     public string? LastPipelineRun { get; set; }
     public string? Branch { get; set; }
     public int? RunId { get; set; }
@@ -53,6 +56,7 @@ public sealed class PipelineStages
 {
     public RunStatus Prepare { get; set; }
     public RunStatus Download { get; set; }
+    public RunStatus Review { get; set; }
     public RunStatus Build { get; set; }
     public RunStatus Test { get; set; }
     public RunStatus Scan { get; set; }
@@ -83,6 +87,51 @@ public sealed class StageDetail
     public RunStatus Status { get; set; }
     public string? Duration { get; set; }
     public required List<StageJob> Jobs { get; set; }
+}
+
+// Summary view of the compliance-report.json the Review stage produces —
+// the tool version plus the verdict distribution the dashboard renders above
+// the Download Report button.
+public sealed class ComplianceSummary
+{
+    public string? Tool { get; set; }
+    public string? Version { get; set; }
+    public string? SpecSource { get; set; }
+    public string? ScannedAt { get; set; }
+    public int Total { get; set; }
+    public required Dictionary<string, int> ByVerdict { get; set; }
+}
+
+// Full parsed compliance-report.json — the summary plus the app profile and the
+// per-control findings, so the dashboard can render the report natively (grouped
+// findings, verdict pills) instead of re-parsing Markdown.
+public sealed class ComplianceReport
+{
+    public required ComplianceSummary Summary { get; set; }
+    public ComplianceProfile? Profile { get; set; }
+    public required List<ComplianceFinding> Findings { get; set; }
+}
+
+public sealed class ComplianceProfile
+{
+    public List<string>? Kinds { get; set; }
+    public string? AuthModel { get; set; }
+    public string? Idp { get; set; }
+    public string? Narrative { get; set; }
+}
+
+public sealed class ComplianceFinding
+{
+    public required string NistId { get; set; }
+    public string? Title { get; set; }
+    public string? Requirement { get; set; }
+    public required string Verdict { get; set; }
+    public string? Kind { get; set; }
+    public string? Severity { get; set; }
+    public string? Message { get; set; }
+    public string? Remediation { get; set; }
+    public string? InheritedFrom { get; set; }
+    public List<string>? Evidence { get; set; }
 }
 
 public sealed class PipelineRun

@@ -12,6 +12,7 @@ steps:
       scannerMode='CLI'
       testFiles=''
       exclusions=''
+      coverageExclusions=''
       coverageProperty=''
       testExecutionProperty=''
 
@@ -23,6 +24,22 @@ steps:
 
           coverageProperty="sonar.javascript.lcov.reportPaths=.reports/coverage/lcov.info"
           testExecutionProperty="sonar.testExecutionReportPaths=.reports/sonar-test-report.xml"
+          ;;
+
+        karma)
+          # Angular Karma+Jasmine. karma.conf.js emits standard JS lcov to
+          # reports/coverage/lcov.info (copied to .reports by test/karma/main.yml).
+          # karma-coverage produces no test-execution report, so that stays empty.
+          testFiles='**/*.spec.ts'
+          # karma.conf.js is build tooling (not app code); drop it from analysis.
+          exclusions='**/polyfills.ts,**/main.ts,**/*.spec.ts,**/environments/**,**/test.ts,**/karma.conf.js'
+          # Type-only files (interfaces/type aliases) compile to zero JS, so Karma
+          # cannot instrument them and Sonar would count their lines as uncovered.
+          # Exclude them from the coverage metric (they carry no executable logic).
+          coverageExclusions='**/models/*.ts'
+
+          coverageProperty="sonar.javascript.lcov.reportPaths=.reports/coverage/lcov.info"
+          testExecutionProperty=""
           ;;
 
         vitest)
@@ -49,10 +66,25 @@ steps:
           testExecutionProperty=""
           ;;
 
+        gotestsum)
+          testFiles='**/*_test.go'
+          exclusions='**/vendor/**,**/*_test.go'
+
+          coverageProperty="sonar.go.coverage.reportPaths=.reports/coverage.out"
+          testExecutionProperty="sonar.go.tests.reportPaths=.reports/junit.xml"
+          ;;
+
         xunit)
           scannerMode='dotnet'
           testFiles='**/*Tests.cs'
           exclusions='**/*Tests.cs,**/*.g.cs,**/*.generated.cs'
+
+          # Exclude from the COVERAGE metric the app bootstrap (Program.cs — wires
+          # AWS Secrets Manager / RDS, not exercisable in a unit test) and the
+          # EF-generated migrations. Mirrors the test project's <ExcludeByFile> so
+          # the gate's coverage % matches what runs locally. (Still analyzed for
+          # code smells — this only affects the coverage denominator.)
+          coverageExclusions='**/Program.cs,**/Startup/**,**/Migrations/**'
 
           coverageProperty="sonar.cs.opencover.reportsPaths=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/coverage.xml"
           testExecutionProperty="sonar.cs.vstest.reportsPaths=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.reports/tests.trx"
@@ -78,9 +110,14 @@ steps:
         testExecutionProperty=''
       fi
 
+      # Coverage exclusions default to the test files; a tool may add type-only
+      # or generated sources that carry no instrumentable code.
+      coverageExclusions="$testFiles${coverageExclusions:+,$coverageExclusions}"
+
       echo "##vso[task.setvariable variable=scannerMode]$scannerMode"
       echo "##vso[task.setvariable variable=testFiles]$testFiles"
       echo "##vso[task.setvariable variable=exclusions]$exclusions"
+      echo "##vso[task.setvariable variable=coverageExclusions]$coverageExclusions"
       echo "##vso[task.setvariable variable=coverageProperty]$coverageProperty"
       echo "##vso[task.setvariable variable=testExecutionProperty]$testExecutionProperty"
 
@@ -90,7 +127,7 @@ steps:
   #############################################################################
   # SonarQube Prepare (non-dotnet)
   #############################################################################
-  - ${{ if and(ne(parameters.appType, 'dotnet'), ne(parameters.appType, 'dotnet_frame')) }}:
+  - ${{ if and(ne(parameters.appType, 'dotnet'), ne(parameters.appType, 'dotnet_framework')) }}:
     - task: SonarQubePrepare@8
       displayName: "Prepare SonarQube"
       inputs:
@@ -108,19 +145,19 @@ steps:
           sonar.sourceEncoding=UTF-8
           sonar.sources=.
           sonar.test.inclusions=$(testFiles)
-          sonar.coverage.exclusions=$(testFiles)
+          sonar.coverage.exclusions=$(coverageExclusions)
 
           $(coverageProperty)
           $(testExecutionProperty)
 
           sonar.exclusions=**/node_modules/**,**/dist/**,**/bin/**,**/obj/**,**/wwwroot/lib/**,**/jquery*/**,**/*.scss,packages/**/*,Web/**/*.js,**/*.sh,**/*.bash,**/*.ps1,**/*.cmd,**/*.config.js,$(exclusions)
 
-          sonar.python.version=${{ coalesce(parameters.runtimeVersion, variables.defaultRuntimeVersion) }}
+          sonar.python.version=${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}
 
   #############################################################################
   # SonarQube Prepare (dotnet)
   #############################################################################
-  - ${{ if or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_frame')) }}:
+  - ${{ if or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')) }}:
     - task: SonarQubePrepare@8
       displayName: "Prepare SonarQube"
       inputs:
@@ -133,7 +170,17 @@ steps:
         extraProperties: |
           sonar.branch.name=${{ parameters.branch }}
           sonar.sourceEncoding=UTF-8
-          sonar.coverage.exclusions=$(testFiles)
+
+          # Scope analysis to the downloaded app repo (which contains the .sln and
+          # both the app + its test project). Without this, the .NET MSBuild
+          # scanner defaults projectBaseDir to the agent working dir — the
+          # epic-pipeline repo checkout — and sweeps in every pipeline YAML as
+          # "unclaimed" sources, polluting this app's project with hundreds of
+          # findings that belong to epic-pipeline. appName (not appName/codePath)
+          # so a sibling test project under the repo root stays in scope.
+          sonar.projectBaseDir=$(System.DefaultWorkingDirectory)/${{ parameters.appName }}
+
+          sonar.coverage.exclusions=$(coverageExclusions)
 
           $(coverageProperty)
           $(testExecutionProperty)

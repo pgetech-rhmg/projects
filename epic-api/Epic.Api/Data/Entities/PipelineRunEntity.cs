@@ -12,12 +12,13 @@ public sealed class PipelineRunEntity
     public string? Duration { get; set; }
 
     // Stage statuses
-    public string StageBuild { get; set; } = "Skipped";
-    public string StageTest { get; set; } = "Skipped";
-    public string StageScan { get; set; } = "Skipped";
-    public string StageInfraDeploy { get; set; } = "Skipped";
-    public string StageAppDeploy { get; set; } = "Skipped";
-    public string StageIntegrationTest { get; set; } = "Skipped";
+    public string StageReview { get; set; } = StageStatuses.Skipped;
+    public string StageBuild { get; set; } = StageStatuses.Skipped;
+    public string StageTest { get; set; } = StageStatuses.Skipped;
+    public string StageScan { get; set; } = StageStatuses.Skipped;
+    public string StageInfraDeploy { get; set; } = StageStatuses.Skipped;
+    public string StageAppDeploy { get; set; } = StageStatuses.Skipped;
+    public string StageIntegrationTest { get; set; } = StageStatuses.Skipped;
 
     // Navigation
     public AppEntity App { get; set; } = null!;

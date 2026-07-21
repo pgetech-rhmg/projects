@@ -9,10 +9,27 @@ namespace Epic.Api.Controllers;
 public sealed class AppsController : ControllerBase
 {
     private readonly IAppService _appService;
+    private readonly IGitHubSourceRegistry _sources;
 
-    public AppsController(IAppService appService)
+    public AppsController(IAppService appService, IGitHubSourceRegistry sources)
     {
         _appService = appService;
+        _sources = sources;
+    }
+
+    /// <summary>
+    /// List the configured GitHub sources (org + name) the New App flow can pick
+    /// from, and which one is the default. Names, not tokens.
+    /// </summary>
+    [HttpGet("github-sources")]
+    [ProducesResponseType(200)]
+    public IActionResult GetGitHubSources()
+    {
+        var defaultName = _sources.Default.Name;
+        var sources = _sources.All
+            .Select(s => new { name = s.Name, org = s.Org, isDefault = s.Name == defaultName })
+            .ToList();
+        return Ok(new { sources, defaultSource = defaultName });
     }
 
     /// <summary>
@@ -68,17 +85,73 @@ public sealed class AppsController : ControllerBase
     }
 
     /// <summary>
+    /// URL of the SonarQube dashboard for a run's Scan stage, parsed from the
+    /// "Analyze code" step log. 404 when the scan wasn't SonarQube or no URL was
+    /// emitted (failed/non-terminal scan, or Wiz).
+    /// </summary>
+    [HttpGet("{name}/runs/{runId:int}/scan-result-url")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> GetScanResultUrl(string name, int runId, CancellationToken ct)
+    {
+        var url = await _appService.GetScanResultUrlAsync(name, runId, ct);
+        if (url is null) return NotFound();
+        return Ok(new { url });
+    }
+
+    /// <summary>
+    /// Download the Markdown compliance report produced by the Review stage.
+    /// </summary>
+    [HttpGet("{name}/runs/{runId:int}/compliance-report")]
+    [ProducesResponseType(typeof(string), 200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> GetComplianceReport(string name, int runId, CancellationToken ct)
+    {
+        var report = await _appService.GetComplianceReportAsync(name, runId, ct);
+        if (report is null) return NotFound();
+        return Ok(new { report });
+    }
+
+    /// <summary>
+    /// Summary of the structured compliance report (tool version + verdict
+    /// counts) produced by the Review stage, for inline display in the dashboard.
+    /// </summary>
+    [HttpGet("{name}/runs/{runId:int}/compliance-summary")]
+    [ProducesResponseType(typeof(ComplianceSummary), 200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> GetComplianceSummary(string name, int runId, CancellationToken ct)
+    {
+        var summary = await _appService.GetComplianceSummaryAsync(name, runId, ct);
+        if (summary is null) return NotFound();
+        return Ok(summary);
+    }
+
+    /// <summary>
+    /// Full structured compliance report (summary + profile + findings) from the
+    /// Review stage, for native in-app rendering.
+    /// </summary>
+    [HttpGet("{name}/runs/{runId:int}/compliance-report-json")]
+    [ProducesResponseType(typeof(ComplianceReport), 200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> GetComplianceReportJson(string name, int runId, CancellationToken ct)
+    {
+        var report = await _appService.GetComplianceReportJsonAsync(name, runId, ct);
+        if (report is null) return NotFound();
+        return Ok(report);
+    }
+
+    /// <summary>
     /// Check if a GitHub repo can be onboarded into EPIC.
     /// </summary>
     [HttpGet("check")]
     [ProducesResponseType(typeof(RepoCheckResult), 200)]
     [ProducesResponseType(400)]
-    public async Task<IActionResult> CheckRepo([FromQuery] string repo, CancellationToken ct)
+    public async Task<IActionResult> CheckRepo([FromQuery] string repo, [FromQuery] string? source, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(repo))
             return BadRequest(new { error = "repo query parameter is required" });
 
-        var result = await _appService.CheckRepoAsync(repo, ct);
+        var result = await _appService.CheckRepoAsync(repo, source, ct);
         return Ok(result);
     }
 
@@ -88,12 +161,12 @@ public sealed class AppsController : ControllerBase
     [HttpGet("configs")]
     [ProducesResponseType(200)]
     [ProducesResponseType(400)]
-    public async Task<IActionResult> FindConfigs([FromQuery] string repo, [FromQuery] string branch, CancellationToken ct)
+    public async Task<IActionResult> FindConfigs([FromQuery] string repo, [FromQuery] string branch, [FromQuery] string? source, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(repo) || string.IsNullOrWhiteSpace(branch))
             return BadRequest(new { error = "repo and branch query parameters are required" });
 
-        var configs = await _appService.FindConfigsAsync(repo, branch, ct);
+        var configs = await _appService.FindConfigsAsync(repo, branch, source, ct);
         return Ok(new { configs });
     }
 
@@ -103,13 +176,23 @@ public sealed class AppsController : ControllerBase
     [HttpGet("configs/check")]
     [ProducesResponseType(200)]
     [ProducesResponseType(400)]
-    public async Task<IActionResult> CheckConfigInfra([FromQuery] string repo, [FromQuery] string branch, [FromQuery] string config, CancellationToken ct)
+    public async Task<IActionResult> CheckConfigInfra([FromQuery] string repo, [FromQuery] string branch, [FromQuery] string config, [FromQuery] string? source, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(repo) || string.IsNullOrWhiteSpace(branch) || string.IsNullOrWhiteSpace(config))
             return BadRequest(new { error = "repo, branch, and config query parameters are required" });
 
-        var result = await _appService.CheckConfigInfraAsync(repo, branch, config, ct);
-        return Ok(new { hasInfra = result.HasInfra, hasInfraParams = result.HasInfraParams, appType = result.AppType });
+        var result = await _appService.CheckConfigInfraAsync(repo, branch, config, source, ct);
+        return Ok(new
+        {
+            hasInfra = result.HasInfra,
+            hasInfraParams = result.HasInfraParams,
+            appType = result.AppType,
+            buildTestTool = result.BuildTestTool,
+            scanTool = result.ScanTool,
+            integrationTestTool = result.IntegrationTestTool,
+            hasS3Backend = result.HasS3Backend,
+            hasTfState = result.HasTfState
+        });
     }
 
     /// <summary>
@@ -122,7 +205,7 @@ public sealed class AppsController : ControllerBase
     {
         try
         {
-            var app = await _appService.OnboardAppAsync(request.Repo, ct);
+            var app = await _appService.OnboardAppAsync(request.Repo, request.Source, ct);
             return CreatedAtAction(nameof(GetApp), new { name = app.Name }, app);
         }
         catch (KeyNotFoundException ex)
@@ -147,8 +230,9 @@ public sealed class AppsController : ControllerBase
         {
             var result = await _appService.TriggerRunAsync(
                 name, request.Branch, request.Environment, request.Config,
-                request.Build, request.Tests, request.Scan,
-                request.Deploy, request.Integrations, request.DeployInfra, ct);
+                request.ReviewOrDefault, request.BuildOrDefault, request.TestsOrDefault, request.ScanOrDefault,
+                request.DeployOrDefault, request.IntegrationsOrDefault, request.DeployInfra,
+                request.ForceStateCopyOrDefault, ct);
             return Accepted(result);
         }
         catch (KeyNotFoundException)
