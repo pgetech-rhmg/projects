@@ -2,6 +2,18 @@ using Epic.Api.Models;
 
 namespace Epic.Api.Services;
 
+/// <summary>
+/// Thrown when an Azure DevOps REST call returns a non-success status. Distinct
+/// type so the exception middleware maps it to 502 Bad Gateway (an upstream
+/// failure) rather than 500 (which wrongly implies epic-api itself is broken).
+/// Carries the upstream status so the response body can report it.
+/// </summary>
+public sealed class AdoUpstreamException(int upstreamStatus, string body)
+    : Exception($"ADO API returned {upstreamStatus}: {body}")
+{
+    public int UpstreamStatus { get; } = upstreamStatus;
+}
+
 public sealed class AdoPipelineRun
 {
     public int Id { get; set; }

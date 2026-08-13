@@ -2,66 +2,167 @@ steps:
 
   ###########################################################################
   # Read Azure Cloud Config
+  #
+  # Runs under the app's service connection so the SUBSCRIPTION comes from the
+  # connection itself (`az account show`) — epic.json never restates it. The
+  # connection is already resolved per-environment in the orchestrator, so the
+  # active subscription automatically tracks the target env (nonprod connection
+  # -> nonprod sub, prod connection -> prod sub). epic.json carries only what the
+  # connection can't: region, the per-env resource group, state overrides, and
+  # the optional container-image block.
   ###########################################################################
-  - bash: |
-      set -euo pipefail
-
-      CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
-
-      echo ">> Reading Azure cloud config"
-
-      SUBSCRIPTION_ID=$(jq -r '.cloud.azureSubscriptionId' "$CONFIG")
-      AZURE_REGION=$(jq -r '.cloud.azureRegion // "westus2"' "$CONFIG")
-
-      if [ -z "$SUBSCRIPTION_ID" ] || [ "$SUBSCRIPTION_ID" = "null" ]; then
-        echo "##vso[task.logissue type=error]cloud.azureSubscriptionId is required in epic.json"
-        exit 1
-      fi
-
-      # Terraform remote-state home — per-SUBSCRIPTION convention, all three
-      # overridable in epic.json but rarely needed:
-      #   • account: "epictfstate<first-8-of-subscription-id>" (globally-unique,
-      #     lowercase-alphanumeric, <=24 chars). One state account per sub holds
-      #     every app's state in that sub — the state KEY already namespaces per
-      #     app (<sub>/<appName>-<appType>/<env>/...). Because init runs under
-      #     this app's own service connection, it authenticates to an account in
-      #     the app's OWN tenant — which is what makes cross-tenant deploys work.
-      #   • RG: "rg-epic-tfstate"; container: "tfstate".
-      # Create one such account per subscription out of band (see the state
-      # bootstrap in the app's access-request doc). Override any of the three in
-      # epic.json only for a non-conventional setup.
-      SUB_FRAGMENT=$(echo "$SUBSCRIPTION_ID" | tr -d '-' | cut -c1-8)
-      STATE_RG=$(jq -r '.cloud.stateResourceGroup // "rg-epic-tfstate"' "$CONFIG")
-      STATE_SA=$(jq -r --arg d "epictfstate${SUB_FRAGMENT}" '.cloud.stateStorageAccount // $d' "$CONFIG")
-      STATE_CONTAINER=$(jq -r '.cloud.stateContainer // "tfstate"' "$CONFIG")
-
-      echo "##vso[task.setvariable variable=CLOUD_AZURE_SUBSCRIPTION_ID]$SUBSCRIPTION_ID"
-      echo "##vso[task.setvariable variable=CLOUD_AZURE_REGION]$AZURE_REGION"
-      echo "##vso[task.setvariable variable=TF_STATE_RG]$STATE_RG"
-      echo "##vso[task.setvariable variable=TF_STATE_SA]$STATE_SA"
-      echo "##vso[task.setvariable variable=TF_STATE_CONTAINER]$STATE_CONTAINER"
-
-      # Optional container-image build. When cloud.containerImage is present, the
-      # apply is STAGED so a container app can reference an image built during the
-      # same run (chicken-and-egg): apply the registry target first, `az acr build`
-      # the image, then full apply passing the built tag into a TF variable. When
-      # absent, IMAGE_BUILD=false and the apply is a normal single pass — apps that
-      # don't build an image are completely unaffected. Nothing here is app-specific;
-      # every field comes from epic.json.
-      CI=$(jq -r '.cloud.containerImage // empty' "$CONFIG")
-      if [ -n "$CI" ]; then
-        echo "##vso[task.setvariable variable=IMAGE_BUILD]true"
-        echo "##vso[task.setvariable variable=IMG_REGISTRY_TARGET]$(jq -r '.cloud.containerImage.registryTarget' "$CONFIG")"
-        echo "##vso[task.setvariable variable=IMG_REGISTRY_OUTPUT]$(jq -r '.cloud.containerImage.registryOutput' "$CONFIG")"
-        echo "##vso[task.setvariable variable=IMG_DOCKERFILE]$(jq -r '.cloud.containerImage.dockerfile // "Dockerfile"' "$CONFIG")"
-        echo "##vso[task.setvariable variable=IMG_CONTEXT]$(jq -r '.cloud.containerImage.context // "."' "$CONFIG")"
-        echo "##vso[task.setvariable variable=IMG_TARGET]$(jq -r '.cloud.containerImage.target // empty' "$CONFIG")"
-        echo "##vso[task.setvariable variable=IMG_NAME]$(jq -r '.cloud.containerImage.imageName' "$CONFIG")"
-        echo "##vso[task.setvariable variable=IMG_TAG_VAR]$(jq -r '.cloud.containerImage.tagVariable' "$CONFIG")"
-      else
-        echo "##vso[task.setvariable variable=IMAGE_BUILD]false"
-      fi
+  - task: AzureCLI@2
     displayName: 'Read Azure cloud config'
+    inputs:
+      azureSubscription: ${{ parameters.azureServiceConnection }}
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        set -euo pipefail
+
+        CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
+        ENVIRONMENT="${{ parameters.environment }}"
+
+        echo ">> Reading Azure cloud config"
+
+        # Subscription comes from the service connection, not epic.json.
+        SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+        if [ -z "$SUBSCRIPTION_ID" ]; then
+          echo "##vso[task.logissue type=error]Could not resolve the subscription from service connection '${{ parameters.azureServiceConnection }}'"
+          exit 1
+        fi
+        echo ">> Subscription (from connection): $SUBSCRIPTION_ID"
+
+        AZURE_REGION=$(jq -r --arg env "$ENVIRONMENT" \
+          '(.cloud.environments[$env].azureRegion)
+           // .cloud.azureRegion // "westus2"' "$CONFIG")
+
+        # Resource group — genuinely per-environment and NOT carried by the
+        # connection, so it lives in epic.json. Per-env map first, then a flat
+        # cloud.resourceGroupName, else empty (the .infra's own default applies).
+        RESOURCE_GROUP=$(jq -r --arg env "$ENVIRONMENT" \
+          '(.cloud.environments[$env].resourceGroup)
+           // .cloud.resourceGroupName // empty' "$CONFIG")
+
+        # Terraform remote-state home — per-SUBSCRIPTION convention, all three
+        # overridable in epic.json but rarely needed:
+        #   • account: "epictfstate<first-8-of-subscription-id>" (globally-unique,
+        #     lowercase-alphanumeric, <=24 chars). One state account per sub holds
+        #     every app's state in that sub — the state KEY already namespaces per
+        #     app (<sub>/<appName>-<appType>/<env>/...). Because init runs under
+        #     this app's own service connection, it authenticates to an account in
+        #     the app's OWN tenant — which is what makes cross-tenant deploys work.
+        #   • RG: "rg-epic-tfstate"; container: "tfstate".
+        # Create one such account per subscription out of band (see the state
+        # bootstrap in the app's access-request doc). Override any of the three in
+        # epic.json only for a non-conventional setup. Overrides resolve per-env
+        # first, then flat, then convention.
+        SUB_FRAGMENT=$(echo "$SUBSCRIPTION_ID" | tr -d '-' | cut -c1-8)
+        STATE_RG=$(jq -r --arg env "$ENVIRONMENT" \
+          '(.cloud.environments[$env].stateResourceGroup) // .cloud.stateResourceGroup // "rg-epic-tfstate"' "$CONFIG")
+        STATE_SA=$(jq -r --arg env "$ENVIRONMENT" --arg d "epictfstate${SUB_FRAGMENT}" \
+          '(.cloud.environments[$env].stateStorageAccount) // .cloud.stateStorageAccount // $d' "$CONFIG")
+        STATE_CONTAINER=$(jq -r --arg env "$ENVIRONMENT" \
+          '(.cloud.environments[$env].stateContainer) // .cloud.stateContainer // "tfstate"' "$CONFIG")
+
+        echo "##vso[task.setvariable variable=CLOUD_AZURE_SUBSCRIPTION_ID]$SUBSCRIPTION_ID"
+        echo "##vso[task.setvariable variable=CLOUD_AZURE_REGION]$AZURE_REGION"
+        echo "##vso[task.setvariable variable=CLOUD_RESOURCE_GROUP]$RESOURCE_GROUP"
+        echo "##vso[task.setvariable variable=TF_STATE_RG]$STATE_RG"
+        echo "##vso[task.setvariable variable=TF_STATE_SA]$STATE_SA"
+        echo "##vso[task.setvariable variable=TF_STATE_CONTAINER]$STATE_CONTAINER"
+
+        # Opt-in state backend self-bootstrap. When cloud.bootstrapState is true
+        # (flat or per-env), an idempotent az step before `terraform init` ENSURES
+        # the state RG + storage account + container exist — creating them on the
+        # first run and no-oping on every run thereafter, so the first run and the
+        # 100th run are identical with no out-of-band setup. Default false keeps the
+        # pre-created (out-of-band) model for existing apps unchanged. Requires the
+        # SPN to have control-plane rights (Contributor on the sub or the state RG),
+        # broader than the data-plane-only access the pre-created model needs.
+        BOOTSTRAP_STATE=$(jq -r --arg env "$ENVIRONMENT" \
+          '((.cloud.environments[$env].bootstrapState) // .cloud.bootstrapState // false) | tostring' "$CONFIG")
+        echo "##vso[task.setvariable variable=BOOTSTRAP_STATE]$BOOTSTRAP_STATE"
+
+        # Optional container-image build. When cloud.containerImage is present, the
+        # apply is STAGED so a container app can reference an image built during the
+        # same run (chicken-and-egg): apply the registry target first, `az acr build`
+        # the image, then full apply passing the built tag into a TF variable. When
+        # absent, IMAGE_BUILD=false and the apply is a normal single pass — apps that
+        # don't build an image are completely unaffected. Nothing here is app-specific;
+        # every field comes from epic.json.
+        CI=$(jq -r '.cloud.containerImage // empty' "$CONFIG")
+        if [ -n "$CI" ]; then
+          echo "##vso[task.setvariable variable=IMAGE_BUILD]true"
+          echo "##vso[task.setvariable variable=IMG_REGISTRY_TARGET]$(jq -r '.cloud.containerImage.registryTarget' "$CONFIG")"
+          echo "##vso[task.setvariable variable=IMG_REGISTRY_OUTPUT]$(jq -r '.cloud.containerImage.registryOutput' "$CONFIG")"
+          echo "##vso[task.setvariable variable=IMG_DOCKERFILE]$(jq -r '.cloud.containerImage.dockerfile // "Dockerfile"' "$CONFIG")"
+          echo "##vso[task.setvariable variable=IMG_CONTEXT]$(jq -r '.cloud.containerImage.context // "."' "$CONFIG")"
+          echo "##vso[task.setvariable variable=IMG_TARGET]$(jq -r '.cloud.containerImage.target // empty' "$CONFIG")"
+          echo "##vso[task.setvariable variable=IMG_NAME]$(jq -r '.cloud.containerImage.imageName' "$CONFIG")"
+          echo "##vso[task.setvariable variable=IMG_TAG_VAR]$(jq -r '.cloud.containerImage.tagVariable' "$CONFIG")"
+        else
+          echo "##vso[task.setvariable variable=IMAGE_BUILD]false"
+        fi
+
+  ###########################################################################
+  # Bootstrap State Backend (opt-in, idempotent)
+  #
+  # Runs only when cloud.bootstrapState is true. ENSURES the Terraform state
+  # RG + storage account + container exist so `terraform init` has a backend to
+  # connect to — creating them on the first run and no-oping thereafter (first
+  # run == 100th run). The state storage is managed imperatively here, NOT by
+  # Terraform — it is where Terraform state lives, so it cannot itself be in
+  # state (the backend chicken-and-egg). When the flag is false (default) this
+  # step is skipped and the account is expected to already exist (out of band).
+  ###########################################################################
+  - task: AzureCLI@2
+    displayName: 'Bootstrap State Backend'
+    condition: eq(variables['BOOTSTRAP_STATE'], 'true')
+    inputs:
+      azureSubscription: ${{ parameters.azureServiceConnection }}
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        set -euo pipefail
+
+        RG="$(TF_STATE_RG)"
+        SA="$(TF_STATE_SA)"
+        CONTAINER="$(TF_STATE_CONTAINER)"
+        REGION="$(CLOUD_AZURE_REGION)"
+
+        echo ">> Ensuring Terraform state backend exists (idempotent): RG=$RG SA=$SA container=$CONTAINER region=$REGION"
+
+        # Resource group — create if absent.
+        if [ "$(az group exists --name "$RG")" != "true" ]; then
+          echo ">> Creating resource group $RG"
+          az group create --name "$RG" --location "$REGION" --output none
+        else
+          echo ">> Resource group $RG already exists"
+        fi
+
+        # Storage account — names are globally unique, so a create attempt can
+        # fail because it exists (ours or someone else's). Check existence in our
+        # RG first; create only if missing.
+        if az storage account show --name "$SA" --resource-group "$RG" --output none 2>/dev/null; then
+          echo ">> Storage account $SA already exists"
+        else
+          echo ">> Creating storage account $SA"
+          az storage account create \
+            --name "$SA" --resource-group "$RG" --location "$REGION" \
+            --sku Standard_LRS --min-tls-version TLS1_2 \
+            --allow-blob-public-access false --output none
+        fi
+
+        # Container — create if absent (login/AAD auth, matching the backend).
+        if [ "$(az storage container exists --name "$CONTAINER" --account-name "$SA" --auth-mode login --query exists -o tsv)" != "true" ]; then
+          echo ">> Creating container $CONTAINER"
+          az storage container create --name "$CONTAINER" --account-name "$SA" --auth-mode login --output none
+        else
+          echo ">> Container $CONTAINER already exists"
+        fi
+
+        echo ">> State backend ready."
 
   ###########################################################################
   # Init (Storage Account backend)
@@ -132,11 +233,17 @@ steps:
           export ARM_TENANT_ID=$tenantId
           export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
 
+          # Pass the per-env resource group only when epic.json set one; otherwise
+          # the .infra's own resource_group_name default applies.
+          RG_ARG=""
+          if [ -n "$(CLOUD_RESOURCE_GROUP)" ]; then RG_ARG="-var=resource_group_name=$(CLOUD_RESOURCE_GROUP)"; fi
+
           terraform plan \
             -var="subscription_id=$(CLOUD_AZURE_SUBSCRIPTION_ID)" \
             -var="tenant_id=$tenantId" \
             -var="environment=${{ parameters.environment }}" \
             -var="azure_region=$(CLOUD_AZURE_REGION)" \
+            $RG_ARG \
             -out=tfplan
 
   - ${{ if eq(parameters.terraformAction, 'apply') }}:
@@ -158,6 +265,11 @@ steps:
           export ARM_TENANT_ID=$tenantId
           export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
 
+          # Pass the per-env resource group only when epic.json set one; otherwise
+          # the .infra's own resource_group_name default applies.
+          RG_ARG=""
+          if [ -n "$(CLOUD_RESOURCE_GROUP)" ]; then RG_ARG="-var=resource_group_name=$(CLOUD_RESOURCE_GROUP)"; fi
+
           if [ "$(IMAGE_BUILD)" == "true" ]; then
             # ---- Staged apply: build the image mid-apply so the container app
             #      references a real image (chicken-and-egg). All inputs from
@@ -174,6 +286,7 @@ steps:
               -var="tenant_id=$tenantId" \
               -var="environment=${{ parameters.environment }}" \
               -var="azure_region=$(CLOUD_AZURE_REGION)" \
+              $RG_ARG \
               -var="$(IMG_TAG_VAR)=${IMAGE_TAG}"
 
             LOGIN_SERVER=$(terraform output -raw "$(IMG_REGISTRY_OUTPUT)")
@@ -198,6 +311,7 @@ steps:
               -var="tenant_id=$tenantId" \
               -var="environment=${{ parameters.environment }}" \
               -var="azure_region=$(CLOUD_AZURE_REGION)" \
+              $RG_ARG \
               -var="$(IMG_TAG_VAR)=${IMAGE_TAG}"
           else
             # Normal single-pass apply (no image build).
@@ -235,11 +349,15 @@ steps:
           export ARM_TENANT_ID=$tenantId
           export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
 
+          RG_ARG=""
+          if [ -n "$(CLOUD_RESOURCE_GROUP)" ]; then RG_ARG="-var=resource_group_name=$(CLOUD_RESOURCE_GROUP)"; fi
+
           terraform plan -destroy \
             -var="subscription_id=$(CLOUD_AZURE_SUBSCRIPTION_ID)" \
             -var="tenant_id=$tenantId" \
             -var="environment=${{ parameters.environment }}" \
             -var="azure_region=$(CLOUD_AZURE_REGION)" \
+            $RG_ARG \
             -out=tfplan-destroy
 
     - task: AzureCLI@2

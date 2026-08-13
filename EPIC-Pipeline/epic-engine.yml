@@ -133,7 +133,7 @@ variables:
     value: "pgetech"
 
   - name: defaultRuntimeVersion
-    ${{ if or(eq(parameters.appType, 'angular'), eq(parameters.appType, 'react'), eq(parameters.appType, 'html'), eq(parameters.appType, 'cap')) }}:
+    ${{ if or(eq(parameters.appType, 'angular'), eq(parameters.appType, 'react'), eq(parameters.appType, 'html'), eq(parameters.appType, 'cap'), eq(parameters.appType, 'node')) }}:
       value: "20"
     ${{ elseif or(eq(parameters.appType, 'dotnet'), eq(parameters.appType, 'dotnet_framework')) }}:
       value: "9.x"

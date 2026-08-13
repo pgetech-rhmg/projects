@@ -16,6 +16,15 @@ namespace Epic.Api.Services;
 /// <param name="TokenKey">Configuration key holding the PAT for this source.</param>
 public sealed record GitHubSource(string Name, string ApiBase, string Org, string TokenKey);
 
+/// <summary>
+/// Thrown when a request names a GitHub source that isn't configured. Distinct
+/// from a generic <see cref="InvalidOperationException"/> so the exception
+/// middleware can map it to a 400 (bad client input) rather than a 500 — the
+/// <c>?source=</c> query param is user-controlled.
+/// </summary>
+public sealed class UnknownGitHubSourceException(string name)
+    : Exception($"Unknown GitHub source '{name}'.");
+
 public interface IGitHubSourceRegistry
 {
     /// <summary>The source used when an app/request doesn't name one (legacy behavior).</summary>
@@ -106,7 +115,7 @@ public sealed class GitHubSourceRegistry : IGitHubSourceRegistry
                 // legacy apps keep resolving to the original org.
                 : name.Equals("default", StringComparison.OrdinalIgnoreCase)
                     ? _default
-                    : throw new InvalidOperationException($"Unknown GitHub source '{name}'.");
+                    : throw new UnknownGitHubSourceException(name);
 
     public IReadOnlyCollection<GitHubSource> All => _sources.Values;
 }

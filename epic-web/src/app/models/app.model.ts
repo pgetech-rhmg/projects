@@ -99,6 +99,7 @@ export interface AppDetail {
   github: {
     repo: string;
     branch: string;
+    source?: string | null;
   };
   hasInfra: boolean;
   aws?: {

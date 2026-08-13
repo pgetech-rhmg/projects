@@ -146,6 +146,30 @@ func TestPresenceAbsentFailHasLocation(t *testing.T) {
 	}
 }
 
+// TestSC08DetectsIaCTls guards the pure-IaC false-positive fix: SC-08 (TLS in
+// transit) must recognize edge TLS termination declared in Terraform (an HTTPS
+// listener / ssl_policy), not just in-app TLS. Before the fix its file/mechanism
+// patterns only covered app source (.ts/.go/...), so a Terraform-only repo with
+// a valid HTTPS listener would false-FAIL a HARD control.
+func TestSC08DetectsIaCTls(t *testing.T) {
+	// A Terraform HTTPS listener — legitimate edge TLS termination.
+	iacTls := fakeRepo{present: map[string]bool{
+		`protocol = "HTTPS"`: true,
+		"ssl_policy":         true,
+	}}
+	f := ruleFor("SC-08-00").Evaluate(context.Background(), iacTls, nil)
+	if f.Verdict == model.VerdictFail {
+		t.Fatalf("SC-08-00 with an IaC HTTPS listener must NOT FAIL, got %s", f.Verdict)
+	}
+
+	// No TLS anywhere (plain HTTP only) — a genuine gap, must still FAIL.
+	noTls := fakeRepo{present: map[string]bool{`protocol = "HTTP"`: true}}
+	f = ruleFor("SC-08-00").Evaluate(context.Background(), noTls, nil)
+	if f.Verdict != model.VerdictFail {
+		t.Fatalf("SC-08-00 with no TLS (HTTP only) must FAIL, got %s", f.Verdict)
+	}
+}
+
 func hasAnchorOrScope(f model.Finding) bool {
 	if f.SearchScope != nil {
 		return true

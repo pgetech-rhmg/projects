@@ -44,6 +44,10 @@ public sealed class GitHubInfo
 {
     public required string Repo { get; set; }
     public string? Branch { get; set; }
+    // Registered GitHub source NAME (not the display org) so the client can pass
+    // it back to source-scoped endpoints (configs, configs/check) that call
+    // GitHub directly and would otherwise fall back to the default org.
+    public string? Source { get; set; }
 }
 
 public sealed class RepoCheckResult

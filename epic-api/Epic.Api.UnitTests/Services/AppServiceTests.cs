@@ -151,6 +151,27 @@ public sealed class AppServiceTests
         Assert.Null(detail.SuccessRate);
     }
 
+    [Fact]
+    public async Task GetApp_AdoUnavailable_ServesStaleData_NoThrow()
+    {
+        // ADO down must not 500 the app detail (which the browser would report as
+        // a phantom CORS error) — serve the stored technology instead.
+        using var db = TestData.NewDb();
+        db.Apps.Add(TestData.NewApp("epic-web", id: 1));
+        await db.SaveChangesAsync();
+
+        _gitHub.Setup(g => g.GetRepoAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GitHubRepoInfo { Exists = false });
+        _ado.Setup(a => a.GetCompletedRunCountsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Stats(0, 0, TimeSpan.Zero));
+        _ado.Setup(a => a.GetRecentRunsForAppAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("ADO down"));
+
+        var detail = await Make(db).GetAppAsync("epic-web");   // must not throw
+        Assert.NotNull(detail);
+        Assert.Equal("-", detail!.Technology);   // no latest run → dash, stale-safe
+    }
+
     // ---- GetRunsPageAsync ----
 
     [Fact]
@@ -307,6 +328,24 @@ public sealed class AppServiceTests
         await Assert.ThrowsAsync<KeyNotFoundException>(() => Make(db).AddToMyAppsAsync("missing"));
     }
 
+    [Fact]
+    public async Task AddToMyApps_AlreadyInPortfolio_IsNoOp_NoDuplicateJoin()
+    {
+        // Re-adding an app already in the portfolio must not violate the
+        // (UserId, AppId) unique index (would be an unhandled 500 / phantom CORS).
+        using var db = TestData.NewDb();
+        db.Apps.Add(TestData.NewApp("epic-web", id: 1));
+        db.UserApps.Add(new UserAppEntity { UserId = "rhmg", AppId = 1 });
+        await db.SaveChangesAsync();
+        _ado.Setup(a => a.GetRecentRunsForAppAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        _ado.Setup(a => a.GetCompletedRunCountsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(Stats(0, 0, TimeSpan.Zero));
+
+        var result = await Make(db).AddToMyAppsAsync("epic-web");   // must not throw
+
+        Assert.Equal("epic-web", result.Name);
+        Assert.Equal(1, db.UserApps.Count(ua => ua.UserId == "rhmg" && ua.AppId == 1));
+    }
+
     // ---- OnboardAppAsync ----
 
     [Fact]
@@ -350,6 +389,45 @@ public sealed class AppServiceTests
 
         var detail = await Make(db).OnboardAppAsync("r");
         Assert.Equal("unknown", detail.AppType);   // null language → Unknown → unknown
+    }
+
+    [Fact]
+    public async Task OnboardApp_ReAddAfterRemove_ReusesCatalogEntry_NoDuplicate()
+    {
+        // Repro of the "remove from portfolio then add back" 500: the catalog row
+        // survives removal, so a second onboard must reuse it (not insert a
+        // duplicate that violates the Name / (GithubSource,GithubRepo) indexes).
+        using var db = TestData.NewDb();
+        _gitHub.Setup(g => g.GetRepoAsync("New-Repo", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GitHubRepoInfo { Exists = true, Language = "C#", DefaultBranch = "develop", Description = "d" });
+        _gitHub.Setup(g => g.PathExistsAsync("New-Repo", ".infra", "develop", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _ado.Setup(a => a.GetRecentRunsForAppAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
+
+        await Make(db).OnboardAppAsync("New-Repo");
+        await Make(db).RemoveFromMyAppsAsync("new-repo");
+        var detail = await Make(db).OnboardAppAsync("New-Repo");   // must not throw
+
+        Assert.Equal("new-repo", detail.Name);
+        Assert.Equal(1, db.Apps.Count(a => a.Name == "new-repo"));   // still one catalog row
+        Assert.Equal(1, db.UserApps.Count(ua => ua.UserId == "rhmg"));   // re-attached exactly once
+    }
+
+    [Fact]
+    public async Task OnboardApp_AlreadyInPortfolio_IsNoOp_NoDuplicateJoin()
+    {
+        using var db = TestData.NewDb();
+        _gitHub.Setup(g => g.GetRepoAsync("New-Repo", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GitHubRepoInfo { Exists = true, Language = "C#", DefaultBranch = "develop", Description = "d" });
+        _gitHub.Setup(g => g.PathExistsAsync("New-Repo", ".infra", "develop", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _ado.Setup(a => a.GetRecentRunsForAppAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
+
+        await Make(db).OnboardAppAsync("New-Repo");
+        await Make(db).OnboardAppAsync("New-Repo");   // onboard twice without removing
+
+        Assert.Equal(1, db.Apps.Count(a => a.Name == "new-repo"));
+        Assert.Equal(1, db.UserApps.Count(ua => ua.UserId == "rhmg"));
     }
 
     // ---- RemoveFromMyAppsAsync ----

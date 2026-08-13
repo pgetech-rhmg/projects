@@ -6,8 +6,14 @@ resource "azurerm_container_app_environment" "this" {
   log_analytics_workspace_id = var.log_analytics_workspace_id
 
   # When set, the environment is VNet-injected into this (delegated) subnet.
+  # azurerm requires infrastructure_subnet_id and internal_load_balancer_enabled
+  # to be specified TOGETHER — passing the LB flag (even = false) without a
+  # subnet fails with "all of infrastructure_subnet_id,internal_load_balancer_enabled
+  # must be specified". So only emit the LB flag when a subnet is present;
+  # otherwise pass null, which Terraform treats as unset (public/Azure-managed
+  # network, the default for apps that don't VNet-inject).
   infrastructure_subnet_id       = var.infrastructure_subnet_id
-  internal_load_balancer_enabled = var.internal_load_balancer_enabled
+  internal_load_balancer_enabled = var.infrastructure_subnet_id != null ? var.internal_load_balancer_enabled : null
 
   tags = var.tags
 }

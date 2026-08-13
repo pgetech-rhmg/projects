@@ -1016,7 +1016,11 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
             summaryEl.TryGetProperty("byVerdict", out var by) && by.ValueKind == JsonValueKind.Object)
         {
             foreach (var prop in by.EnumerateObject())
-                counts[prop.Name] = prop.Value.GetInt32();
+            {
+                // Skip a non-numeric verdict count rather than throwing (format drift).
+                if (prop.Value.ValueKind == JsonValueKind.Number && prop.Value.TryGetInt32(out var n))
+                    counts[prop.Name] = n;
+            }
         }
 
         return new ComplianceSummary
@@ -1025,7 +1029,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
             Version = GetStringOrNull(metadata, "version"),
             SpecSource = GetStringOrNull(metadata, "specSource"),
             ScannedAt = GetStringOrNull(metadata, "scannedAt"),
-            Total = summaryEl.ValueKind == JsonValueKind.Object && summaryEl.TryGetProperty("total", out var t) ? t.GetInt32() : 0,
+            Total = GetIntOrDefault(summaryEl, "total"),
             ByVerdict = counts,
         };
     }
@@ -1098,6 +1102,18 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
 
     private static string? GetStringOrNull(JsonElement obj, string name)
         => obj.ValueKind == JsonValueKind.Object && obj.TryGetProperty(name, out var v) ? v.GetString() : null;
+
+    // Reads an integer only when the token is actually a JSON number. A present-
+    // but-non-numeric value (format drift in compliance.json) would otherwise
+    // make GetInt32 throw InvalidOperationException/FormatException, which
+    // escapes the JsonException-only catch in the report parser and 500s.
+    private static int GetIntOrDefault(JsonElement obj, string name, int fallback = 0)
+        => obj.ValueKind == JsonValueKind.Object
+            && obj.TryGetProperty(name, out var v)
+            && v.ValueKind == JsonValueKind.Number
+            && v.TryGetInt32(out var i)
+                ? i
+                : fallback;
 
     // Resolves the "epic-compliance-review" build artifact, downloads the zip
     // container, and returns the first entry with the given extension's text.
@@ -1278,7 +1294,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         var body = await response.Content.ReadAsStringAsync(ct);
 
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"ADO API returned {(int)response.StatusCode}: {body}");
+            throw new AdoUpstreamException((int)response.StatusCode, body);
 
         var result = JsonDocument.Parse(body).RootElement;
         var runId = result.GetProperty("id").GetInt32();
@@ -1316,7 +1332,7 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
                 return;
             }
 
-            throw new InvalidOperationException($"ADO API returned {(int)response.StatusCode}: {body}");
+            throw new AdoUpstreamException((int)response.StatusCode, body);
         }
     }
 

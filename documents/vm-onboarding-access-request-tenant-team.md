@@ -1,28 +1,34 @@
-# Access Request — External-Tenant Team (`pgeextdirdev.onmicrosoft.com`)
+# Access Request — External-Tenant Team (`PGEEXTDIR`)
 
-**For:** the team that owns the external tenant `pgeextdirdev.onmicrosoft.com` — subscription `dfb05368-7ac8-4c52-8da6-c979315bbb7b`, its RBAC, the Entra app registration, and the resources in it.
+**For:** the team that owns the **PGEEXTDIR** external tenant (Directory ID `0ec5ddf3-8577-4207-9beb-26b37ec9b44b`) — its two subscriptions, their RBAC, the Entra app registration, and the resources in them.
 **Requestor:** _(your name / LANID)_
-**Context:** the VEG Onboarding Portal (app + Azure infra) will deploy through an automated CI/CD pipeline (Azure DevOps + Terraform). The pipeline authenticates as a **service principal**. Below is everything I need from **your** team. (Two adjacent asks go to other teams — the Azure DevOps service connection to the ADO team, and nothing else — those are not in this document.)
+**Context:** the VEG Onboarding Portal (app + Azure infra) deploys through an automated CI/CD pipeline (Azure DevOps + Terraform). The pipeline authenticates as a **service principal**. It runs across **two subscriptions** in this tenant — a **nonprod** sub (environments dev, qa) and a **prod** sub (environments uat, prod) — each with its own resource groups. Below is everything I need from **your** team. (The two ADO service connections go to the ADO team in a separate doc.)
 
-**Target subscription:** `dfb05368-7ac8-4c52-8da6-c979315bbb7b`
-**Target resource group:** `OnboardXAppResGrp` (already exists)
+**Tenant (Directory ID):** `0ec5ddf3-8577-4207-9beb-26b37ec9b44b`
+
+| | Nonprod subscription | Prod subscription |
+|---|---|---|
+| **Subscription ID** | _(please provide)_ | _(please provide)_ |
+| **Resource groups (pre-existing)** | `rg-veg-dev`, `rg-veg-qa` | `rg-veg-uat`, `rg-veg-prod` |
+
+> The infra reads each resource group as an existing data source — it does **not** create them. Please ensure all four RGs exist.
 
 ---
 
-## 1. A service principal for the pipeline
+## 1. A service principal for the pipeline (one SPN, roles on both subscriptions)
 
-Please create an Entra **app registration + service principal** (or grant me **Application Developer** and I'll create it), and assign it these roles **scoped to subscription `dfb05368-…`**:
+A **single** Entra app registration + service principal is used for the pipeline across **both** subscriptions (client ID `0e115603-675d-4c4f-b347-40595d06b6a5`). Please assign it these roles **on each of the two subscriptions** (nonprod and prod):
 
 | Role | Why |
 |---|---|
-| **Contributor** | Create/manage all resources: Azure Container Registry, Container App + environment, PostgreSQL Flexible Server, Key Vault, 2 storage accounts, VNet/subnet/public IP, Application Gateway, Log Analytics, Communication Services. |
+| **Contributor** | Create/manage all resources: Azure Container Registry, Container App + environment, PostgreSQL Flexible Server, Key Vault, storage accounts, VNet/subnet/public IP, Application Gateway, Log Analytics, Communication Services. |
 | **Role Based Access Control Administrator** (or **User Access Administrator**) | The deploy assigns roles to a managed identity it creates (`AcrPull`, `Key Vault Secrets User`). Contributor alone cannot create role assignments. |
-| **Key Vault Secrets Officer** | The vault uses RBAC authorization. The pipeline reads pre-loaded secrets (e.g. the DB password) and writes back the connection strings it derives. This covers secret read+write; it does **not** need Key Vault Administrator. |
-| **Storage Blob Data Contributor** on the Terraform state storage account (see §3) | The pipeline reads/writes Terraform state on every run. |
+| **Key Vault Secrets Officer** | The vault uses RBAC authorization. The pipeline reads pre-loaded secrets (e.g. the DB password) and writes back the connection strings it derives. Secret read+write; does **not** need Key Vault Administrator. |
+| *(Terraform state — no extra role)* | State lives inside each app RG (see §3), so the Contributor above already covers creating + reading + writing it. No separate state role or state RG. |
 
-> If simpler, **Owner** on the subscription covers Contributor + role assignments — **but Owner still does NOT grant Key Vault data-plane access**, so **Key Vault Secrets Officer must be granted in addition** regardless.
+> If simpler, **Owner** on each subscription covers Contributor + role assignments — **but Owner still does NOT grant Key Vault data-plane access**, so **Key Vault Secrets Officer must be granted in addition** regardless.
 
-**Please send me:** Application (client) ID, Client secret, Directory (tenant) ID, Subscription ID.
+**Please send me:** the SPN's Client secret (client ID `0e115603-…` already provided), and **both** Subscription IDs (nonprod + prod). Tenant/Directory ID is `0ec5ddf3-8577-4207-9beb-26b37ec9b44b`.
 
 ---
 
@@ -30,7 +36,7 @@ Please create an Entra **app registration + service principal** (or grant me **A
 
 The application calls Microsoft Graph to manage users/groups. **The app registration already EXISTS and is owned by your team — the pipeline does NOT create it.** I need:
 
-- Its **client (application) ID** — client ID `4e490edc-38e5-49c8-a986-e48cd14bfeb8` (please confirm this is correct / current).
+- Its **client (application) ID** _(please provide the PGEEXTDIR app registration's client ID)_.
 - A current **client secret** for it (I store this in Key Vault; see §4).
 - Confirmation its Microsoft Graph **application permissions** are already granted **and admin-consented**: `User.ReadWrite.All`, `Group.ReadWrite.All`, `GroupMember.ReadWrite.All`, `Domain.Read.All`.
 
@@ -38,32 +44,32 @@ No new app registration or Graph consent is needed.
 
 ---
 
-## 3. Terraform state storage — your choice who creates it
+## 3. Terraform state storage — lives in each app resource group (no separate RG)
 
-The pipeline stores Terraform state in a storage account that must exist **before** the first run. It follows EPIC's per-subscription convention — **exact names matter**:
+The pipeline stores Terraform state **inside the app's own environment resource group** (`rg-veg-dev/qa/uat/prod`) — one small storage account per environment, created by the pipeline on the first run and reused thereafter:
 
-- Resource group **`rg-epic-tfstate`**
-- Storage account **`epictfstatedfb05368`**  *(`epictfstate` + first 8 of the subscription id; globally unique, ≤24 lowercase-alphanumeric)*
-- Container **`tfstate`**
+| Environment | Resource group (the app's own) | State storage account |
+|---|---|---|
+| dev  | `rg-veg-dev`  | `vegonboardtfstatedev`  |
+| qa   | `rg-veg-qa`   | `vegonboardtfstateqa`   |
+| uat  | `rg-veg-uat`  | `vegonboardtfstateuat`  |
+| prod | `rg-veg-prod` | `vegonboardtfstateprod` |
 
-**Please pick whichever you're comfortable with — both work for us:**
+**No action needed from you, and no extra permissions:** because the state account is created inside the app RG — which the SPN already has **Contributor** on to deploy the app (§1) — the pipeline can create it with nothing beyond that. **There is no separate `rg-epic-tfstate` and no subscription-scoped grant required for state.** The four app RGs (`rg-veg-*`) just need to **already exist** (they're read as data sources — see the RG table at the top).
 
-- **Option A — you create it.** Your team creates the RG + account + container with the exact names above. Then grant **my account** and **the pipeline service principal (from §1)** only **Storage Blob Data Contributor** on that one account. *(No broad Contributor grant to me — tightest option.)*
-- **Option B — I create it.** Grant **my account Contributor** on the subscription and I'll create all three to the convention. The service principal (§1) still needs **Storage Blob Data Contributor** on the account.
-
-**Required either way:** both **my account** and **the pipeline service principal** end up with **Storage Blob Data Contributor** on the state account — me to bootstrap/verify, the SPN to read/write state on every run.
+*(The container name is `tfstate` and the state account names above are globally unique. If any name is already taken globally, let me know and I'll pick another.)*
 
 ---
 
 ## 4. My own access — to hand-load two external secrets into Key Vault
 
-Most app secrets are generated by the pipeline or derived from resources it creates — I don't touch those. **Two** are external values I load by hand: the **Graph client secret** (from §2) and the **Logz.io token**. The Key Vault is created by the pipeline; once it exists, **my account** needs **Key Vault Secrets Officer** on that vault to add those two values.
+Most app secrets are generated by the pipeline or derived from resources it creates — I don't touch those. **Two** are external values I load by hand: the **Graph client secret** (from §2) and the **Logz.io token**. The Key Vaults are created by the pipeline (one per environment); once they exist, **my account** needs **Key Vault Secrets Officer** on those vaults to add the two values.
 
 ---
 
 ## Summary (one line)
 
-**Service principal:** Contributor + Role Based Access Control Administrator + Key Vault Secrets Officer on the subscription, + Storage Blob Data Contributor on `epictfstatedfb05368`.
-**Me:** Storage Blob Data Contributor on the state account (always); Key Vault Secrets Officer on the app vault; **+ Contributor on the subscription only if you choose §3 Option B** (I create the state storage).
+**Service principal (one SPN, client ID `0e115603-…`):** Contributor + Role Based Access Control Administrator + Key Vault Secrets Officer on **each** subscription (or scoped to the four `rg-veg-*` RGs). Terraform state lives in the app RGs, so **no separate state role or state RG is needed**.
+**Me:** Key Vault Secrets Officer on the app vaults (to hand-load two secrets). No state-account access needed — the pipeline manages state within the app RGs.
 **Existing Entra app:** client ID + a client secret, Graph app-permissions already admin-consented.
-**Your choice (§3):** you create the state storage, or grant me Contributor and I will.
+**Your choice (§3):** you create the state storage per sub, or grant me Contributor and I will.

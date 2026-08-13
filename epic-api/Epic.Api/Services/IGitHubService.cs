@@ -20,20 +20,39 @@ public sealed class ConfigCheckResult
     public string? IntegrationTestTool { get; set; }
 
     /// <summary>
-    /// True when the app's Terraform project declares an S3 remote backend
-    /// (a <c>backend "s3" {}</c> block inside a <c>terraform {}</c> block).
-    /// When false and the user requests an infra deploy, EPIC cannot manage
-    /// the Terraform state.
+    /// True when the app's Terraform project declares the remote backend EPIC
+    /// manages for the config's cloud — <c>backend "s3" {}</c> for AWS/SAP,
+    /// <c>backend "azurerm" {}</c> for Azure (a backend block inside a
+    /// <c>terraform {}</c> block). The expected backend is cloud-specific
+    /// because EPIC injects backend config per cloud at <c>terraform init</c>
+    /// time. When false and the user requests an infra deploy, EPIC cannot
+    /// manage the Terraform state.
     /// </summary>
-    public bool HasS3Backend { get; set; }
+    public bool HasRemoteBackend { get; set; }
+
+    /// <summary>
+    /// The Terraform backend EPIC expects for this config's cloud —
+    /// <c>"s3"</c> for AWS/SAP, <c>"azurerm"</c> for Azure. Drives the UI hint
+    /// so it names the backend the user must declare for their cloud.
+    /// </summary>
+    public string ExpectedBackend { get; set; } = "s3";
 
     /// <summary>
     /// True when a committed <c>*.tfstate</c> file exists in the infra folder.
-    /// On init against the S3 backend this triggers Terraform's interactive
+    /// On init against the remote backend this triggers Terraform's interactive
     /// "copy existing state to the new backend?" prompt; the UI offers a
     /// "Force State Copy" option so EPIC can answer it non-interactively.
     /// </summary>
     public bool HasTfState { get; set; }
+
+    /// <summary>
+    /// The environment keys declared under <c>cloud.environments</c> in epic.json
+    /// (e.g. ["dev","qa","uat","prod"]), or empty when the config uses no per-env
+    /// map. When non-empty, the New Run modal restricts the environment dropdown
+    /// to these values so a user can't select an environment the config doesn't
+    /// define (which would otherwise fall back to the wrong tenant/connection).
+    /// </summary>
+    public IReadOnlyList<string> ConfiguredEnvironments { get; set; } = [];
 }
 
 public interface IGitHubService

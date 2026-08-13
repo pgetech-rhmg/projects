@@ -148,7 +148,8 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
     // The subset of epic.json CheckInfraAsync cares about.
     private readonly record struct EpicConfig(
         string InfraPath, string? AppType, string? BuildTestTool,
-        string? ScanTool, string? IntegrationTestTool, bool HasInfraParams);
+        string? ScanTool, string? IntegrationTestTool, bool HasInfraParams,
+        IReadOnlyList<string> ConfiguredEnvironments, string CloudProvider);
 
     public async Task<ConfigCheckResult> CheckInfraAsync(string repo, string branch, string configPath, string? source = null, CancellationToken ct = default)
     {
@@ -158,8 +159,10 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         var resolved = cfg.InfraPath.TrimStart('/');
         var hasInfra = await PathExistsAsync(src, repo, resolved, branch, ct);
         // Only worth scanning the Terraform sources when an infra folder exists.
-        var (hasS3Backend, hasTfState) = hasInfra
-            ? await ScanInfraTerraformAsync(src, repo, branch, resolved, ct)
+        // The remote backend EPIC manages is cloud-specific (azurerm for Azure,
+        // s3 for AWS/SAP), so the scan is told which cloud the config targets.
+        var (hasRemoteBackend, hasTfState) = hasInfra
+            ? await ScanInfraTerraformAsync(src, repo, branch, resolved, cfg.CloudProvider, ct)
             : (false, false);
         return new ConfigCheckResult
         {
@@ -169,8 +172,10 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
             BuildTestTool = cfg.BuildTestTool,
             ScanTool = cfg.ScanTool,
             IntegrationTestTool = cfg.IntegrationTestTool,
-            HasS3Backend = hasS3Backend,
-            HasTfState = hasTfState
+            HasRemoteBackend = hasRemoteBackend,
+            ExpectedBackend = ExpectedBackendFor(cfg.CloudProvider),
+            HasTfState = hasTfState,
+            ConfiguredEnvironments = cfg.ConfiguredEnvironments
         };
     }
 
@@ -191,7 +196,7 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         {
             logger.LogDebug(ex, "Failed to parse epic.json for {Repo}@{Branch} — using defaults", repo, branch);
         }
-        return new EpicConfig(DefaultInfraPath, null, null, null, null, false);
+        return new EpicConfig(DefaultInfraPath, null, null, null, null, false, [], DefaultCloudProvider);
     }
 
     // Reads the fields CheckInfraAsync cares about out of a parsed epic.json.
@@ -213,10 +218,54 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
             infraPath = GetStringProp(doc, "infraPath");
         }
 
-        var hasInfraParams = doc.TryGetProperty("cloud", out var cloud)
-            && HasInfraParamsForAppType(cloud, appType);
+        var hasCloud = doc.TryGetProperty("cloud", out var cloud);
+        var hasInfraParams = hasCloud && HasInfraParamsForAppType(cloud, appType);
 
-        return new EpicConfig(infraPath ?? DefaultInfraPath, appType, buildTestTool, scanTool, integrationTestTool, hasInfraParams);
+        // Environment keys under cloud.environments (per-env connection/RG map),
+        // used by the UI to restrict the env dropdown to configured values.
+        var configuredEnvironments = hasCloud
+            && cloud.TryGetProperty("environments", out var envs)
+            && envs.ValueKind == JsonValueKind.Object
+            ? envs.EnumerateObject().Select(p => p.Name).ToArray()
+            : [];
+
+        var cloudProvider = DetectCloudProvider(appType, hasCloud ? cloud : (JsonElement?)null);
+
+        return new EpicConfig(infraPath ?? DefaultInfraPath, appType, buildTestTool, scanTool, integrationTestTool, hasInfraParams, configuredEnvironments, cloudProvider);
+    }
+
+    // EPIC's default cloud when epic.json gives no signal — matches the
+    // orchestrator's `else "aws"` fallback.
+    private const string DefaultCloudProvider = "aws";
+
+    // Mirrors the cloud-detection ladder in epic-orchestrator.yml so the
+    // pre-flight check picks the same expected backend the pipeline will inject:
+    //   btp/cap -> sap; awsAccountId -> aws; an Azure service connection or
+    //   subscription (flat OR per-environment) -> azure; else aws.
+    private static string DetectCloudProvider(string? appType, JsonElement? cloud)
+    {
+        if (appType is not null &&
+            (appType.Equals("btp", StringComparison.OrdinalIgnoreCase)
+             || appType.Equals("cap", StringComparison.OrdinalIgnoreCase)))
+            return "sap";
+
+        if (cloud is not { } c)
+            return DefaultCloudProvider;
+
+        if (c.TryGetProperty("awsAccountId", out _))
+            return "aws";
+        if (c.TryGetProperty("azureServiceConnection", out _))
+            return "azure";
+        if (c.TryGetProperty("azureSubscriptionId", out _))
+            return "azure";
+        if (c.TryGetProperty("environments", out var envs) && envs.ValueKind == JsonValueKind.Object
+            && envs.EnumerateObject().Any(e =>
+                e.Value.ValueKind == JsonValueKind.Object
+                && (e.Value.TryGetProperty("azureServiceConnection", out _)
+                    || e.Value.TryGetProperty("azureSubscriptionId", out _))))
+            return "azure";
+
+        return DefaultCloudProvider;
     }
 
     private static string? GetStringProp(JsonElement obj, string name) =>
@@ -226,18 +275,27 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
     // thread (defends against catastrophic backtracking — SonarQube S6444).
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
 
-    // Matches a `backend "s3" { ... }` declaration (which is only valid inside a
-    // `terraform {}` block). Tolerant of arbitrary whitespace between tokens.
-    private static readonly System.Text.RegularExpressions.Regex S3BackendRegex =
-        new("backend\\s+\"s3\"\\s*\\{", System.Text.RegularExpressions.RegexOptions.Compiled, RegexTimeout);
+    // Matches a `backend "s3" { ... }` declaration (AWS/SAP) or a
+    // `backend "azurerm" { ... }` declaration (Azure) — the two remote backends
+    // EPIC manages. Only valid inside a `terraform {}` block; tolerant of
+    // arbitrary whitespace between tokens. The block name is captured so the
+    // caller can require the one matching the config's cloud.
+    private static readonly System.Text.RegularExpressions.Regex RemoteBackendRegex =
+        new("backend\\s+\"(s3|azurerm)\"\\s*\\{", System.Text.RegularExpressions.RegexOptions.Compiled, RegexTimeout);
+
+    // The Terraform backend EPIC injects for a given cloud at `terraform init`.
+    private static string ExpectedBackendFor(string cloudProvider) =>
+        cloudProvider.Equals("azure", StringComparison.OrdinalIgnoreCase) ? "azurerm" : "s3";
 
     /// <summary>
     /// Scans the Terraform project under <paramref name="infraPath"/> for two signals:
-    /// whether any <c>.tf</c> file declares an S3 remote backend, and whether a
-    /// committed <c>*.tfstate</c> file exists (which would trigger Terraform's
-    /// interactive state-migration prompt on init). One tree fetch covers both.
+    /// whether any <c>.tf</c> file declares the remote backend EPIC manages for
+    /// <paramref name="cloudProvider"/> (<c>azurerm</c> for Azure, <c>s3</c> for
+    /// AWS/SAP), and whether a committed <c>*.tfstate</c> file exists (which would
+    /// trigger Terraform's interactive state-migration prompt on init). One tree
+    /// fetch covers both.
     /// </summary>
-    private async Task<(bool HasS3Backend, bool HasTfState)> ScanInfraTerraformAsync(GitHubSource src, string repo, string branch, string infraPath, CancellationToken ct)
+    private async Task<(bool HasRemoteBackend, bool HasTfState)> ScanInfraTerraformAsync(GitHubSource src, string repo, string branch, string infraPath, string cloudProvider, CancellationToken ct)
     {
         var url = $"{RepoBase(src, repo)}/git/trees/{Uri.EscapeDataString(branch)}?recursive=1";
         var json = await CallApiAsync(src, url, ct);
@@ -247,15 +305,18 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         var (tfFiles, hasTfState) = ClassifyInfraTree(tree, infraPath.Trim('/'));
 
         // Fetch every .tf file concurrently rather than one-at-a-time: the result
-        // (S3 backend declared in ANY file) is order-independent, so we trade the
-        // first-match short-circuit for parallelism — a large infra folder no
+        // (matching backend declared in ANY file) is order-independent, so we trade
+        // the first-match short-circuit for parallelism — a large infra folder no
         // longer serializes N round-trips behind a single branch selection.
         var contents = await Task.WhenAll(
             tfFiles.Select(file => GetFileContentAsync(src, repo, file, branch, ct)));
-        var hasS3Backend = contents.Any(
-            content => content is not null && S3BackendRegex.IsMatch(StripHclComments(content)));
+        var expected = ExpectedBackendFor(cloudProvider);
+        var hasRemoteBackend = contents.Any(content =>
+            content is not null
+            && RemoteBackendRegex.Matches(StripHclComments(content))
+                .Any(m => string.Equals(m.Groups[1].Value, expected, StringComparison.Ordinal)));
 
-        return (hasS3Backend, hasTfState);
+        return (hasRemoteBackend, hasTfState);
     }
 
     // Walks a recursive git tree, confined to the infra folder, returning the
@@ -308,6 +369,20 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         if (cloud.TryGetProperty("awsAccountId", out _))
             return true;
         if (cloud.TryGetProperty("azureSubscriptionId", out _))
+            return true;
+        // Azure per-env model: the subscription comes from the service connection,
+        // not epic.json, so there's no azureSubscriptionId. The cloud signal is a
+        // flat azureServiceConnection OR one under cloud.environments.<env>. This
+        // mirrors DetectCloudProvider's ladder so static/per-env Azure apps (e.g.
+        // a react SPA with per-env staticStorageAccount) count as having a deploy
+        // target. Additive only — never flips an existing true to false.
+        if (cloud.TryGetProperty("azureServiceConnection", out _))
+            return true;
+        if (cloud.TryGetProperty("environments", out var azEnvs) && azEnvs.ValueKind == JsonValueKind.Object
+            && azEnvs.EnumerateObject().Any(e =>
+                e.Value.ValueKind == JsonValueKind.Object
+                && (e.Value.TryGetProperty("azureServiceConnection", out _)
+                    || e.Value.TryGetProperty("azureSubscriptionId", out _))))
             return true;
         return false;
     }

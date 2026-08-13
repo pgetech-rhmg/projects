@@ -204,6 +204,9 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("ApiCorsPolicy");
+// After UseCors so a thrown exception still flushes with CORS headers intact
+// (a bare unhandled 500 drops them and the browser mislabels it a CORS error).
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 if (authEnabled)
     app.UseAuthentication();
 app.UseAuthorization();

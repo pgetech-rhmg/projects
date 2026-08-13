@@ -120,3 +120,19 @@ variable "static_website" {
   description = "Enable static website hosting (serves from the implicit $web container). null disables it. For SPA client-side routing, point error_404_document at index.html."
   default     = null
 }
+
+variable "grant_deployer_blob_contributor" {
+  type        = bool
+  description = <<-EOT
+    Grant the deploying principal the "Storage Blob Data Contributor" role on
+    this account so a pipeline can upload blobs via AAD/RBAC
+    (`az storage blob upload-batch --auth-mode login`) — e.g. a SPA to $web.
+    Creating the account (Contributor, control-plane) does NOT confer blob
+    data-plane write, so without this the upload 403s. RBAC is used deliberately
+    instead of shared account keys (scoped, per-identity, auditable, revocable).
+    Default false so plain data accounts aren't over-granted; static-site
+    accounts set it true. The grant targets the principal running THIS apply,
+    which for EPIC is the same per-env service-connection SPN that later deploys.
+  EOT
+  default     = false
+}

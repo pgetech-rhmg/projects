@@ -4,11 +4,18 @@
 /epic-compliance
 *.exe
 
-# Local scan artifacts
+# Local scan artifacts (produced by running the gate against a repo)
 *.sarif
 compliance.json
+compliance.md
 compliance-report.*
 
 # Go
 *.test
 *.out
+coverage.*
+vendor/
+
+# Editor / OS
+.DS_Store
+*.swp

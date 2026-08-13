@@ -7,7 +7,8 @@
 #
 # Storage account name resolution (nothing hardcoded):
 #   1. Terraform outputs (frontend_storage_account), if a TF artifact exists
-#   2. cloud.staticStorageAccount from epic.json
+#   2. cloud.environments.<env>.staticStorageAccount (per-env override)
+#   3. cloud.staticStorageAccount from epic.json (flat / single-env)
 ###############################################################################
 steps:
 
@@ -24,10 +25,11 @@ steps:
         STORAGE_ACCOUNT=$(jq -r '.frontend_storage_account.value // empty' "${{ parameters.terraformOutputPath }}")
       fi
 
-      # 2. Fall back to epic.json cloud.staticStorageAccount
+      # 2/3. Fall back to epic.json — per-env override first, then the flat field.
       CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
       if [ -z "$STORAGE_ACCOUNT" ]; then
-        STORAGE_ACCOUNT=$(jq -r '.cloud.staticStorageAccount // empty' "$CONFIG")
+        STORAGE_ACCOUNT=$(jq -r --arg env "${{ parameters.environment }}" \
+          '(.cloud.environments[$env].staticStorageAccount) // .cloud.staticStorageAccount // empty' "$CONFIG")
       fi
 
       if [ -z "$STORAGE_ACCOUNT" ]; then
@@ -41,10 +43,43 @@ steps:
 
 
   #############################################################################
+  # Runtime config injection (config.js)
+  #
+  # A SPA baked with build-time env vars can't serve multiple environments from
+  # one build. If epic.json defines cloud.environments.<env>.appConfig, write it
+  # as a config.js into the build output so the SPA reads per-env values at
+  # RUNTIME (window.__APP_CONFIG__) — one build, any environment. The app is
+  # expected to load /config.js before its bundle (see the app's index.html) and
+  # fall back to its own defaults when this file is absent, so this step is a
+  # no-op for apps that don't opt in (no appConfig key).
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+      CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
+
+      # Per-env appConfig object (arbitrary key/values the SPA understands).
+      APP_CONFIG=$(jq -c --arg env "${{ parameters.environment }}" \
+        '(.cloud.environments[$env].appConfig) // .cloud.appConfig // empty' "$CONFIG")
+
+      if [ -z "$APP_CONFIG" ] || [ "$APP_CONFIG" = "null" ]; then
+        echo ">> No appConfig for env '${{ parameters.environment }}' — skipping config.js injection (app uses its bundled default)."
+        exit 0
+      fi
+
+      echo ">> Writing runtime config.js for env '${{ parameters.environment }}': $APP_CONFIG"
+      # Assigns window.__APP_CONFIG__; overwrites any default config.js shipped
+      # in the build. jq emits valid JSON, which is valid JS object syntax.
+      printf 'window.__APP_CONFIG__ = %s;\n' "$APP_CONFIG" > "$BUILD_PATH/config.js"
+    displayName: "Inject runtime config.js"
+
+
+  #############################################################################
   # Upload build output to $web
   #############################################################################
   - task: AzureCLI@2
-    displayName: "Upload ${{ parameters.appType }} to \\$web"
+    displayName: "Upload ${{ parameters.appType }} to the $web container"
     inputs:
       azureSubscription: ${{ parameters.azureServiceConnection }}
       scriptType: 'bash'

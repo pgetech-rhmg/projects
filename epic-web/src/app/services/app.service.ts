@@ -96,10 +96,10 @@ export class AppService {
   }
 
   /** Check if a specific config has infrastructure and get its appType. */
-  checkConfigInfra(repo: string, branch: string, config: string, source?: string): Observable<{ hasInfra: boolean; hasInfraParams: boolean; appType: string | null; buildTestTool: string | null; scanTool: string | null; integrationTestTool: string | null; hasS3Backend: boolean; hasTfState: boolean }> {
+  checkConfigInfra(repo: string, branch: string, config: string, source?: string): Observable<{ hasInfra: boolean; hasInfraParams: boolean; appType: string | null; buildTestTool: string | null; scanTool: string | null; integrationTestTool: string | null; hasRemoteBackend: boolean; expectedBackend: string; hasTfState: boolean; configuredEnvironments: string[] }> {
     const params: Record<string, string> = { repo: repo.trim(), branch: branch.trim(), config: config.trim() };
     if (source) params['source'] = source;
-    return this.http.get<{ hasInfra: boolean; hasInfraParams: boolean; appType: string | null; buildTestTool: string | null; scanTool: string | null; integrationTestTool: string | null; hasS3Backend: boolean; hasTfState: boolean }>(`${this.api}/api/apps/configs/check`, { params });
+    return this.http.get<{ hasInfra: boolean; hasInfraParams: boolean; appType: string | null; buildTestTool: string | null; scanTool: string | null; integrationTestTool: string | null; hasRemoteBackend: boolean; expectedBackend: string; hasTfState: boolean; configuredEnvironments: string[] }>(`${this.api}/api/apps/configs/check`, { params });
   }
 
   /** Remove an app from the current user's tracked list. */

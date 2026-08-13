@@ -44,7 +44,7 @@ The subnet and public IP are **inputs** — provision them with the `azure-netwo
 | `ssl_certificates` | `list(object)` | `[]` | Key Vault-sourced TLS certs. |
 | `url_path_maps` | `list(object)` | `[]` | Path-based routing maps. |
 | `request_routing_rules` | `list(object)` | `[]` | Routing rules (Basic or PathBasedRouting). |
-| `rewrite_rule_sets` | `list(object)` | `[]` | Rewrite sets (prefix strip, CORS headers). |
+| `rewrite_rule_sets` | `list(object)` | `[]` | Rewrite sets (prefix strip, CORS headers). Each rule takes optional `conditions` — required when the `url.path` uses a capture variable like `{var_uri_path_1}`. |
 | `ssl_policy` | `object` | TLS 1.2 min | Gateway TLS policy. |
 
 ---
@@ -118,7 +118,10 @@ module "app_gateway" {
     rewrite_rules = [{
       name          = "strip-api-prefix"
       rule_sequence = 100
-      url           = { path = "/{var_uri_path_1}", reroute = false }
+      # The condition DEFINES the {var_uri_path_1} capture the url below uses.
+      # Without it, the capture variable is undefined and the gateway CREATE fails.
+      conditions = [{ variable = "var_uri_path", pattern = "/api/(.*)" }]
+      url        = { path = "/{var_uri_path_1}", reroute = false }
     }]
   }]
 
@@ -141,5 +144,5 @@ module "app_gateway" {
 
 - **HTTPS is the target state.** The example uses an HTTP :80 listener to match the source workload's current state, but the SECURITY-03 control intent is HTTPS-only. Add an `ssl_certificate` (Key Vault-sourced) + an HTTPS listener, and a redirect rule from :80, before production. The `ssl_policy` default already pins a minimum of TLS 1.2 for backend/frontend TLS.
 - **Cross-resource wiring.** The backend pool for a Container App takes its `ingress_fqdn`; the frontend pool for a static site takes the storage `primary_web_host` (strip scheme/trailing slash from the web endpoint). These create references across modules — expose them as outputs and pass them in; do not embed resource addresses.
-- **Rewrite `url` component names** (`{var_uri_path_1}` etc.) are Application Gateway server variables — see the Azure rewrite documentation. CORS response headers can be added via `response_headers` on a rewrite rule.
+- **Rewrite `url` component names** (`{var_uri_path_1}` etc.) are Application Gateway server variables — see the Azure rewrite documentation. A capture variable like `{var_uri_path_1}` only exists when a `conditions` entry with a capturing `pattern` (e.g. `/api/(.*)`) defines it; supply the condition on the same rewrite rule or the gateway CREATE fails on the undefined variable. CORS response headers can be added via `response_headers` on a rewrite rule.
 - WAF is not enabled by default. Set `sku_name`/`sku_tier` to `WAF_v2` and add a WAF policy for internet-facing gateways handling sensitive data.

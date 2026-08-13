@@ -87,7 +87,9 @@ public sealed class GitHubMultiSourceTests
     public void UnknownSource_Throws()
     {
         var reg = new GitHubSourceRegistry(MultiSourceConfig());
-        Assert.Throws<InvalidOperationException>(() => reg.Resolve("nonexistent"));
+        // Dedicated type so the exception middleware maps it to 400 (bad client
+        // input on the user-controlled ?source= param), not a 500.
+        Assert.Throws<UnknownGitHubSourceException>(() => reg.Resolve("nonexistent"));
     }
 
     [Fact]

@@ -190,8 +190,10 @@ public sealed class AppsController : ControllerBase
             buildTestTool = result.BuildTestTool,
             scanTool = result.ScanTool,
             integrationTestTool = result.IntegrationTestTool,
-            hasS3Backend = result.HasS3Backend,
-            hasTfState = result.HasTfState
+            hasRemoteBackend = result.HasRemoteBackend,
+            expectedBackend = result.ExpectedBackend,
+            hasTfState = result.HasTfState,
+            configuredEnvironments = result.ConfiguredEnvironments
         });
     }
 

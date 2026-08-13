@@ -1,0 +1,93 @@
+###############################################################################
+# Azure Function Deploy (buildType: function)
+#
+# Publishes the built .build/ package to an Azure Function App via zip deploy
+# (az functionapp deployment source config-zip). Runtime-agnostic — the runtime
+# is configured on the Function App infrastructure, not at deploy time.
+#
+# Resolution order for the deploy target:
+#   1. Terraform outputs (from the DeployInfra stage) — app_service_name /
+#      resource_group_name
+#   2. Cloud config from epic.json (read by the deploy dispatcher)
+###############################################################################
+steps:
+
+  #############################################################################
+  # Resolve Deploy Targets
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      APP_NAME=""
+      RESOURCE_GROUP=""
+
+      # 1. Try Terraform outputs first
+      if [ -f "${{ parameters.terraformOutputPath }}" ]; then
+        APP_NAME=$(jq -r '.app_service_name.value // empty' "${{ parameters.terraformOutputPath }}")
+        RESOURCE_GROUP=$(jq -r '.resource_group_name.value // empty' "${{ parameters.terraformOutputPath }}" 2>/dev/null || echo "")
+      fi
+
+      # 2. Fall back to cloud config from epic.json (read by dispatcher)
+      APP_NAME=${APP_NAME:-$(CLOUD_APP_SERVICE_NAME)}
+      RESOURCE_GROUP=${RESOURCE_GROUP:-$(CLOUD_RESOURCE_GROUP)}
+
+      if [ -z "$APP_NAME" ]; then
+        echo "##vso[task.logissue type=error]function app name not found in Terraform outputs (app_service_name) or epic.json cloud config"
+        exit 1
+      fi
+
+      if [ -z "$RESOURCE_GROUP" ]; then
+        echo "##vso[task.logissue type=error]resource_group_name not found in Terraform outputs or epic.json cloud config"
+        exit 1
+      fi
+
+      echo "##vso[task.setvariable variable=FUNCTION_APP_NAME]$APP_NAME"
+      echo "##vso[task.setvariable variable=RESOURCE_GROUP]$RESOURCE_GROUP"
+
+      echo ">> Function App: $APP_NAME"
+      echo ">> Resource Group: $RESOURCE_GROUP"
+    displayName: "Resolve deploy targets"
+
+
+  #############################################################################
+  # Zip Build Output
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      BUILD_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.build"
+
+      cd "$BUILD_PATH"
+
+      echo ">> Creating deployment ZIP"
+      zip -r ../deploy.zip .
+
+      echo ">> ZIP created"
+    displayName: "Create deployment ZIP"
+
+
+  #############################################################################
+  # Deploy to Azure Function App
+  #############################################################################
+  - task: AzureCLI@2
+    displayName: "Deploy to Azure Function App"
+    inputs:
+      azureSubscription: ${{ parameters.azureServiceConnection }}
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        set -euo pipefail
+
+        ZIP_PATH="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/deploy.zip"
+        APP_NAME="$(FUNCTION_APP_NAME)"
+        RG="$(RESOURCE_GROUP)"
+
+        echo ">> Publishing to Function App: $APP_NAME (RG: $RG)"
+
+        az functionapp deployment source config-zip \
+          --name "$APP_NAME" \
+          --resource-group "$RG" \
+          --src "$ZIP_PATH" \
+          --timeout 600
+
+        echo ">> Deployment complete"

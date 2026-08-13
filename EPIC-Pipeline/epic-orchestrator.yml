@@ -76,6 +76,7 @@ parameters:
       - dev
       - test
       - qa
+      - uat
       - stage
       - prod
       - other
@@ -202,6 +203,18 @@ stages:
     displayName: "Download Config File - Generate Payload"
 
     jobs:
+      # - job: JfrogVerify
+      #   displayName: "Verify JFrog OIDC"
+      #   pool:
+      #     name: EPIC - Self-hosted
+        
+      #   steps:
+      #     - task: JfrogCliV2@1
+      #       displayName: "Verify JFrog OIDC"
+      #       inputs:
+      #         jfrogPlatformConnection: "epic-ado"
+      #         command: "jf rt ping"
+
       - job: ConfigJob
         displayName: "Process Config"
         pool:
@@ -343,10 +356,18 @@ stages:
                   end' "$CONFIG_FILE")
 
                 # Detect cloud provider from epic.json cloud section
+                # Azure is detected from an Azure service connection — flat
+                # (cloud.azureServiceConnection) or per-environment
+                # (cloud.environments.<env>.azureServiceConnection). The
+                # subscription is NOT in epic.json (it comes from the connection),
+                # so the connection is the Azure signal. A legacy flat
+                # azureSubscriptionId is still honored for back-compat.
                 CLOUD_PROVIDER=$(jq -r \
                   'if .app.appType == "btp" or .app.appType == "cap" then "sap"
                   elif .cloud.awsAccountId then "aws"
+                  elif .cloud.azureServiceConnection then "azure"
                   elif .cloud.azureSubscriptionId then "azure"
+                  elif (.cloud.environments? // {} | to_entries | any(.value.azureServiceConnection or .value.azureSubscriptionId)) then "azure"
                   else "aws"
                   end' "$CONFIG_FILE")
               fi
@@ -356,22 +377,50 @@ stages:
               # via cloud.azureServiceConnection in epic.json (the name of a
               # service connection whose SPN lives in that tenant). Harmless for
               # non-Azure clouds — the engine only consults it in the Azure path.
-              AZURE_SERVICE_CONNECTION=$(jq -r '.cloud.azureServiceConnection // "Azure"' "$CONFIG_FILE" 2>/dev/null || echo "Azure")
+              #
+              # PER-ENVIRONMENT override: an app whose environments live in
+              # different subscriptions/tenants (e.g. a nonprod sub for dev/qa
+              # via one connection and a prod sub for stage/prod via another)
+              # keys the connection by environment under
+              # cloud.environments.<env>.azureServiceConnection. Resolution order:
+              # per-env override -> flat cloud.azureServiceConnection -> "Azure".
+              # (Indexing an absent .cloud.environments yields null in jq, so the
+              # fallbacks apply cleanly for apps that don't use the map.)
+              AZURE_SERVICE_CONNECTION=$(jq -r --arg env "$ENVIRONMENT" \
+                '(.cloud.environments[$env].azureServiceConnection)
+                 // .cloud.azureServiceConnection
+                 // "Azure"' "$CONFIG_FILE" 2>/dev/null || echo "Azure")
+
+              # FAIL FAST on an unconfigured environment. When an Azure app uses a
+              # per-environment map (cloud.environments) but the SELECTED env has
+              # no entry AND there is no flat cloud.azureServiceConnection fallback,
+              # the resolution above would silently fall back to the default "Azure"
+              # connection — i.e. deploy into EPIC's home tenant/subscription
+              # instead of the app's. Refuse rather than misfire: the fix is to add
+              # the env to cloud.environments (or pick a configured one). This runs
+              # for EVERY trigger (web UI, REST API, manual ADO, webhook) since all
+              # flow through the orchestrator, and before any Azure task executes.
+              if [ "$NO_CONFIG" != "true" ] && [ "$CLOUD_PROVIDER" == "azure" ]; then
+                HAS_ENV_MAP=$(jq -r 'if (.cloud.environments | type) == "object" then "true" else "false" end' "$CONFIG_FILE" 2>/dev/null || echo "false")
+                HAS_ENV_ENTRY=$(jq -r --arg env "$ENVIRONMENT" 'if (.cloud.environments[$env] | type) == "object" then "true" else "false" end' "$CONFIG_FILE" 2>/dev/null || echo "false")
+                HAS_FLAT_CONN=$(jq -r 'if .cloud.azureServiceConnection then "true" else "false" end' "$CONFIG_FILE" 2>/dev/null || echo "false")
+                if [ "$HAS_ENV_MAP" == "true" ] && [ "$HAS_ENV_ENTRY" != "true" ] && [ "$HAS_FLAT_CONN" != "true" ]; then
+                  CONFIGURED_ENVS=$(jq -r '.cloud.environments | keys | join(", ")' "$CONFIG_FILE" 2>/dev/null || echo "")
+                  echo "##vso[task.logissue type=error]Environment '$ENVIRONMENT' is not configured in epic.json (cloud.environments defines: $CONFIGURED_ENVS). Add it to cloud.environments or select a configured environment — refusing to fall back to the default 'Azure' connection and deploy to the wrong tenant."
+                  exit 1
+                fi
+              fi
 
               # Normalize ADO boolean strings -> JSON booleans
               REVIEW=$(echo "$REVIEW" | tr '[:upper:]' '[:lower:]')
               BUILD=$(echo "$BUILD" | tr '[:upper:]' '[:lower:]')
 
-              # Review is app-code only. Infrastructure appTypes (btp, infra)
-              # have no app source to review, so force it off regardless of what
-              # was requested (the epic-web UI already hides the toggle for these,
-              # but a bare ADO trigger could still pass review=true).
-              if [ "$APP_TYPE" == "btp" ] || [ "$APP_TYPE" == "infra" ]; then
-                if [ "$REVIEW" == "true" ]; then
-                  echo ">> appType '$APP_TYPE' is infrastructure — forcing review=false"
-                fi
-                REVIEW="false"
-              fi
+              # Review (compliance gate) is available for ANY appType, including
+              # infrastructure ones (btp/infra): their codePath often holds app
+              # source (e.g. a Container Apps backend), and IA-05 secret scanning
+              # covers .tfvars/.tfstate. It's OFF by default for infra/btp in the
+              # UI but honored when explicitly requested, so we pass REVIEW through
+              # unchanged rather than forcing it off.
               TESTS=$(echo "$TESTS" | tr '[:upper:]' '[:lower:]')
               SCAN=$(echo "$SCAN" | tr '[:upper:]' '[:lower:]')
               DEPLOY=$(echo "$DEPLOY" | tr '[:upper:]' '[:lower:]')

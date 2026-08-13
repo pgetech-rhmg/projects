@@ -69,9 +69,19 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IGitHubS
 
         var statsTask = GetRunStatsAsync([entity], ct);
 
-        // Fetch latest run's tags for technology/cloud
-        var recent = await ado.GetRecentRunsForAppAsync(entity.GithubRepo, 1, ct);
-        var latest = recent.MaxBy(r => r.StartedAt);
+        // Fetch latest run's tags for technology/cloud. Guarded like every other
+        // ADO read in this service: if ADO is down/slow, serve stale data (fall
+        // back to the stored technology) instead of 500-ing the app detail.
+        AdoLatestRun? latest = null;
+        try
+        {
+            var recent = await ado.GetRecentRunsForAppAsync(entity.GithubRepo, 1, ct);
+            latest = recent.MaxBy(r => r.StartedAt);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "ADO unavailable during app detail for {Repo} — serving stale data", entity.GithubRepo);
+        }
 
         var stats = (await statsTask).GetValueOrDefault(entity.Name);
         var successRate = stats.Total > 0
@@ -335,14 +345,21 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IGitHubS
             .FirstOrDefaultAsync(a => a.Name == name, ct)
             ?? throw new KeyNotFoundException($"App '{name}' not found");
 
-        db.UserApps.Add(new UserAppEntity
+        // Idempotent: adding an app already in the caller's portfolio is a no-op
+        // rather than a duplicate insert that violates the (UserId, AppId) unique
+        // index (which would surface as an unhandled 500 / phantom CORS error).
+        var alreadyInPortfolio = await db.UserApps
+            .AnyAsync(ua => ua.UserId == CurrentUserId && ua.AppId == app.Id, ct);
+        if (!alreadyInPortfolio)
         {
-            UserId = CurrentUserId,
-            AppId = app.Id
-        });
-
-        await db.SaveChangesAsync(ct);
-        audit.Record("app.add_to_my_apps", $"app:{app.Name}");
+            db.UserApps.Add(new UserAppEntity
+            {
+                UserId = CurrentUserId,
+                AppId = app.Id
+            });
+            await db.SaveChangesAsync(ct);
+            audit.Record("app.add_to_my_apps", $"app:{app.Name}");
+        }
 
         var lastRunTags = await RefreshRecentRunsFromAdoAsync([app], ct);
         var stats = (await GetRunStatsAsync([app], ct)).GetValueOrDefault(app.Name);
@@ -365,32 +382,60 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IGitHubS
         var technology = MapAppTypeToTechnology(appType);
         var appName = repo.ToLowerInvariant();
 
-        var entity = new AppEntity
-        {
-            Name = appName,
-            DisplayName = FormatDisplayName(appName),
-            Description = repoInfo.Description,
-            AppType = appType,
-            Technology = technology,
-            Cloud = "AWS",
-            Environment = "dev",
-            Team = "unassigned",
-            Domain = "",
-            GithubRepo = repo,
-            GithubSource = sourceName,
-            GithubBranch = resolvedBranch,
-            HasInfra = hasInfra,
-            CreatedBy = CurrentUserDisplayName,
-            LastUpdatedBy = CurrentUserDisplayName
-        };
+        // The app catalog (apps) is shared; a user's portfolio is the UserApps
+        // join. "Remove from my apps" only deletes the join row, leaving the
+        // catalog entry in place, so onboarding must be idempotent — re-adding a
+        // repo re-attaches the join row to the existing catalog entry rather than
+        // inserting a duplicate (which would violate the unique indexes on Name
+        // and (GithubSource, GithubRepo) and surface as an unhandled 500).
+        var entity = await db.Apps.FirstOrDefaultAsync(a => a.Name == appName, ct);
 
-        db.Apps.Add(entity);
-
-        db.UserApps.Add(new UserAppEntity
+        if (entity is null)
         {
-            UserId = CurrentUserId,
-            App = entity
-        });
+            entity = new AppEntity
+            {
+                Name = appName,
+                DisplayName = FormatDisplayName(appName),
+                Description = repoInfo.Description,
+                AppType = appType,
+                Technology = technology,
+                Cloud = "AWS",
+                Environment = "dev",
+                Team = "unassigned",
+                Domain = "",
+                GithubRepo = repo,
+                GithubSource = sourceName,
+                GithubBranch = resolvedBranch,
+                HasInfra = hasInfra,
+                CreatedBy = CurrentUserDisplayName,
+                LastUpdatedBy = CurrentUserDisplayName
+            };
+            db.Apps.Add(entity);
+        }
+        else
+        {
+            // Refresh the catalog entry from the current GitHub state so re-adding
+            // picks up anything that changed while it was out of the portfolio.
+            entity.Description = repoInfo.Description;
+            entity.GithubSource = sourceName;
+            entity.GithubBranch = resolvedBranch;
+            entity.HasInfra = hasInfra;
+            entity.LastUpdatedBy = CurrentUserDisplayName;
+        }
+
+        // Only attach a join row if this user doesn't already have one, so
+        // onboarding an app that's still in the caller's portfolio is a no-op
+        // rather than a unique-index violation on (UserId, AppId).
+        var alreadyInPortfolio = entity.Id != 0 && await db.UserApps
+            .AnyAsync(ua => ua.UserId == CurrentUserId && ua.AppId == entity.Id, ct);
+        if (!alreadyInPortfolio)
+        {
+            db.UserApps.Add(new UserAppEntity
+            {
+                UserId = CurrentUserId,
+                App = entity
+            });
+        }
 
         await db.SaveChangesAsync(ct);
         audit.Record("app.onboard", $"app:{entity.Name}", detail: $"repo={repo}");
@@ -605,7 +650,7 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IGitHubS
     private string? ResolveGithubOrg(string source)
     {
         try { return sources.Resolve(source).Org; }
-        catch (InvalidOperationException) { return null; }
+        catch (UnknownGitHubSourceException) { return null; }
     }
 
     private static string FormatDurationFromTimeSpan(TimeSpan ts)
@@ -649,7 +694,8 @@ public sealed class AppService(EpicDbContext db, IGitHubService gitHub, IGitHubS
         Github = new GitHubInfo
         {
             Repo = entity.GithubRepo,
-            Branch = entity.GithubBranch
+            Branch = entity.GithubBranch,
+            Source = entity.GithubSource
         },
         Aws = entity.AwsAccountId is not null
             ? new AwsConfig

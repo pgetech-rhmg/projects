@@ -178,6 +178,17 @@ variable "rewrite_rule_sets" {
     rewrite_rules = list(object({
       name          = string
       rule_sequence = number
+      # Match conditions. REQUIRED when a `url.path` references a capture server
+      # variable like `{var_uri_path_1}` — that variable only exists if a
+      # condition with a capturing `pattern` defines it. Omitting the condition
+      # is the classic cause of a gateway CREATE failing on an undefined
+      # capture variable.
+      conditions = optional(list(object({
+        variable    = string
+        pattern     = string
+        ignore_case = optional(bool, true)
+        negate      = optional(bool, false)
+      })), [])
       url = optional(object({
         path       = optional(string)
         components = optional(string)

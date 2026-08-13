@@ -277,8 +277,10 @@ describe('AppService', () => {
       buildTestTool: null,
       scanTool: 'sonarqube',
       integrationTestTool: null,
-      hasS3Backend: true,
+      hasRemoteBackend: true,
+      expectedBackend: 's3',
       hasTfState: false,
+      configuredEnvironments: ['dev', 'qa', 'uat', 'prod'],
     };
     req.flush(payload);
 
@@ -303,8 +305,10 @@ describe('AppService', () => {
       buildTestTool: null,
       scanTool: null,
       integrationTestTool: null,
-      hasS3Backend: false,
+      hasRemoteBackend: false,
+      expectedBackend: 'azurerm',
       hasTfState: false,
+      configuredEnvironments: [],
     });
   });
 

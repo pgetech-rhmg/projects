@@ -39,6 +39,7 @@ EPIC-Pipeline/
 ├── epic-engine.yml              # Control plane; wires stages, enforces ordering and gating
 ├── common/
 │   ├── download.yml             # Clones application source from GitHub
+│   ├── github-status.yml        # Posts a rollup "EPIC" commit status to GitHub (CI merge-gating)
 │   └── jfrog/
 │       ├── upload.yml           # Uploads build artifacts to JFrog Artifactory
 │       └── download.yml         # Downloads artifacts from JFrog Artifactory
@@ -59,6 +60,7 @@ EPIC-Pipeline/
 │   ├── dotnet_framework/
 │   ├── go/                      # Go module → static linux/amd64 binary (CGO disabled)
 │   ├── java/
+│   ├── node/                    # Generic Node runtime → App Service zip, or Azure Functions v4 package (buildType: function)
 │   ├── php/
 │   └── python/
 ├── test/
@@ -87,7 +89,9 @@ EPIC-Pipeline/
 │   │   ├── ec2/                 # dotnet, python, java, go → S3 + EC2 via SSM
 │   │   └── ami/                 # SSM-based AMI publish + config/test
 │   ├── azure/
-│   │   └── app-service/         # App Service zip deploy (any runtime)
+│   │   ├── static/              # Storage $web static site (html, angular, react) + runtime config.js injection
+│   │   ├── app-service/         # App Service zip deploy (all other runtimes)
+│   │   └── function/            # Azure Functions config-zip deploy (buildType: function)
 │   └── sap/
 │       └── cap.yml              # SAP CAP → cf deploy MTA to Cloud Foundry
 └── .gitignore
@@ -121,12 +125,16 @@ Applications are not expected to copy or modify this pipeline. Instead:
 
 ### `epic-orchestrator.yml`
 
-The entry point for external systems. Typical invocations include IDP-driven deployments and REST-triggered runs.
+The entry point for external systems. It can be started three ways:
+
+- **REST / IDP** — the EPIC API (or any caller) POSTs to the ADO Pipelines REST API with explicit parameters (the normal web-UI path).
+- **Manual** — run directly in Azure DevOps with parameters.
+- **GitHub webhook push (CI)** — an incoming-webhook service connection (`epicHook`) fires the orchestrator on push. The repo/branch/owner/commit come from the push payload, and a safe CI toggle set is applied automatically (see [GitHub CI Trigger & Commit-Status Gating](#github-ci-trigger--commit-status-gating)).
 
 **What it does:**
-1. Validates `repo`, `branch`, `config`, and `environment` parameters
-2. Shallow-clones the application repository and reads the `app` section of the specified epic.json config
-3. Detects cloud provider from `epic.json` (`appType: "btp"` or `"cap"` → SAP, then `awsAccountId` → AWS, `azureSubscriptionId` → Azure)
+1. Validates `repo`, `branch`, `config`, and `environment` parameters (a webhook push fills `repo`/`branch`/`owner` from the `epicHook` payload instead)
+2. Shallow-clones the application repository (from the resolved GitHub `owner`/`githubHost` — see [Multi-org GitHub](#multi-org-github-sources)) and reads the `app` section of the specified epic.json config. If the repo/branch has **no `epic.json`**, it synthesizes a minimal Review-only payload instead of failing (see [Contract-less runs](#contract-less-review-only-runs))
+3. Detects cloud provider from `epic.json` (`appType: "btp"` or `"cap"` → SAP, then `awsAccountId` → AWS, then an Azure service connection — `azureServiceConnection` flat or per-environment, or a legacy `azureSubscriptionId` — → Azure)
 4. Resolves `infraPath` (defaults to `.infra`) and checks whether infrastructure exists
 5. Resolves `requireApproval` from `approvalEnvironments` array if the target environment is listed
 6. Tags its own build with `epicRepo.{repo}` and `epicAppName.{appName}`
@@ -171,6 +179,44 @@ Download
 
 The **Review** stage runs immediately after Download and before Build. Build, BuildTest, Scan, and DeployInfra all `dependsOn: Review` (when `review=true`), so a failing compliance gate blocks the entire downstream pipeline.
 
+On webhook-push (CI) runs the engine also emits three meta-stages — `ReportPending`, `ReportSuccess`, `ReportFailure` — that post a rollup commit status to GitHub. They are compile-gated on a non-empty `commitSha`, so they never appear on manual/REST runs. See [GitHub CI Trigger & Commit-Status Gating](#github-ci-trigger--commit-status-gating).
+
+---
+
+## GitHub CI Trigger & Commit-Status Gating
+
+EPIC can be driven by a GitHub push, not just the IDP/REST path, and report a single pass/fail status back so branch protection can gate PR merges.
+
+**Trigger.** `epic-orchestrator.yml` declares `resources.webhooks` bound to an incoming-webhook ADO service connection (`epicHook`). On push, `repo`/`branch`/`owner` are resolved from the push payload (`epicHook.repository.name`, `epicHook.ref`, `epicHook.repository.owner.login`) when the equivalent explicit parameters are empty; manual/REST runs supply them directly and take precedence.
+
+> **Naming gotcha:** the YAML `connection:` binds to the ADO **Service Connection Name**, while the GitHub Payload URL path segment is the **WebHook Name** — two different ADO fields that may share a value (both `epic-github` here).
+
+**CI toggle defaults.** A webhook push carries no stage toggles, so when the run is a resource-trigger the orchestrator forces a safe set: **review + build + tests + scan on, deploy + infra off**. Manual/REST runs keep their exact toggles. CI runs are also stamped `triggeredBy = "Github CI"`.
+
+**Commit-status rollup.** The orchestrator captures the pushed head SHA (`epicHook.after`) and threads it into the engine as `commitSha`. The engine then emits three status stages (all gated on `commitSha != ''`):
+
+| Stage | When | Posts |
+|-------|------|-------|
+| `ReportPending` | immediately (no `dependsOn`) | `state=pending` |
+| `ReportSuccess` | `condition: succeeded()`, `dependsOn` every created stage | `state=success` |
+| `ReportFailure` | `condition: not(succeeded())`, same deps | `state=failure` |
+
+All three call the reusable `common/github-status.yml` job, which POSTs to the GitHub Commit Statuses API (`/repos/{owner}/{repo}/statuses/{sha}`) with context **`EPIC`** and a `target_url` linking back to the ADO run. It uses `GITHUB_PAT` (needs `repo:status`), computes the API base (`api.github.com` for `github.com`, else `https://<host>/api/v3` for GitHub Enterprise), and fails the run only on a non-201 **pending** post (catches a bad PAT early without masking real results). Mark the `EPIC` context a required status check on the target branch in GitHub to block merges on a failing pipeline.
+
+> ⚠️ Never send `""` for a string templateParameter through the ADO runs REST API — it is rejected (`PipelineValidationException`). The orchestrator **omits** `commitSha` when empty so the engine's `default: ""` applies and the report stages stay off.
+
+---
+
+## Multi-org GitHub Sources
+
+EPIC is not hardwired to one GitHub org. Every GitHub-touching stage threads an `owner` (org) and `githubHost` (default `pgetech` / `github.com`), so the orchestrator can clone, the download stage can fetch, and the commit-status job can post against whichever org a given app lives in. The EPIC API resolves the source (org + host + PAT key) from its named source registry and passes `owner`/`githubHost` into the orchestrator; a webhook push derives them from `epicHook.repository.owner.login`. Both PG&E orgs currently share a single PAT whose owner is a member of both.
+
+---
+
+## Contract-less (Review-only) runs
+
+A trigger (webhook, REST, or manual) for a repo/branch that has **no `.pipeline/epic.json`** does not fail. The orchestrator's `NO_CONFIG` branch synthesizes a minimal payload: `review=true`, every other stage toggle off, `terraformAction=none`, `appType=""`, `appName=`the repo name, `codePath=""`. Every non-Review stage self-disables via its toggle + tool guard, and the compliance gate profiles the repo and runs without a contract (`--app-type ""` is valid). This gives any repo a compliance gate with zero onboarding. The EPIC web UI surfaces this: a repo with no config still offers a **Review App**-only run.
+
 ---
 
 ## Pipeline Artifacts
@@ -206,7 +252,8 @@ The following secrets and variable groups must be configured in Azure DevOps:
 
 | Secret / Variable | Variable Group | Purpose |
 |-------------------|----------------|---------|
-| `GITHUB_PAT` | `GV-account-access` | Clone private application repositories |
+| `GITHUB_PAT` | `GV-account-access` | Clone private application repositories, read `epic.json`/infra, and post the `EPIC` commit status (`repo:status`). Its owner must be a member of every org EPIC pulls from (see [Multi-org GitHub](#multi-org-github-sources)). |
+| `epic-github` (webhook) | Service connection | Incoming GitHub webhook connection bound to the `epicHook` resource for push-triggered CI runs |
 | `WIZ_CLIENT_ID` | `GV-account-access` | Wiz service account client ID |
 | `WIZ_CLIENT_SECRET` | `GV-account-access` | Wiz service account client secret |
 | `COMPLIANCE_REVIEWER_VERSION` | `GV-account-access` | Pinned epic-compliance CLI version pulled from S3 by the Review stage |
@@ -214,7 +261,7 @@ The following secrets and variable groups must be configured in Azure DevOps:
 | `PORTKEY_BASE_URL` | `GV-account-access` | Portkey gateway base URL |
 | `PORTKEY_MODEL` | `GV-account-access` | LLM model routed via Portkey (Opus 4.8) |
 | AWS credentials | `AWS` service connection | Base credentials for STS role assumption |
-| Azure credentials | `Azure` service connection | Azure App Service deployments |
+| Azure credentials | `Azure` service connection (default) | Azure deployments. Apps targeting a non-default subscription/tenant reference their own connection by name via `cloud.azureServiceConnection` (or the per-environment `cloud.environments.<env>.azureServiceConnection`); create these as **App registration (manual) + secret** connections so a tenant can be set explicitly. |
 | `SYSTEM_ACCESSTOKEN` | Built-in | REST API call from orchestrator to engine |
 
 ---
@@ -288,10 +335,13 @@ EPIC expects a standard Terraform layout:
 
 | Setting | Value |
 |---------|-------|
-| Backend | Azure Storage (`pgeepicterraformstate`) |
-| Container | `tfstate` |
+| Backend | Azure Storage — account `epictfstate{first-8-of-subscription-id}` (per-subscription convention; overridable via `cloud.stateStorageAccount`) |
+| Resource group | `rg-epic-tfstate` (overridable via `cloud.stateResourceGroup`) |
+| Container | `tfstate` (overridable via `cloud.stateContainer`) |
 | Encryption | Storage account encryption |
-| State key | `{azureSubscriptionId}/{appName}-{appType}/{environment}/terraform.tfstate` |
+| State key | `{subscriptionId}/{appName}-{appType}/{environment}/terraform.tfstate` |
+
+The state account name is **derived from the target subscription** (one account per subscription; the state key namespaces every app + environment within it), so the state home follows the subscription automatically. Because `terraform init` runs under the app's own Azure service connection, it authenticates to a state account in the app's **own tenant** — which is what makes cross-tenant deploys work. The account is created out of band (one per subscription); all three backend settings are overridable in `epic.json` (per-environment or flat) for a non-conventional setup.
 
 ### Credential Flow
 
@@ -301,8 +351,9 @@ EPIC expects a standard Terraform layout:
 3. Temporary credentials are injected into the Terraform environment
 
 **Azure:**
-1. EPIC Azure credentials are loaded from the ADO `Azure` service connection
-2. Service Principal authenticates directly to the target subscription
+1. EPIC selects the ADO service connection for this run — `cloud.environments.<env>.azureServiceConnection` if set, else the flat `cloud.azureServiceConnection`, else the default `Azure`. This lets different environments target different subscriptions/tenants from one config.
+2. The connection's Service Principal authenticates to its tenant, and the **target subscription is taken from the connection itself** (`az account show`) — `epic.json` does not restate the subscription ID.
+3. A **resource group** is passed to Terraform as `-var="resource_group_name=<rg>"` when `epic.json` provides one (per-environment `cloud.environments.<env>.resourceGroup`, or flat `cloud.resourceGroupName`); otherwise the `.infra`'s own default applies.
 
 ### Behavior
 
@@ -347,8 +398,11 @@ Runtime versions are resolved via `coalesce(parameters.runtimeVersion, parameter
 | `go` | `go build` | Static linux/amd64 binary (CGO disabled) → `.build/{appName}` |
 | `html` | (copy) | `.build/` |
 | `java` | Maven or Gradle | JAR → `.build/` |
+| `node` | npm | `.build/` (App Service zip), or Azure Functions v4 package when `buildType: function` |
 | `php` | Composer | `.build/` (excludes tests, .infra, .pipeline) |
 | `python` | pip / setuptools | Syntax check, wheel, egg, or sdist |
+
+The `node` build is a generic Node runtime builder (`npm ci`/`npm install` → `npm run build --if-present` → prune dev deps). With `buildType: function` it instead assembles an **Azure Functions v4** package (`host.json` + `package.json` + a compiled `dist/` + production `node_modules`) for the Azure Function deploy target. It carries no framework-specific logic — use `angular`/`react` for SPA static builds.
 
 ### Runtime Version Defaults
 
@@ -356,7 +410,7 @@ If `runtimeVersion` is not specified in `epic.json`, the engine uses these defau
 
 | appType | Default |
 |---------|---------|
-| `angular`, `react`, `html`, `cap` | `20` (Node.js) |
+| `angular`, `react`, `html`, `cap`, `node` | `20` (Node.js) |
 | `dotnet`, `dotnet_framework` | `9.x` (.NET SDK) |
 | `python` | `3.11` |
 | `java` | `17` |
@@ -486,7 +540,9 @@ deploy/
 │   ├── ec2/              ← S3 + EC2 via SSM (dotnet, python, java)
 │   └── ami/              ← Image Builder + SSM config/test
 ├── azure/
-│   └── app-service/      ← az webapp deploy (any runtime)
+│   ├── static/           ← Storage $web static site (html, angular, react) + runtime config.js
+│   ├── app-service/      ← az webapp deploy (all other runtimes)
+│   └── function/         ← az functionapp config-zip (buildType: function)
 └── sap/
     └── cap.yml           ← cf deploy MTA to Cloud Foundry (cap)
 ```
@@ -504,11 +560,35 @@ deploy/
 
 ### Azure Deploy Targets
 
-| appType | Target | Mechanism |
-|---------|--------|-----------|
-| Any (`php`, `dotnet`, `python`, `java`, `node`) | App Service | `az webapp deploy --type zip` |
+| Condition | Target | Mechanism |
+|-----------|--------|-----------|
+| `buildType: function` (any appType) | Azure Function App | `az functionapp deployment source config-zip` |
+| `html`, `angular`, `react` (non-function) | Storage static website | `az storage blob upload-batch` into the `$web` container |
+| All other runtimes (`node`, `php`, `dotnet`, `python`, `java`, …) (non-function) | App Service | `az webapp deploy --type zip` |
 
-Azure App Service handles runtime selection at the infrastructure level — the deploy template is runtime-agnostic.
+The deploy dispatcher checks `buildType: function` **first** (routes to the Function template regardless of appType), then branches by `appType`: static SPA/HTML types go to the Storage `$web` template, everything else to App Service. App Service and Function both handle runtime selection at the infrastructure level — those templates are runtime-agnostic. App Service / Function resolve their target from a Terraform `app_service_name` + `resource_group_name` output, falling back to `cloud.appServiceName` + `cloud.resourceGroup` (per-environment override first) from `epic.json`.
+
+#### Runtime `config.js` injection (static SPA deploys)
+
+For an SPA deployed to a Storage `$web` site, the static template can inject a **runtime config file** at deploy time so a single build serves every environment (no per-env rebuild). If `epic.json` provides `cloud.environments.<env>.appConfig` (or flat `cloud.appConfig`), the deploy step writes:
+
+```js
+window.__APP_CONFIG__ = <the appConfig JSON>;
+```
+
+to `config.js` in the build output before uploading. The SPA loads `/config.js` before its bundle and reads `window.__APP_CONFIG__` (e.g. `apiUrl`, per-environment OIDC client/tenant IDs) at runtime. When `appConfig` is absent the step is skipped and the app's own bundled default `config.js` is used unchanged. (Currently implemented for the Azure static path; the AWS static path does not yet inject it.)
+
+**Static-site storage account resolution** (nothing hardcoded): Terraform output `frontend_storage_account` → `cloud.environments.<env>.staticStorageAccount` → flat `cloud.staticStorageAccount`. A code-only frontend (no `.infra` of its own) deploys via the `epic.json` value; when a separate backend pipeline provisions the account, both sides agree on a **deterministic** name per environment.
+
+### Container image build (optional, for container targets)
+
+When `epic.json` includes a `cloud.containerImage` block, the Azure **infra** stage performs a **staged apply** that builds and pushes the app's container image mid-provision — solving the chicken-and-egg where a Container App must reference an image that doesn't exist until the same run creates its registry:
+
+1. `terraform apply -target=<registryTarget>` — creates just the container registry
+2. `az acr build --registry <from registryOutput> --image <imageName>:<BuildId>` — builds + pushes from the app's own `Dockerfile`
+3. full `terraform apply -var="<tagVariable>=<BuildId>"` — the container app now points at the freshly-built image (a unique tag forces a new revision)
+
+When the block is absent, the apply is a normal single pass — apps that don't build an image are unaffected. All inputs come from `epic.json` (see the Azure `cloud` parameters below); nothing is app-specific in the template.
 
 ### AMI Deploy
 
@@ -576,6 +656,44 @@ This file has two sections:
 
 - **`app`** — Application identity, build configuration, and tooling. Read by the orchestrator and passed as engine template parameters.
 - **`cloud`** — Cloud deployment targets and resource configuration. Read at runtime by infra and deploy stages directly from the downloaded source.
+
+---
+
+## Environments — One Contract, Any Environment
+
+Every EPIC run targets a single **environment**, selected at trigger time (the `environment` parameter — `dev`, `test`, `qa`, `uat`, `stage`, `prod`, or `other`). **The same `.pipeline/epic.json` is used for all of them** — you do not maintain a separate config file per environment. This is cloud-agnostic: it applies identically to AWS, Azure, and SAP.
+
+The selected environment flows everywhere it's needed automatically:
+
+- **Terraform state is namespaced by environment.** The state key always includes the environment (`…/{appName}-{appType}/{environment}/terraform.tfstate`), so `dev` and `prod` have completely isolated state from one config.
+- **The environment is passed to Terraform** as `-var="environment=<env>"`, so your `.infra` can name and size resources per environment (e.g. `"${var.project_name}-${var.environment}"`).
+- **Build tags** record `epicEnvironment.{environment}` for traceability.
+- **Approval gates** are environment-aware via `approvalEnvironments` (e.g. `["prod"]`).
+
+### Two ways to configure environment-specific values
+
+Most apps need **no per-environment configuration at all** — a single set of `cloud` values plus the environment-namespaced state is enough, because the `.infra` derives per-env resource names from the `environment` Terraform variable.
+
+When an app genuinely needs *different values per environment* — most commonly because its environments live in **different accounts, subscriptions, or tenants** — use the optional **`cloud.environments`** map. Resolution is always **per-environment override → flat `cloud.*` value → built-in default**, so:
+
+- Apps that omit `cloud.environments` behave exactly as before (fully backward-compatible).
+- Apps that use it can key any supported `cloud.*` field by environment.
+
+```jsonc
+"cloud": {
+  "azureRegion": "westus2",              // flat values apply to every environment…
+  "environments": {                       // …unless overridden per environment here
+    "dev":  { "azureServiceConnection": "MyConn-NonProd", "resourceGroup": "rg-app-dev"  },
+    "qa":   { "azureServiceConnection": "MyConn-NonProd", "resourceGroup": "rg-app-qa"   },
+    "uat":  { "azureServiceConnection": "MyConn-Prod",    "resourceGroup": "rg-app-uat"  },
+    "prod": { "azureServiceConnection": "MyConn-Prod",    "resourceGroup": "rg-app-prod" }
+  }
+}
+```
+
+### Fail-fast on an unconfigured environment
+
+If an app defines a `cloud.environments` map and a run selects an environment that the map **doesn't** contain (and there's no flat fallback for the field), the orchestrator **fails the run early** with a clear message listing the configured environments — rather than silently falling back to a default that could target the wrong account/tenant. The EPIC web UI reinforces this by restricting the environment dropdown to the environments the selected config actually defines.
 
 ---
 
@@ -722,7 +840,31 @@ This example uses pre-existing infrastructure (no `.infra/` folder), so the depl
 }
 ```
 
-### Azure — PHP (App Service)
+### AWS — Angular with Wiz Scanning
+
+```json
+{
+  "app": {
+    "appName": "my-secure-app",
+    "appType": "angular",
+    "codePath": "/",
+    "runtimeVersion": "20",
+    "scanTool": "wiz",
+    "scanPolicy": "Default IaC policy",
+    "buildTestTool": "jest"
+  },
+  "cloud": {
+    "awsAccountId": "999999999999",
+    "awsRegion": "us-west-2",
+    "s3": "pge-epic-my-secure-app-web-dev",
+    "cloudfront": "X9X9X9XX99XX9X"
+  }
+}
+```
+
+### Azure — PHP (App Service, single subscription)
+
+The subscription comes from the `Azure` service connection; the resource group applies to every environment (Terraform namespaces state per environment).
 
 ```json
 {
@@ -733,10 +875,146 @@ This example uses pre-existing infrastructure (no `.infra/` folder), so the depl
     "runtimeVersion": "8.3"
   },
   "cloud": {
-    "azureSubscriptionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "azureRegion": "westus2",
-    "resourceGroupName": "rg-my-app-dev",
-    "appServiceName": "my-app-dev"
+    "resourceGroup": "rg-my-app",
+    "appServiceName": "my-app"
+  }
+}
+```
+
+### Azure — Infra + Container App (per-environment subscriptions, image build)
+
+An `infra` backend whose non-prod and prod environments live in **different subscriptions** (selected by connection), building its container image during provisioning. The resource group is per environment; the subscription is taken from whichever connection the environment maps to.
+
+```json
+{
+  "app": {
+    "appName": "my-backend",
+    "appType": "infra",
+    "codePath": "backend",
+    "infraPath": "backend/.infra"
+  },
+  "cloud": {
+    "azureRegion": "westus2",
+    "environments": {
+      "dev":  { "azureServiceConnection": "MyConn-NonProd", "resourceGroup": "rg-app-dev"  },
+      "qa":   { "azureServiceConnection": "MyConn-NonProd", "resourceGroup": "rg-app-qa"   },
+      "uat":  { "azureServiceConnection": "MyConn-Prod",    "resourceGroup": "rg-app-uat"  },
+      "prod": { "azureServiceConnection": "MyConn-Prod",    "resourceGroup": "rg-app-prod" }
+    },
+    "containerImage": {
+      "registryTarget": "module.acr",
+      "registryOutput": "container_registry_login_server",
+      "imageName": "backend",
+      "tagVariable": "backend_image_tag",
+      "dockerfile": "Dockerfile",
+      "context": "."
+    }
+  }
+}
+```
+
+### Azure — React (Storage static website, per-environment)
+
+A code-only frontend (no `.infra` of its own) deployed to a Storage `$web` site, with a distinct storage account per environment.
+
+```json
+{
+  "app": {
+    "appName": "my-frontend",
+    "appType": "react",
+    "codePath": "frontend",
+    "runtimeVersion": "20"
+  },
+  "cloud": {
+    "azureRegion": "westus2",
+    "environments": {
+      "dev":  { "azureServiceConnection": "MyConn-NonProd", "staticStorageAccount": "myappfedev"  },
+      "qa":   { "azureServiceConnection": "MyConn-NonProd", "staticStorageAccount": "myappfeqa"   },
+      "uat":  { "azureServiceConnection": "MyConn-Prod",    "staticStorageAccount": "myappfeuat"  },
+      "prod": { "azureServiceConnection": "MyConn-Prod",    "staticStorageAccount": "myappfeprod" }
+    }
+  }
+}
+```
+
+### Azure — App Service on pre-existing infrastructure (no EPIC-managed infra)
+
+For an app whose infrastructure is **provisioned outside EPIC** (Terraform Cloud, another pipeline, ClickOps) — EPIC only deploys the code. There is no `.infra/` folder, so run with **`terraformAction: none`** (no DeployInfra stage); EPIC skips infra entirely and reads the existing resource identifiers straight from the `cloud` section. This is the Azure counterpart to an AWS app whose infra is managed by TFC.
+
+Because nothing runs DeployInfra, there are no Terraform outputs to resolve from — the `cloud` values below are the **only** source of the deploy target, so they must name resources that already exist. (Resolution is always Terraform outputs → `cloud` fallback; with no infra stage, only the fallback applies.)
+
+```json
+{
+  "app": {
+    "appName": "my-existing-app",
+    "appType": "php",
+    "codePath": "/",
+    "runtimeVersion": "8.3"
+  },
+  "cloud": {
+    "azureRegion": "westus2",
+    "environments": {
+      "dev":  { "azureServiceConnection": "MyConn-NonProd", "resourceGroup": "rg-app-dev",  "appServiceName": "my-app-dev"  },
+      "qa":   { "azureServiceConnection": "MyConn-NonProd", "resourceGroup": "rg-app-qa",   "appServiceName": "my-app-qa"   },
+      "uat":  { "azureServiceConnection": "MyConn-Prod",    "resourceGroup": "rg-app-uat",  "appServiceName": "my-app-uat"  },
+      "prod": { "azureServiceConnection": "MyConn-Prod",    "resourceGroup": "rg-app-prod", "appServiceName": "my-app-prod" }
+    }
+  }
+}
+```
+
+> The deploy stage reads `resourceGroup` + `appServiceName` (App Service) or `staticStorageAccount` (static site) from the `cloud` section — a resource listed under any other field name is silently ignored. If integration tests run against this app, also provide `appUrl` (there is no Terraform `app_url` output to fall back on).
+
+### Azure — Node Function App (`buildType: function`)
+
+A Node app packaged as an Azure Functions v4 bundle and deployed via config-zip. `buildType: function` selects both the Functions packaging in the build stage and the Function deploy target.
+
+```json
+{
+  "app": {
+    "appName": "my-func",
+    "appType": "node",
+    "codePath": "/",
+    "buildType": "function",
+    "runtimeVersion": "20"
+  },
+  "cloud": {
+    "azureRegion": "westus2",
+    "environments": {
+      "dev":  { "azureServiceConnection": "MyConn-NonProd", "resourceGroup": "rg-app-dev",  "appServiceName": "my-func-dev"  },
+      "prod": { "azureServiceConnection": "MyConn-Prod",    "resourceGroup": "rg-app-prod", "appServiceName": "my-func-prod" }
+    }
+  }
+}
+```
+
+### Azure — React with runtime config (`appConfig`, one build, per-environment)
+
+A single SPA build served to every environment: `cloud.environments.<env>.appConfig` is injected at deploy time as `window.__APP_CONFIG__` in a generated `config.js`. The app loads `/config.js` before its bundle and reads per-environment values (API URL, OIDC IDs) at runtime.
+
+```json
+{
+  "app": {
+    "appName": "my-frontend",
+    "appType": "react",
+    "codePath": "frontend",
+    "runtimeVersion": "20"
+  },
+  "cloud": {
+    "azureRegion": "westus2",
+    "environments": {
+      "dev":  {
+        "azureServiceConnection": "MyConn-NonProd",
+        "staticStorageAccount": "myappfedev",
+        "appConfig": { "apiUrl": "/api/v1", "oidcClientId": "4e490edc-…", "oidcTenantId": "e2568721-…" }
+      },
+      "prod": {
+        "azureServiceConnection": "MyConn-Prod",
+        "staticStorageAccount": "myappfeprod",
+        "appConfig": { "apiUrl": "/api/v1", "oidcClientId": "…", "oidcTenantId": "0ec5ddf3-…" }
+      }
+    }
   }
 }
 ```
@@ -790,28 +1068,6 @@ Deploys to a pre-existing Cloud Foundry space. Run with Build enabled and Deploy
 }
 ```
 
-### AWS — Angular with Wiz Scanning
-
-```json
-{
-  "app": {
-    "appName": "my-secure-app",
-    "appType": "angular",
-    "codePath": "/",
-    "runtimeVersion": "20",
-    "scanTool": "wiz",
-    "scanPolicy": "Default IaC policy",
-    "buildTestTool": "jest"
-  },
-  "cloud": {
-    "awsAccountId": "999999999999",
-    "awsRegion": "us-west-2",
-    "s3": "pge-epic-my-secure-app-web-dev",
-    "cloudfront": "X9X9X9XX99XX9X"
-  }
-}
-```
-
 If `/.infra` is present and Terraform outputs include deployment targets (e.g., `bucket_name`, `distribution_id`, `instance_id`, `app_service_name`, `resource_group_name`), those values override the equivalent `cloud` fields automatically.
 
 ---
@@ -826,27 +1082,30 @@ If `/.infra` is present and Terraform outputs include deployment targets (e.g., 
 | `appType` | Yes | Determines build and deploy implementation. See allowed values below. |
 | `codePath` | Yes | Relative path from repo root to application source (e.g., `/`, `.`, `/src`). |
 | `infraPath` | No | Relative path to infrastructure directory (defaults to `.infra`). |
-| `buildType` | No | Defines packaging behavior. Omit for standard build. |
+| `buildType` | No | Defines packaging behavior. Omit for standard build. `function` packages a `node` app as an Azure Functions v4 bundle and routes deploy to the Azure Function target. |
 | `runtimeVersion` | No | Runtime version override (e.g., `"20"` for Node, `"10.x"` for .NET). If omitted, engine default is used. |
 | `approvalEnvironments` | No | Array of environment names that require manual approval before deploy (e.g., `["prod"]`). |
 
 **`appType` allowed values:**
 
-| Value | Cloud | Description |
-|-------|-------|-------------|
+`appType` selects the **build** implementation and how the deploy stage packages the app. The actual **cloud is determined by the `cloud` section** (`awsAccountId` → AWS, an Azure service connection → Azure, `btp`/`cap` → SAP), not by the appType — the "Typical Cloud" column below is just the most common pairing. For example `angular`/`react`/`html` deploy to S3 + CloudFront on AWS or to a Storage `$web` site on Azure, depending on the `cloud` section.
+
+| Value | Typical Cloud | Description |
+|-------|---------------|-------------|
 | `ami` | AWS | AMI factory (EC2 Image Builder + SSM) |
-| `angular` | AWS | Angular frontend application |
-| `react` | AWS | React frontend application (CRA, Vite, Next.js static) |
+| `angular` | AWS / Azure | Angular frontend (AWS S3+CloudFront, or Azure Storage `$web`) |
+| `react` | AWS / Azure | React frontend — CRA, Vite, Next.js static (AWS S3+CloudFront, or Azure Storage `$web`) |
+| `html` | AWS / Azure | Static HTML (AWS S3+CloudFront, or Azure Storage `$web`) |
 | `dotnet` | AWS | .NET Core / .NET 6+ application |
 | `dotnet_framework` | AWS | .NET Framework application |
 | `go` | AWS | Go application (static binary on EC2 via SSM) |
-| `html` | AWS | Static HTML application |
 | `java` | AWS | Java application |
-| `php` | Azure | PHP application |
+| `node` | Azure | Generic Node app (App Service zip, or Azure Functions v4 with `buildType: function`) |
+| `php` | Azure | PHP application (App Service) |
 | `python` | AWS | Python application |
 | `btp` | SAP | SAP BTP infrastructure provisioning (Terraform; runs DeployInfra stage only — disable Build and Deploy toggles) |
 | `cap` | SAP | SAP CAP application — builds an MTA archive and deploys it to a pre-existing Cloud Foundry space |
-| `infra` | AWS | Infrastructure-only Terraform provisioning (no app build/deploy — runs DeployInfra stage only; disable Build and Deploy toggles) |
+| `infra` | AWS / Azure | Infrastructure-only Terraform provisioning (no app build/deploy — runs DeployInfra stage only; disable Build and Deploy toggles) |
 
 ### `app` Section — Tool Configuration
 
@@ -904,15 +1163,65 @@ These parameters identify pre-existing infrastructure resources. If `/.infra` is
 
 ### `cloud` Section — Azure Deployment Parameters
 
-Required when deploying to Azure and `/.infra` is absent. If `/.infra` is present, EPIC resolves resource identifiers from Terraform outputs automatically.
+Azure is selected when `epic.json` provides an Azure **service connection** (flat or per-environment) — the connection is what identifies Azure, and the **target subscription is taken from the connection** (`epic.json` does not restate a subscription ID). Any of the fields below may be set flat (applies to every environment) or overridden per environment under `cloud.environments.<env>` (see [Environments](#environments--one-contract-any-environment)).
 
 | Parameter | Description |
 |-----------|-------------|
-| `azureSubscriptionId` | Target Azure subscription ID |
+| `azureServiceConnection` | Name of the ADO Azure service connection to authenticate with. Defaults to `Azure`. Set this (or the per-environment form) to target a non-default subscription/tenant. |
 | `azureRegion` | Azure region (defaults to `westus2`) |
-| `resourceGroupName` | Target resource group name |
-| `appServiceName` | Target App Service name |
+| `resourceGroup` | Target resource group. Passed to Terraform as `resource_group_name`; when omitted the `.infra` default applies. (Legacy flat alias: `resourceGroupName`.) |
+| `appServiceName` | Target App Service name (App Service deploys) |
+| `staticStorageAccount` | Target Storage account for static-site (`html`/`angular`/`react`) deploys. Overridden by a Terraform `frontend_storage_account` output when present. |
+| `appConfig` | JSON object injected at static-site deploy time as `window.__APP_CONFIG__` in a generated `config.js` (runtime config for one-build-any-environment SPAs). Typically set per-environment. See [Runtime config.js injection](#runtime-configjs-injection-static-spa-deploys). |
 | `appUrl` | Deployed application URL. Used by integration tests as `BASE_URL` when no Terraform `app_url` output is available. Required when `integrationTestTool` is set and `.infra/` is absent. |
+
+#### State backend overrides (optional)
+
+By default, Terraform state follows the per-subscription convention (`epictfstate{first-8-of-subscription-id}` in `rg-epic-tfstate`, container `tfstate`) — one shared state account per subscription. Override any of the following, flat or per-environment:
+
+| Parameter | Description |
+|-----------|-------------|
+| `stateStorageAccount` | Override the derived state storage account name |
+| `stateResourceGroup` | Override the state resource group (default `rg-epic-tfstate`) |
+| `stateContainer` | Override the state container (default `tfstate`) |
+| `bootstrapState` | `true` = the infra stage **creates** the state RG + account + container on the first run and no-ops thereafter (idempotent; first run == 100th run). Default `false` = the account must already exist (created out of band). Self-bootstrap needs the SPN to have control-plane rights on the state RG (creating a storage account); the pre-created model needs only data-plane (`Storage Blob Data Contributor`). The state storage is managed imperatively — it is where Terraform state lives, so it is not itself in Terraform state. |
+
+##### Recommended pattern — co-locate state in the app's environment RG
+
+Instead of a shared `rg-epic-tfstate`, point `stateResourceGroup` at the **same RG the app deploys into** (`resourceGroup`), with a per-environment state account name. This is the **recommended pattern**, especially for prod-sensitive orgs:
+
+```jsonc
+"prod": {
+  "azureServiceConnection": "MyConn-Prod",
+  "resourceGroup":       "rg-app-prod",
+  "stateResourceGroup":  "rg-app-prod",        // state lives with the app
+  "stateStorageAccount": "myapptfstateprod"    // per-env, globally-unique, <=24 lc-alphanumeric
+}
+```
+
+**Why it's preferred:**
+- **Least privilege** — the SPN already has Contributor on the app's env RG (it provisions the app there), so with `bootstrapState: true` it creates the state account inside a RG it already owns. **No subscription-scoped Contributor and no RG-creation right are needed** — the env RG is assumed to pre-exist (the `.infra` reads it as a data source), so the bootstrap step skips group creation and only creates the storage account.
+- **Blast-radius isolation** — one state account per app-environment rather than a shared account for the whole subscription.
+
+**When NOT to co-locate:** only when the app's `.infra` **creates/destroys its own RG** (rather than reading a pre-existing one). In that case a `terraform destroy` could delete the RG — and its state account — out from under itself; keep state in a separate `rg-epic-tfstate` for those apps. EPIC's built-in default stays `rg-epic-tfstate` precisely to protect that case, so co-location is always an explicit per-app choice.
+
+#### Container image build (optional — `cloud.containerImage`)
+
+Present this block to have the infra stage build + push the app's container image during provisioning (staged apply). All fields come from `epic.json`:
+
+| Field | Description |
+|-------|-------------|
+| `registryTarget` | Terraform address of the container registry resource to apply first (e.g. `module.acr`) |
+| `registryOutput` | Terraform output name that returns the registry login server |
+| `imageName` | Image repository name |
+| `tagVariable` | Terraform variable the built image tag is passed into |
+| `dockerfile` | Dockerfile path (default `Dockerfile`) |
+| `context` | Build context relative to `codePath` (default `.`) |
+| `target` | Optional Docker build target stage |
+
+#### Per-environment map (optional — `cloud.environments`)
+
+Keys any of the above `cloud.*` fields by environment (`dev`/`test`/`qa`/`uat`/`stage`/`prod`). Used when environments live in different subscriptions/tenants. See [Environments](#environments--one-contract-any-environment). If a run selects an environment absent from this map (with no flat fallback), the orchestrator fails fast.
 
 ### `cloud` Section — SAP Parameters
 
@@ -945,7 +1254,8 @@ Required when `appType` is `btp` or `cap`. SAP/CF credentials are stored in AWS 
 | Integration Testing | `app` | Optional | `integrationTestTool` |
 | AWS Deployment | `cloud` | Conditional | `awsAccountId`, `awsRegion`, `s3`, `cloudfront`, `ec2InstanceId`, `appExecutable`, `appUrl` |
 | AMI Configuration | `cloud` | Conditional | `components`, `imageBuilderPipelinePrefix`, `ssmParameterPrefix`, `configDocPrefix`, `testDocPrefix`, `componentDocSuffixes`, `instanceTags` |
-| Azure Deployment | `cloud` | Conditional | `azureSubscriptionId`, `azureRegion`, `resourceGroupName`, `appServiceName`, `appUrl` |
+| Azure Deployment | `cloud` | Conditional | `azureServiceConnection`, `azureRegion`, `resourceGroup`, `appServiceName`, `staticStorageAccount`, `appConfig`, `appUrl`, (state) `stateStorageAccount`/`stateResourceGroup`/`stateContainer`/`bootstrapState`, (image) `containerImage.*` |
+| Per-Environment | `cloud` | Optional | `environments.<env>.*` — any `cloud.*` field, keyed by environment |
 | SAP | `cloud` | Conditional | `awsAccountId`, `awsRegion`, `secretsManager.name`, `secretsManager.keys`, (`cap` only) `cfApi`, `cfOrg`, `cfSpace`, `cfOrigin` |
 
 ---
@@ -959,7 +1269,8 @@ EPIC enforces validation at runtime:
 - `runtimeVersion` defaults to the engine's `defaultRuntimeVersion` per appType if omitted
 - Deployment parameters are validated only when the deploy stage executes
 - If `/.infra` is present, Terraform outputs are validated before the deploy stage runs
-- Cloud provider is auto-detected from `epic.json` (`appType: "btp"` or `"cap"` = SAP, then `awsAccountId` = AWS, `azureSubscriptionId` = Azure)
+- Cloud provider is auto-detected from `epic.json` (`appType: "btp"` or `"cap"` = SAP, then `awsAccountId` = AWS, then an Azure service connection — flat or per-environment `azureServiceConnection`, or a legacy `azureSubscriptionId` — = Azure)
+- If a `cloud.environments` map is present and the selected environment is not in it (and no flat fallback exists), the run fails fast rather than defaulting to the wrong target
 
 ---
 

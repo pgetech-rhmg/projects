@@ -99,8 +99,10 @@ const INFRA_RESULT = {
   buildTestTool: 'jest',
   scanTool: 'sonarqube',
   integrationTestTool: 'playwright',
-  hasS3Backend: true,
+  hasRemoteBackend: true,
+  expectedBackend: 's3',
   hasTfState: false,
+  configuredEnvironments: [],
 };
 
 function makeComplianceSummary(overrides: Partial<ComplianceSummary> = {}): ComplianceSummary {
@@ -1389,6 +1391,42 @@ describe('App', () => {
       expect(asAny(c).newRunHasInfra()).toBe(true);
     });
 
+    it('config with a per-env map restricts the env dropdown to configured envs', () => {
+      const c = make();
+      openRun(c);
+      c['newRunBranch'] = 'main';
+      c['newRunConfig'] = '.pipeline/epic.json';
+      appService.checkConfigInfra.and.returnValue(
+        of({ ...INFRA_RESULT, configuredEnvironments: ['dev', 'qa', 'uat', 'prod'] }),
+      );
+      c['onConfigSelect']();
+      expect(asAny(c).newRunConfiguredEnvironments()).toEqual(['dev', 'qa', 'uat', 'prod']);
+      expect(asAny(c).newRunEnvironmentOptions()).toEqual(['dev', 'qa', 'uat', 'prod']);
+    });
+
+    it('snaps a selected env not in the config map to the first configured env', () => {
+      const c = make();
+      openRun(c);
+      // default selection is 'dev'; pick a config that does NOT define dev
+      c['newRunBranch'] = 'main';
+      c['newRunConfig'] = '.pipeline/epic.json';
+      appService.checkConfigInfra.and.returnValue(
+        of({ ...INFRA_RESULT, configuredEnvironments: ['uat', 'prod'] }),
+      );
+      c['onConfigSelect']();
+      expect(asAny(c).newRunEnvironment).toBe('uat');
+    });
+
+    it('a config with no per-env map offers the full default env list', () => {
+      const c = make();
+      openRun(c);
+      c['newRunBranch'] = 'main';
+      c['newRunConfig'] = '.pipeline/epic.json';
+      appService.checkConfigInfra.and.returnValue(of({ ...INFRA_RESULT, configuredEnvironments: [] }));
+      c['onConfigSelect']();
+      expect(asAny(c).newRunEnvironmentOptions()).toEqual(['dev', 'test', 'qa', 'uat', 'stage', 'prod']);
+    });
+
     it('onConfigSelect is a no-op without repo/branch/config', () => {
       const c = make();
       openRun(c);
@@ -1396,6 +1434,26 @@ describe('App', () => {
       appService.checkConfigInfra.calls.reset();
       c['onConfigSelect']();
       expect(appService.checkConfigInfra).not.toHaveBeenCalled();
+    });
+
+    it('infra with no EPIC-manageable backend leaves deployInfra=none so a Review-only run stays valid', () => {
+      const c = make();
+      openRun(c);
+      c['newRunBranch'] = 'epic';
+      c['newRunConfig'] = 'pge.backend/.pipeline/epic.json';
+      // Azure/infra app: infra folder exists but no manageable remote backend —
+      // the deploy radios are disabled, so we must NOT default to Apply, else the
+      // Run button is stranded and a Review-only run can't proceed.
+      appService.checkConfigInfra.and.returnValue(
+        of({ ...INFRA_RESULT, appType: 'infra', hasInfra: true, hasRemoteBackend: false, expectedBackend: 'azurerm', configuredEnvironments: ['dev', 'qa', 'uat', 'prod'] }),
+      );
+      asAny(c).configSearchStatus.set('found');
+      c['onConfigSelect']();
+      expect(asAny(c).newRunDeployInfra).toBe('none');
+      expect(c['infraDeployBlockedNoBackend']).toBe(false);
+      // Review defaults off for infra but is selectable — turn it on and Run must enable.
+      c['newRunReview'] = true;
+      expect(c['canRunNewPipeline']).toBe(true);
     });
 
     it('checkInfraForConfig error path resets flags', () => {
@@ -1416,10 +1474,21 @@ describe('App', () => {
       expect(c['newRunDeployInfra']).toBe('plan');
     });
 
-    it('applyAppTypeDefaults for infra sets apply', () => {
+    it('applyAppTypeDefaults for infra sets apply (with backend) and defaults Review off (but selectable)', () => {
       const c = make();
+      asAny(c).newRunHasRemoteBackend.set(true); // EPIC-manageable backend present
       c['applyAppTypeDefaults']('infra');
       expect(c['newRunDeployInfra']).toBe('apply');
+      // Review is opt-in for infra: defaulted off here, but reviewDisabled (tested
+      // separately) leaves the checkbox selectable once a config is present.
+      expect(c['newRunReview']).toBe(false);
+    });
+
+    it('applyAppTypeDefaults for infra with no backend defaults deployInfra=none (not stranded on Apply)', () => {
+      const c = make();
+      asAny(c).newRunHasRemoteBackend.set(false);
+      c['applyAppTypeDefaults']('infra');
+      expect(c['newRunDeployInfra']).toBe('none');
     });
 
     describe('stage disabled getters', () => {
@@ -1429,8 +1498,12 @@ describe('App', () => {
         c['newRunConfig'] = 'x';
         asAny(c).newRunConfigAppType.set('angular');
         expect(c['reviewDisabled']).toBe(false);
+        // Infra/btp with a config: Review is now SELECTABLE (opt-in), not disabled —
+        // their codePath often carries app source + IA-05 scans tfvars/tfstate.
         asAny(c).newRunConfigAppType.set('btp');
-        expect(c['reviewDisabled']).toBe(true);
+        expect(c['reviewDisabled']).toBe(false);
+        asAny(c).newRunConfigAppType.set('infra');
+        expect(c['reviewDisabled']).toBe(false);
       });
 
       it('reviewDisabled — contract-less (no config) keeps Review available', () => {
@@ -1439,9 +1512,6 @@ describe('App', () => {
         asAny(c).configSearchStatus.set('not-found');
         expect(c['noConfig']).toBe(true);
         expect(c['reviewDisabled']).toBe(false);
-        // ...unless it's resolved as an infra appType (defensive; shouldn't co-occur).
-        asAny(c).newRunConfigAppType.set('infra');
-        expect(c['reviewDisabled']).toBe(true);
       });
 
       it('buildTestsDisabled / scanDisabled', () => {
@@ -1518,7 +1588,7 @@ describe('App', () => {
       expect(c['newRunScan']).toBe(true);
     });
 
-    it('planOnlyWithDeploy / missingS3Backend / infraDeployBlockedNoS3Backend / showForceStateCopy', () => {
+    it('planOnlyWithDeploy / missingRemoteBackend / infraDeployBlockedNoBackend / showForceStateCopy', () => {
       const c = make();
       const a = asAny(c);
       c['newRunDeployInfra'] = 'plan';
@@ -1526,13 +1596,13 @@ describe('App', () => {
       expect(c['planOnlyWithDeploy']).toBe(true);
 
       a.newRunHasInfra.set(true);
-      a.newRunHasS3Backend.set(false);
-      expect(c['missingS3Backend']).toBe(true);
+      a.newRunHasRemoteBackend.set(false);
+      expect(c['missingRemoteBackend']).toBe(true);
       c['newRunDeployInfra'] = 'apply';
-      expect(c['infraDeployBlockedNoS3Backend']).toBe(true);
+      expect(c['infraDeployBlockedNoBackend']).toBe(true);
 
       a.newRunHasTfState.set(true);
-      a.newRunHasS3Backend.set(true);
+      a.newRunHasRemoteBackend.set(true);
       expect(c['showForceStateCopy']).toBe(true);
     });
 
@@ -1562,6 +1632,29 @@ describe('App', () => {
       c['newRunReview'] = true;
       c['newRunBranch'] = '';
       expect(c['canRunNewPipeline']).toBe(false);
+    });
+
+    it('canRunNewPipeline — infra app with nothing selected (deployInfra none) disables Run', () => {
+      const c = make();
+      const a = asAny(c);
+      c['newRunBranch'] = 'epic';
+      c['newRunEnvironment'] = 'dev';
+      c['newRunConfig'] = 'pge.backend/.pipeline/epic.json';
+      a.configSearchStatus.set('found');
+      // Infra app with no backend: all stages off, infra None → empty run.
+      c['newRunReview'] = false;
+      c['newRunBuild'] = false;
+      c['newRunTests'] = false;
+      c['newRunScan'] = false;
+      c['newRunDeploy'] = false;
+      c['newRunIntegrations'] = false;
+      c['newRunDeployInfra'] = 'none';
+      expect(c['hasRunnableSelection']).toBe(false);
+      expect(c['canRunNewPipeline']).toBe(false);
+      // Ticking Review makes it runnable.
+      c['newRunReview'] = true;
+      expect(c['hasRunnableSelection']).toBe(true);
+      expect(c['canRunNewPipeline']).toBe(true);
     });
 
     it('closeNewRunModal returns to the manage modal', () => {
@@ -1620,7 +1713,7 @@ describe('App', () => {
       c['newRunConfig'] = '.pipeline/epic.json';
       a.configSearchStatus.set('found');
       a.newRunHasTfState.set(true);
-      a.newRunHasS3Backend.set(true);
+      a.newRunHasRemoteBackend.set(true);
       c['newRunDeployInfra'] = 'apply';
       c['newRunForceStateCopy'] = true;
       // A non-matching app row exercises the map's identity (`: a`) branch.

@@ -131,24 +131,54 @@ jobs:
 
       #########################################################################
       # Read Azure Cloud Config
+      #
+      # Runs under the service connection so the subscription comes from the
+      # connection (not epic.json), consistent with the infra template. Region,
+      # per-env resource group, and app-service name still come from epic.json.
       #########################################################################
-      - bash: |
-          set -euo pipefail
-
-          CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
-
-          echo ">> Reading Azure cloud config"
-
-          echo "##vso[task.setvariable variable=CLOUD_AZURE_SUBSCRIPTION_ID]$(jq -r '.cloud.azureSubscriptionId' "$CONFIG")"
-          echo "##vso[task.setvariable variable=CLOUD_AZURE_REGION]$(jq -r '.cloud.azureRegion // "westus2"' "$CONFIG")"
-          echo "##vso[task.setvariable variable=CLOUD_RESOURCE_GROUP]$(jq -r '.cloud.resourceGroupName // empty' "$CONFIG")"
-          echo "##vso[task.setvariable variable=CLOUD_APP_SERVICE_NAME]$(jq -r '.cloud.appServiceName // empty' "$CONFIG")"
+      - task: AzureCLI@2
         displayName: "Read Azure cloud config"
+        inputs:
+          azureSubscription: ${{ parameters.azureServiceConnection }}
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            set -euo pipefail
+
+            CONFIG="$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.configPath }}/epic.json"
+            ENVIRONMENT="${{ parameters.environment }}"
+
+            echo ">> Reading Azure cloud config"
+
+            SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+            RESOURCE_GROUP=$(jq -r --arg env "$ENVIRONMENT" \
+              '(.cloud.environments[$env].resourceGroup) // .cloud.resourceGroupName // empty' "$CONFIG")
+            APP_SERVICE_NAME=$(jq -r --arg env "$ENVIRONMENT" \
+              '(.cloud.environments[$env].appServiceName) // .cloud.appServiceName // empty' "$CONFIG")
+
+            echo "##vso[task.setvariable variable=CLOUD_AZURE_SUBSCRIPTION_ID]$SUBSCRIPTION_ID"
+            echo "##vso[task.setvariable variable=CLOUD_AZURE_REGION]$(jq -r --arg env "$ENVIRONMENT" '(.cloud.environments[$env].azureRegion) // .cloud.azureRegion // "westus2"' "$CONFIG")"
+            echo "##vso[task.setvariable variable=CLOUD_RESOURCE_GROUP]$RESOURCE_GROUP"
+            echo "##vso[task.setvariable variable=CLOUD_APP_SERVICE_NAME]$APP_SERVICE_NAME"
+
+      #########################################################################
+      # Azure — Function (buildType: function) → az functionapp config-zip
+      #
+      # Checked FIRST and orthogonal to appType: any Node/other app whose
+      # buildType is "function" publishes as an Azure Function, not to $web or
+      # a plain App Service. The static/app-service branches below are guarded
+      # with ne(buildType,'function') so a function never falls through.
+      #########################################################################
+      - ${{ if eq(parameters.buildType, 'function') }}:
+        - template: azure/function/main.yml
+          parameters:
+            ${{ insert }}: ${{ parameters }}
+            terraformOutputPath: "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}/.terraform/output.json"
 
       #########################################################################
       # Azure — Static (html, angular, react) → Storage $web
       #########################################################################
-      - ${{ if or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular'), eq(parameters.appType, 'react')) }}:
+      - ${{ if and(ne(parameters.buildType, 'function'), or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular'), eq(parameters.appType, 'react'))) }}:
         - template: azure/static/main.yml
           parameters:
             ${{ insert }}: ${{ parameters }}
@@ -157,7 +187,7 @@ jobs:
       #########################################################################
       # Azure — App Service (all other appTypes)
       #########################################################################
-      - ${{ if not(or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular'), eq(parameters.appType, 'react'))) }}:
+      - ${{ if and(ne(parameters.buildType, 'function'), not(or(eq(parameters.appType, 'html'), eq(parameters.appType, 'angular'), eq(parameters.appType, 'react')))) }}:
         - template: azure/app-service/main.yml
           parameters:
             ${{ insert }}: ${{ parameters }}

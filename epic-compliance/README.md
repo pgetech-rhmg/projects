@@ -34,9 +34,23 @@ See "Known limitations" below before trusting a verdict.
 ## Build
 
 ```bash
-make build                 # host binary -> bin/epic-compliance
-make release VERSION=v1.0.0 # static linux/amd64 -> dist/ (what the EPIC agent runs)
+make build                       # host binary -> bin/epic-compliance
+make release VERSION=v1.0.0      # static linux/amd64 -> dist/ (the ONLY binary EPIC/S3 uses)
+make release-all VERSION=v1.0.0  # every platform (linux, mac arm+intel, windows) -> dist/
 ```
+
+Two distinct distribution channels, do not conflate them:
+
+| Channel | Binary(ies) | Built by | Published to | Versioned? | Consumed by |
+|---------|-------------|----------|--------------|-----------|-------------|
+| **Pipeline** | `linux-amd64` | `make release` | **S3** (`pge-epic-compliance-reviewer`) | **yes** — pinned via `COMPLIANCE_REVIEWER_VERSION` | the EPIC Review stage. **The only binary S3 needs.** |
+| **Local shift-left** | `darwin-arm64`, `darwin-amd64`, `linux-amd64`, `windows-amd64.exe` | `make publish-local` | **GitHub Release `local`** | **no** — rolling, always-latest | developers running the gate on their machine |
+
+The two channels are independent. **CI is version-pinned** (reproducible, audited);
+**local shift-left is always-latest** (a rolling GitHub Release named `local` whose
+unversioned assets are overwritten on every `make publish-local`). Binaries are
+**never committed to git** (`dist/` is git-ignored) — GitHub Releases store assets
+outside the repo, so the clone never grows. See "Local shift-left" below.
 
 ## Bumping a version
 
@@ -45,20 +59,37 @@ The EPIC pipeline runs a **version-pinned** binary pulled from S3 — nothing is
 run once the ADO variable points at the new version.
 
 1. **Make the change** — edit the code and run `make test` / `make vet`.
-2. **Re-build the release binary** with the new version (bump the tag —
-   patch for a fix, minor for a feature):
+2. **Build the release binaries** for the new version (bump the tag — patch for a
+   fix, minor for a feature). Build every arch from the **same checkout** so a
+   version's artifacts stay byte-faithful to each other:
    ```bash
-   make release VERSION=v1.0.1
-   # -> dist/epic-compliance-v1.0.1-linux-amd64  (version is baked in via -ldflags)
+   make release-all VERSION=v1.0.1
+   # -> dist/epic-compliance-v1.0.1-linux-amd64        (EPIC pipeline — goes to S3)
+   # -> dist/epic-compliance-v1.0.1-darwin-arm64       (local shift-left — GitHub only)
+   # -> dist/epic-compliance-v1.0.1-darwin-amd64       (local shift-left — GitHub only)
+   # -> dist/epic-compliance-v1.0.1-windows-amd64.exe  (local shift-left — GitHub only)
+   # (version is baked in via -ldflags)
    ```
-3. **Deploy to S3** — upload to the artifact bucket under the pinned key
+3. **Deploy the linux/amd64 binary to S3** — this is the **only** artifact S3
+   needs; it is what the pipeline pulls and gates on. Upload under the pinned key
    (KMS-encrypted, from the `EPIC AWS Resources/Compliance Reviewer/` stack):
    ```bash
    aws s3 cp dist/epic-compliance-v1.0.1-linux-amd64 \
      s3://pge-epic-compliance-reviewer/compliance/epic-compliance-v1.0.1-linux-amd64 \
      --sse aws:kms --sse-kms-key-id alias/pge-epic-compliance
    ```
-4. **Bump the EPIC (ADO) version** — set `COMPLIANCE_REVIEWER_VERSION` in the
+   > Do **not** upload the mac/windows binaries to S3 — they are not part of the
+   > pipeline contract and would just be dead weight in the bucket. They belong on
+   > GitHub Releases (next step).
+4. **Refresh the local shift-left binaries** — rebuild the unversioned binaries
+   and overwrite the rolling `local` GitHub Release (this is what the shift-left
+   scripts download; it is *not* version-pinned — local always runs latest):
+   ```bash
+   make publish-local            # builds dist/local/* and re-uploads with --clobber
+   ```
+   > This channel is optional per-version housekeeping, independent of the S3
+   > pin above — do it whenever you want local runs to reflect the newest checks.
+5. **Bump the EPIC (ADO) version** — set `COMPLIANCE_REVIEWER_VERSION` in the
    `GV-account-access` variable group (ADO Library) to the new tag
    (`v1.0.1`). The engine passes it to the Review stage as
    `complianceVersion`, which builds the S3 key. No pipeline YAML edit needed.
@@ -66,6 +97,9 @@ run once the ADO variable points at the new version.
 > Keep the `v` prefix consistent (`v1.0.1`) — it's part of the git tag, the S3
 > key, and `COMPLIANCE_REVIEWER_VERSION`. The binary carries its own `v` via
 > `-ldflags`, so reports and `--version` render it once (do not add another).
+> (The `local` GitHub Release is *not* versioned — its assets are unversioned and
+> rolling; a binary pulled from it still self-reports whatever version it was
+> built with.)
 
 ## Usage
 
@@ -113,6 +147,99 @@ guarantees a fresh tool every run:
 
 The `bash` step's exit code gates the stage — identical in shape to the Wiz
 stage (`epic-pipeline/scan/wiz/main.yml`).
+
+## Local shift-left (run the gate before you push)
+
+The pipeline runs this gate for you in the **Review** stage — but you don't have
+to wait for CI. You can run the gate against your working tree locally and catch
+a HARD failure before it ever reaches the pipeline. Local runs always use the
+**latest** binary (the rolling `local` GitHub Release), so you get the newest
+checks without pinning anything.
+
+### One-time setup
+
+1. Install the **GitHub CLI** (`gh`) — <https://cli.github.com>.
+2. Log in to the org once:
+   ```bash
+   gh auth login          # choose GitHub.com, and the pgetech account
+   ```
+3. Add the `epic-scan` command to your shell — **run the one-liner for your OS**
+   and it writes the function into your profile for you:
+
+   ```bash
+   # macOS / Linux  (adds it to ~/.zshrc or ~/.bashrc)
+   gh api repos/pgetech/epic-compliance/contents/scripts/install.sh \
+     -H "Accept: application/vnd.github.raw" | bash
+   ```
+   ```powershell
+   # Windows PowerShell  (adds it to your $PROFILE)
+   gh api repos/pgetech/epic-compliance/contents/scripts/install.ps1 `
+     -H "Accept: application/vnd.github.raw" | iex
+   ```
+   Then open a new terminal. (Re-running the installer is safe — it refreshes the
+   command in place rather than duplicating it.)
+
+That's the whole prerequisite. **No AWS access, no KMS, no source checkout, no Go
+toolchain, and no file to keep up to date** — the command streams the latest
+script straight from this repo each run, which in turn pulls the latest binary.
+
+<details>
+<summary>Prefer to add it by hand? (equivalent to what the installer writes)</summary>
+
+```bash
+# macOS / Linux  — paste into ~/.zshrc or ~/.bashrc
+epic-scan() {
+  gh api repos/pgetech/epic-compliance/contents/scripts/epic-scan.sh \
+    -H "Accept: application/vnd.github.raw" | bash -s -- "$@"
+}
+```
+```powershell
+# Windows PowerShell — paste into $PROFILE
+function epic-scan {
+  $t = "$env:TEMP\epic-scan.ps1"
+  gh api repos/pgetech/epic-compliance/contents/scripts/epic-scan.ps1 `
+    -H "Accept: application/vnd.github.raw" | Out-File -Encoding utf8 $t
+  & $t @args
+}
+```
+</details>
+
+### Every time you want to scan
+
+Same command on both platforms — just pass your app's path:
+
+```bash
+epic-scan ~/code/my-app        # macOS / Linux
+```
+```powershell
+epic-scan C:\code\my-app       # Windows
+```
+
+That one command does everything: fetches the latest scanner script and the
+latest binary for your OS, auto-detects `appType` from your
+`.pipeline/epic.json`, scans, prints a summary, writes `compliance.md` (readable)
++ `compliance.sarif` next to the app, and exits with the gate code (`0` pass /
+`1` HARD fail / `2` error). Open the `.sarif` with the VS Code **SARIF Viewer**
+extension for inline squiggles at each finding.
+
+> Both the script and the binary always update automatically — there is nothing
+> to re-download when the gate changes.
+
+### Manual (no shell function, or an unsupported OS)
+
+Download your binary from the rolling `local` release and run it directly:
+
+```bash
+gh release download local --repo pgetech/epic-compliance \
+  --pattern 'epic-compliance-<your-os-arch>' --output epic-compliance
+chmod +x ./epic-compliance   # (skip on Windows)
+./epic-compliance /path/to/your/app --app-type <appType> --md compliance.md --fail-on hard-fail
+```
+
+Published arches: `darwin-arm64` (Apple Silicon), `darwin-amd64` (Intel Mac),
+`linux-amd64`, `windows-amd64.exe`. Note: local runs are **deterministic-only**
+(no `--llm`), so they are slightly noisier than CI — a local FAIL is a strong
+signal, but the LLM pass in CI may reclassify a borderline finding.
 
 ## Layout
 

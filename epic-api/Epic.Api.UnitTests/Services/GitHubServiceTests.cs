@@ -206,8 +206,106 @@ public sealed class GitHubServiceTests
         Assert.Equal("xunit", result.BuildTestTool);
         Assert.Equal("sonarqube", result.ScanTool);
         Assert.Equal("playwright", result.IntegrationTestTool);
-        Assert.True(result.HasS3Backend);
+        Assert.True(result.HasRemoteBackend);   // awsAccountId -> aws -> expects s3, and s3 block present
+        Assert.Equal("s3", result.ExpectedBackend);
         Assert.True(result.HasTfState);
+    }
+
+    [Fact]
+    public async Task CheckInfra_AwsConfig_AzurermBackendIsWrongCloud_NotDetected()
+    {
+        // An AWS config whose Terraform declares an azurerm backend is a mismatch:
+        // EPIC injects s3 for AWS, so the azurerm block can't be managed. Guards
+        // against the cloud-aware check accepting any backend regardless of cloud.
+        var epicJson = """{ "app": { "appType": "dotnet", "infraPath": ".infra" }, "cloud": { "awsAccountId": "123" } }""";
+        var tree = """{ "tree": [ { "type": "blob", "path": ".infra/terraform.tf" } ] }""";
+        var tfContent = FileContentJson("terraform {\n  backend \"azurerm\" {}\n}");
+
+        var handler = new RoutingHttpMessageHandler()
+            .When(r => r.RequestUri!.ToString().Contains("epic.json"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, FileContentJson(epicJson)))
+            .When(r => r.RequestUri!.ToString().Contains("contents/.infra?"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, "{}"))
+            .When("git/trees", HttpStatusCode.OK, tree)
+            .When(r => r.RequestUri!.ToString().Contains("terraform.tf"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, tfContent));
+
+        var result = await Make(handler).CheckInfraAsync("r", "main", ".pipeline/epic.json");
+
+        Assert.True(result.HasInfra);
+        Assert.False(result.HasRemoteBackend);
+        Assert.Equal("s3", result.ExpectedBackend);
+    }
+
+    [Fact]
+    public async Task CheckInfra_BtpAppType_ExpectsS3Backend()
+    {
+        // btp/cap -> sap, and the SAP infra stage uses the S3 backend, so the
+        // expected backend must be s3 (not azurerm) even though it's not AWS.
+        var epicJson = """
+        { "app": { "appType": "btp", "infraPath": ".infra" },
+          "cloud": { "environments": { "dev": { "azureServiceConnection": "ignored-for-sap" } } } }
+        """;
+        var tree = """{ "tree": [ { "type": "blob", "path": ".infra/terraform.tf" } ] }""";
+        var tfContent = FileContentJson("terraform {\n  backend \"s3\" {}\n}");
+
+        var handler = new RoutingHttpMessageHandler()
+            .When(r => r.RequestUri!.ToString().Contains("epic.json"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, FileContentJson(epicJson)))
+            .When(r => r.RequestUri!.ToString().Contains("contents/.infra?"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, "{}"))
+            .When("git/trees", HttpStatusCode.OK, tree)
+            .When(r => r.RequestUri!.ToString().Contains("terraform.tf"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, tfContent));
+
+        var result = await Make(handler).CheckInfraAsync("r", "main", ".pipeline/epic.json");
+
+        Assert.Equal("s3", result.ExpectedBackend);
+        Assert.True(result.HasRemoteBackend);
+    }
+
+    [Fact]
+    public async Task CheckInfra_AzureConfig_DetectsAzurermBackend()
+    {
+        // Azure config (per-env service connection) whose Terraform declares the
+        // azurerm backend EPIC injects for Azure — must be detected as a valid
+        // EPIC-managed backend, not rejected for lacking an S3 block.
+        var epicJson = """
+        { "app": { "appType": "infra", "infraPath": ".infra" },
+          "cloud": { "environments": { "dev": { "azureServiceConnection": "AzureExt-Dev" } } } }
+        """;
+        var tree = """{ "tree": [ { "type": "blob", "path": ".infra/terraform.tf" } ] }""";
+        var tfContent = FileContentJson("terraform {\n  backend \"azurerm\" {}\n}");
+
+        var handler = new RoutingHttpMessageHandler()
+            .When(r => r.RequestUri!.ToString().Contains("epic.json"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, FileContentJson(epicJson)))
+            .When(r => r.RequestUri!.ToString().Contains("contents/.infra?"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, "{}"))
+            .When("git/trees", HttpStatusCode.OK, tree)
+            .When(r => r.RequestUri!.ToString().Contains("terraform.tf"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, tfContent));
+
+        var result = await Make(handler).CheckInfraAsync("r", "main", ".pipeline/epic.json");
+
+        Assert.True(result.HasInfra);
+        Assert.True(result.HasRemoteBackend);
+        Assert.Equal("azurerm", result.ExpectedBackend);
+    }
+
+    [Fact]
+    public async Task CheckInfra_AzureConfig_S3BackendIsWrongCloud_NotDetected()
+    {
+        // An Azure config whose Terraform declares an S3 backend is a mismatch:
+        // EPIC injects azurerm for Azure, so the S3 block can't be managed.
+        var epicJson = """
+        { "app": { "appType": "infra", "infraPath": ".infra" },
+          "cloud": { "azureServiceConnection": "Azure" } }
+        """;
+        var tree = """{ "tree": [ { "type": "blob", "path": ".infra/terraform.tf" } ] }""";
+        var tfContent = FileContentJson("terraform {\n  backend \"s3\" {}\n}");
+
+        var handler = new RoutingHttpMessageHandler()
+            .When(r => r.RequestUri!.ToString().Contains("epic.json"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, FileContentJson(epicJson)))
+            .When(r => r.RequestUri!.ToString().Contains("contents/.infra?"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, "{}"))
+            .When("git/trees", HttpStatusCode.OK, tree)
+            .When(r => r.RequestUri!.ToString().Contains("terraform.tf"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, tfContent));
+
+        var result = await Make(handler).CheckInfraAsync("r", "main", ".pipeline/epic.json");
+
+        Assert.True(result.HasInfra);
+        Assert.False(result.HasRemoteBackend);
     }
 
     [Fact]
@@ -221,7 +319,7 @@ public sealed class GitHubServiceTests
         var result = await Make(handler).CheckInfraAsync("r", "main", "epic.json");
 
         Assert.False(result.HasInfra);
-        Assert.False(result.HasS3Backend);
+        Assert.False(result.HasRemoteBackend);
         Assert.False(result.HasTfState);
         Assert.False(result.HasInfraParams);
     }
@@ -239,6 +337,75 @@ public sealed class GitHubServiceTests
 
         var result = await Make(handler).CheckInfraAsync("r", "main", "epic.json");
         Assert.True(result.HasInfraParams);
+    }
+
+    [Fact]
+    public async Task CheckInfra_AzurePerEnvConnection_HasInfraParams()
+    {
+        // Azure per-env model (subscription comes from the service connection, so
+        // NO azureSubscriptionId in epic.json). A static react SPA with per-env
+        // azureServiceConnection + staticStorageAccount must count as having a
+        // deploy target (hasInfraParams=true) so the UI enables Deploy App —
+        // even though there is no .infra folder and no azureSubscriptionId.
+        var epicJson = """
+        { "app": { "appType": "react" },
+          "cloud": { "environments": {
+            "dev": { "azureServiceConnection": "VegMgmt-DEV", "staticStorageAccount": "onboardxappfedev" }
+          } } }
+        """;
+        var handler = new RoutingHttpMessageHandler()
+            .When(r => r.RequestUri!.ToString().Contains("epic.json"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, FileContentJson(epicJson)))
+            .When(r => r.RequestUri!.ToString().Contains("contents/.infra?"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.NotFound, ""));
+
+        var result = await Make(handler).CheckInfraAsync("r", "main", "epic.json");
+        Assert.False(result.HasInfra);          // no .infra folder
+        Assert.True(result.HasInfraParams);     // per-env azureServiceConnection is a deploy target
+    }
+
+    [Fact]
+    public async Task CheckInfra_FlatAzureConnection_HasInfraParams()
+    {
+        // Flat cloud.azureServiceConnection (no per-env map, no azureSubscriptionId)
+        // is also a valid Azure deploy target.
+        var epicJson = """{ "app": { "appType": "angular" }, "cloud": { "azureServiceConnection": "Azure" } }""";
+        var handler = new RoutingHttpMessageHandler()
+            .When(r => r.RequestUri!.ToString().Contains("epic.json"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, FileContentJson(epicJson)))
+            .When(r => r.RequestUri!.ToString().Contains("contents/.infra?"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.NotFound, ""));
+
+        var result = await Make(handler).CheckInfraAsync("r", "main", "epic.json");
+        Assert.True(result.HasInfraParams);
+    }
+
+    [Fact]
+    public async Task CheckInfra_PerEnvMap_ReturnsConfiguredEnvironments()
+    {
+        var epicJson = """
+        { "app": { "appType": "infra" },
+          "cloud": { "environments": {
+            "dev":  { "azureServiceConnection": "AzureExt-Dev" },
+            "qa":   { "azureServiceConnection": "AzureExt-Dev" },
+            "uat":  { "azureServiceConnection": "AzureExt" },
+            "prod": { "azureServiceConnection": "AzureExt" }
+          } } }
+        """;
+        var handler = new RoutingHttpMessageHandler()
+            .When(r => r.RequestUri!.ToString().Contains("epic.json"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, FileContentJson(epicJson)))
+            .When(r => r.RequestUri!.ToString().Contains("contents/.infra?"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.NotFound, ""));
+
+        var result = await Make(handler).CheckInfraAsync("r", "main", "epic.json");
+        Assert.Equal(new[] { "dev", "qa", "uat", "prod" }, result.ConfiguredEnvironments);
+    }
+
+    [Fact]
+    public async Task CheckInfra_NoEnvMap_ReturnsEmptyConfiguredEnvironments()
+    {
+        var epicJson = """{ "app": { "appType": "angular" }, "cloud": { "azureServiceConnection": "Azure" } }""";
+        var handler = new RoutingHttpMessageHandler()
+            .When(r => r.RequestUri!.ToString().Contains("epic.json"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.OK, FileContentJson(epicJson)))
+            .When(r => r.RequestUri!.ToString().Contains("contents/.infra?"), _ => FakeHttpMessageHandler.Build(HttpStatusCode.NotFound, ""));
+
+        var result = await Make(handler).CheckInfraAsync("r", "main", "epic.json");
+        Assert.Empty(result.ConfiguredEnvironments);
     }
 
     [Fact]
@@ -282,7 +449,7 @@ public sealed class GitHubServiceTests
 
         var result = await Make(handler).CheckInfraAsync("r", "main", "epic.json");
         Assert.True(result.HasInfra);
-        Assert.False(result.HasS3Backend);
+        Assert.False(result.HasRemoteBackend);
     }
 
     [Fact]
@@ -296,7 +463,7 @@ public sealed class GitHubServiceTests
 
         var result = await Make(handler).CheckInfraAsync("r", "main", "epic.json");
         Assert.True(result.HasInfra);
-        Assert.False(result.HasS3Backend);
+        Assert.False(result.HasRemoteBackend);
         Assert.False(result.HasTfState);
     }
 

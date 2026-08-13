@@ -513,7 +513,7 @@ public sealed class AdoServiceTests
     public async Task TriggerOrchestrator_NonSuccess_Throws()
     {
         var handler = new RoutingHttpMessageHandler().When("/runs?api-version", HttpStatusCode.BadRequest, "bad");
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Make(handler).TriggerOrchestratorAsync(
+        await Assert.ThrowsAsync<AdoUpstreamException>(() => Make(handler).TriggerOrchestratorAsync(
             "epic-web", "main", "dev", "epic.json",
             true, true, false, false, false, false, "none", false, "Morgan, Robb",
             "pgetech", "github.com"));
@@ -544,7 +544,7 @@ public sealed class AdoServiceTests
     {
         RoutingHttpMessageHandler handler = new();
         handler.When(r => r.Method == HttpMethod.Patch, _ => FakeHttpMessageHandler.Build(HttpStatusCode.InternalServerError, "boom"));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Make(handler).CancelBuildAsync(1));
+        await Assert.ThrowsAsync<AdoUpstreamException>(() => Make(handler).CancelBuildAsync(1));
     }
 
     // ---- Compliance artifact ----
@@ -627,6 +627,27 @@ public sealed class AdoServiceTests
     {
         var handler = ArtifactHandler(Zip("compliance-report.json", "{ not json"));
         Assert.Null(await Make(handler).GetComplianceReportJsonAsync(1));
+    }
+
+    [Fact]
+    public async Task GetComplianceReportJson_NonNumericCounts_SkippedNotThrown()
+    {
+        // Valid JSON but a verdict count / total is a string (format drift). Must
+        // not throw (would escape the JsonException-only catch → 500) — skip the
+        // bad count and default total to 0.
+        var json = """
+        {
+          "metadata": { "version": "v1" },
+          "summary": { "total": "oops", "byVerdict": { "PASS": 2, "FAIL": "many" } }
+        }
+        """;
+        var handler = ArtifactHandler(Zip("compliance-report.json", json));
+        var report = await Make(handler).GetComplianceReportJsonAsync(1);
+
+        Assert.NotNull(report);
+        Assert.Equal(0, report!.Summary.Total);              // non-numeric → default
+        Assert.Equal(2, report.Summary.ByVerdict["PASS"]);   // good count kept
+        Assert.False(report.Summary.ByVerdict.ContainsKey("FAIL"));   // bad count skipped
     }
 
     [Fact]

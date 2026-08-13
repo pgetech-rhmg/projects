@@ -1541,11 +1541,10 @@
               [ngModelOptions]="{ standalone: true }"
               [disabled]="newRunEnvLocked()"
             >
-              <option value="dev">dev</option>
-              <option value="test">test</option>
-              <option value="qa">qa</option>
-              <option value="stage">stage</option>
-              @if (newRunEnvLocked()) {
+              @for (env of newRunEnvironmentOptions(); track env) {
+                <option [value]="env">{{ env }}</option>
+              }
+              @if (newRunEnvLocked() && !newRunEnvironmentOptions().includes('prod')) {
                 <option value="prod">prod</option>
               }
               @if (newRunConfigAppType() === 'btp') {
@@ -1554,6 +1553,8 @@
             </select>
             @if (newRunEnvLocked()) {
               <span class="field-hint field-hint--info">Release branches always deploy to prod.</span>
+            } @else if (newRunConfiguredEnvironments().length > 0) {
+              <span class="field-hint field-hint--info">This config defines environments: {{ newRunConfiguredEnvironments().join(', ') }}.</span>
             }
           </div>
           <div class="form-field">
@@ -1592,6 +1593,10 @@
             <span class="field-label">{{ newRunConfigAppType() === 'btp' || newRunConfigAppType() === 'infra' ? 'Actions' : 'Stages' }}</span>
             <div class="checkbox-group">
               @if (newRunConfigAppType() === 'btp' || newRunConfigAppType() === 'infra') {
+                <label class="checkbox-label" [class.checkbox-label--disabled]="reviewDisabled">
+                  <input type="checkbox" [(ngModel)]="newRunReview" [ngModelOptions]="{ standalone: true }" [disabled]="reviewDisabled" />
+                  Review App
+                </label>
                 <label class="checkbox-label" [class.checkbox-label--disabled]="!newRunConfig">
                   <input type="checkbox" [(ngModel)]="newRunTests" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunConfig" />
                   Run Tests
@@ -1637,24 +1642,24 @@
             @if (!newRunHasInfra() && !newRunHasInfraParams() && !newRunValidating() && configSearchStatus() === 'found' && newRunConfig) {
               <span class="field-hint field-hint--taken">No infrastructure path or cloud infrastructure parameters found in this config.</span>
             }
-            @if (missingS3Backend && !newRunValidating()) {
-              <span class="field-hint field-hint--taken field-hint--block">No S3 remote backend (<code>backend "s3" &#123;&#125;</code>) found in this Terraform, so EPIC can't manage your state. Add one, commit, and re-run to deploy infrastructure.</span>
+            @if (missingRemoteBackend && !newRunValidating()) {
+              <span class="field-hint field-hint--taken field-hint--block">No <code>{{ newRunExpectedBackend() }}</code> remote backend (<code>backend "{{ newRunExpectedBackend() }}" &#123;&#125;</code>) found in this Terraform, so EPIC can't manage your state. Add one, commit, and re-run to deploy infrastructure.</span>
             }
             <div class="radio-group">
-              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingS3Backend">
-                <input type="radio" name="deployInfra" value="none" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingS3Backend" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingRemoteBackend">
+                <input type="radio" name="deployInfra" value="none" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingRemoteBackend" />
                 None
               </label>
-              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingS3Backend">
-                <input type="radio" name="deployInfra" value="plan" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingS3Backend" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingRemoteBackend">
+                <input type="radio" name="deployInfra" value="plan" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingRemoteBackend" />
                 Plan ONLY
               </label>
-              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingS3Backend">
-                <input type="radio" name="deployInfra" value="apply" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingS3Backend" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingRemoteBackend">
+                <input type="radio" name="deployInfra" value="apply" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingRemoteBackend" />
                 Apply
               </label>
-              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingS3Backend">
-                <input type="radio" name="deployInfra" value="destroy" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingS3Backend" />
+              <label class="radio-label" [class.radio-label--disabled]="!newRunHasInfra() || missingRemoteBackend">
+                <input type="radio" name="deployInfra" value="destroy" [(ngModel)]="newRunDeployInfra" [ngModelOptions]="{ standalone: true }" [disabled]="!newRunHasInfra() || missingRemoteBackend" />
                 Destroy
               </label>
             </div>
@@ -1663,7 +1668,7 @@
             }
             @if (showForceStateCopy) {
               <div class="force-state-copy">
-                <span class="field-hint field-hint--info field-hint--block">A Terraform state file (<code>terraform.tfstate</code>) was found committed in this repo. Would you like EPIC to manage it going forward by copying it into the S3 remote backend? After a successful force copy, remove <code>terraform.tfstate</code> from your repo so the S3 backend stays the single source of truth.</span>
+                <span class="field-hint field-hint--info field-hint--block">A Terraform state file (<code>terraform.tfstate</code>) was found committed in this repo. Would you like EPIC to manage it going forward by copying it into the <code>{{ newRunExpectedBackend() }}</code> remote backend? After a successful force copy, remove <code>terraform.tfstate</code> from your repo so the remote backend stays the single source of truth.</span>
                 <label class="checkbox-label">
                   <input type="checkbox" [(ngModel)]="newRunForceStateCopy" [ngModelOptions]="{ standalone: true }" />
                   Force State Copy
@@ -1831,18 +1836,22 @@
 
         <div class="howto-section">
           <h4>Infrastructure (Optional)</h4>
-          <p>If your app requires AWS infrastructure (EC2, S3, CloudFront, Aurora, etc.), add a <code>.infra/</code> folder at the root of your repository with standard Terraform files:</p>
+          <p>If your app requires cloud infrastructure (AWS: EC2, S3, CloudFront, Aurora, etc.; Azure: Container Apps, Storage, Key Vault, etc.), add a <code>.infra/</code> folder at the root of your repository with standard Terraform files:</p>
           <ul>
-            <li><code>terraform.tf</code> — Backend and provider configuration. <strong>Must declare an S3 remote backend</strong> (see below)</li>
+            <li><code>terraform.tf</code> — Backend and provider configuration. <strong>Must declare a remote backend</strong> matching your cloud (see below)</li>
             <li><code>main.tf</code> — Resource definitions</li>
             <li><code>variables.tf</code> — Input variables</li>
             <li><code>outputs.tf</code> — Output values</li>
             <li><code>terraform.auto.tfvars</code> — Variable values</li>
           </ul>
           <p>EPIC will automatically detect the <code>.infra/</code> folder and enable the Infrastructure Deployment option when triggering runs.</p>
-          <p class="howto-note howto-note--important"><strong>An S3 remote backend is required.</strong> Your Terraform <strong>must</strong> include a <code>backend "s3" &#123;&#125;</code> block so EPIC can manage your state. EPIC supplies the backend configuration (bucket, key, region) at init time, so the block can be empty — but it must be present. Without it, EPIC can't manage your state and the Infrastructure Deployment options stay disabled when you trigger a run.</p>
+          <p class="howto-note howto-note--important"><strong>A remote backend is required.</strong> Your Terraform <strong>must</strong> declare the backend for your cloud — <code>backend "s3" &#123;&#125;</code> for AWS/SAP, <code>backend "azurerm" &#123;&#125;</code> for Azure — so EPIC can manage your state. EPIC supplies the backend configuration (bucket/account, key, region) at init time, so the block can be empty — but it must be present and match your cloud. Without it, EPIC can't manage your state and the Infrastructure Deployment options stay disabled when you trigger a run.</p>
           <pre class="howto-code">terraform &#123;
+  # AWS / SAP
   backend "s3" &#123;&#125;
+
+  # Azure
+  backend "azurerm" &#123;&#125;
 &#125;</pre>
         </div>
 

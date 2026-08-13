@@ -139,15 +139,22 @@ func init() {
 		// HARD + layerIaC: gates only when the repo carries IaC (else N/A —
 		// inherited from the hosting edge). When the app owns infra, missing
 		// transport protection is a hard gate.
+		//
+		// Scans BOTH app source AND IaC: TLS can be satisfied either in-app
+		// (createSecureServer/listenTLS) or, more commonly, by edge termination
+		// declared in Terraform/YAML (an HTTPS listener, ssl_policy, an ACM/KeyVault
+		// cert, ingress TLS). Without the IaC patterns a pure-Terraform repo with a
+		// perfectly good HTTPS listener would false-FAIL — its .tf files were never
+		// grepped. The IaC idioms below mirror how SC-28 already reads *.tf/*.yaml.
 		control: "SC-08-00", kind: model.KindHard,
 		checkedFor:     "TLS/HTTPS protection of data in transit",
-		mechanismRegex: `https|tls|ssl|createSecureServer|listenTLS`,
-		filePatterns:   []string{"*.ts", "*.js", "*.go", "*.cs", "*.py", "*.java"},
+		mechanismRegex: `https|tls|ssl|createSecureServer|listenTLS|ssl_policy|aws_lb_listener|protocol\s*=\s*"?HTTPS|certificate_arn|acm_certificate|https_listener|ssl_certificate|tls_secret|ingress.*tls`,
+		filePatterns:   []string{"*.ts", "*.js", "*.go", "*.cs", "*.py", "*.java", "*.tf", "*.yaml", "*.yml"},
 		presentVerdict: model.VerdictPartial,
-		presentMessage: "TLS/HTTPS references found; edge termination (ALB/ingress) may satisfy this in IaC.",
+		presentMessage: "TLS/HTTPS references found (in app source and/or IaC edge termination).",
 		absentVerdict:  model.VerdictFail,
-		absentMessage:  "No in-app TLS found; confirm edge TLS termination in IaC (else data-in-transit is unprotected).",
-		remediation:    "Serve over TLS, or confirm TLS termination at the load balancer/ingress in IaC.",
+		absentMessage:  "No TLS/HTTPS found in app source or IaC; confirm TLS termination (in-app or at the load balancer/ingress) — else data-in-transit is unprotected.",
+		remediation:    "Serve over TLS, or declare TLS termination at the load balancer/ingress in IaC (e.g. an HTTPS listener with an ACM/Key Vault certificate).",
 	})
 	register(&presenceRule{
 		// HARD + layerIaC: gates only when the repo carries IaC (else N/A —

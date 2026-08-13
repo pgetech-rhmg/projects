@@ -1,0 +1,114 @@
+###############################################################################
+# Node build (appType: node)
+#
+# Generic Node builder — nothing app-specific. Two packaging modes selected by
+# the standard `buildType` parameter:
+#   • app (default) — a runnable Node app laid into .build/ for App Service
+#                     zip-deploy (deploy → azure/app-service).
+#   • function      — an Azure Functions v4 package (host.json + package.json +
+#                     compiled dist/ + production node_modules) for config-zip
+#                     deploy (deploy → azure/function).
+#
+# Runtime is Node; version comes from runtimeVersion (epic.json) coalesced with
+# the engine's defaultRuntimeVersion.
+###############################################################################
+steps:
+
+  #############################################################################
+  # Use Node Version
+  #############################################################################
+  - task: UseNode@1
+    displayName: "Use Node ${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
+    inputs:
+      version: "${{ coalesce(parameters.runtimeVersion, parameters.defaultRuntimeVersion) }}"
+
+
+  #############################################################################
+  # Verify Node
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      node --version
+      npm --version
+    displayName: "Verify Node"
+
+
+  #############################################################################
+  # Install, Build, Prune
+  #############################################################################
+  - bash: |
+      set -euo pipefail
+
+      cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+      echo ">> Installing dependencies"
+      if [ -f package-lock.json ]; then
+        npm ci
+      else
+        npm install
+      fi
+
+      echo ">> Building (if a build script is defined)"
+      npm run build --if-present
+
+      echo ">> Pruning dev dependencies"
+      npm prune --omit=dev || npm prune --production
+
+      rm -rf .build
+      mkdir -p .build
+    displayName: "Install, build, prune"
+
+
+  #############################################################################
+  # Package — buildType: function (Azure Functions v4)
+  #############################################################################
+  - ${{ if eq(parameters.buildType, 'function') }}:
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        echo ">> Assembling Azure Functions v4 package into .build/"
+
+        # host.json + package.json are required; package.json 'main' globs the
+        # compiled function entrypoints under dist/.
+        cp host.json package.json .build/
+
+        if [ -d dist ]; then
+          cp -R dist .build/dist
+        else
+          echo "ERROR: dist/ not found — the function build (tsc) must emit compiled JS" >&2
+          exit 1
+        fi
+
+        # Production dependencies (already pruned above).
+        cp -R node_modules .build/node_modules
+
+        # Optional deploy-ignore file.
+        [ -f .funcignore ] && cp .funcignore .build/ || true
+
+        echo ">> Function package contents:"
+        ls -la .build/
+      displayName: "Package function (buildType=function)"
+
+
+  #############################################################################
+  # Package — buildType: app (default)
+  #############################################################################
+  - ${{ if ne(parameters.buildType, 'function') }}:
+    - bash: |
+        set -euo pipefail
+
+        cd "$(System.DefaultWorkingDirectory)/${{ parameters.appName }}/${{ parameters.codePath }}"
+
+        echo ">> Assembling Node app package into .build/"
+
+        # Exclude the infra/config dirs (basename — they sit under codePath).
+        rsync -a \
+          --exclude='.build' \
+          --exclude='.git' \
+          --exclude="$(basename "${{ parameters.infraPath }}")" \
+          --exclude="$(basename "${{ parameters.configPath }}")" \
+          ./ .build/
+      displayName: "Package app (buildType=app)"

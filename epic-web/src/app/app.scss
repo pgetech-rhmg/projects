@@ -445,6 +445,7 @@ tbody {
 // Environment
 .badge--env {
   &-prod  { background: #d4edda; color: #155724; }
+  &-uat   { background: #e9d8fd; color: #553c9a; }
   &-qa    { background: #d1ecf1; color: #0c5460; }
   &-test  { background: #fff3cd; color: #7d5a00; }
   &-dev   { background: #e2e8f0; color: #4a5568; }

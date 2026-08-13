@@ -998,18 +998,34 @@ export class App implements OnInit, OnDestroy {
   protected availableConfigs = signal<string[]>([]);
   protected newRunHasInfra = signal(false);
   protected newRunHasInfraParams = signal(false);
-  // Whether the app's Terraform declares an S3 remote backend. When the user
-  // requests an infra deploy without one, we confirm they don't want EPIC to
-  // manage their state before triggering the run.
-  protected newRunHasS3Backend = signal(false);
+  // Whether the app's Terraform declares the EPIC-managed remote backend for
+  // its cloud (s3 for AWS/SAP, azurerm for Azure). When the user requests an
+  // infra deploy without one, we confirm they don't want EPIC to manage their
+  // state before triggering the run.
+  protected newRunHasRemoteBackend = signal(false);
+  // The Terraform backend EPIC expects for the selected config's cloud
+  // ("s3" for AWS/SAP, "azurerm" for Azure). Names the backend in the UI hint.
+  protected newRunExpectedBackend = signal('s3');
   // Whether a committed *.tfstate exists in the repo. If so we offer a
-  // "Force State Copy" checkbox so EPIC migrates it into the S3 backend.
+  // "Force State Copy" checkbox so EPIC migrates it into the remote backend.
   protected newRunHasTfState = signal(false);
   protected newRunConfigAppType = signal<string | null>(null);
   protected newRunBuildTestTool = signal<string | null>(null);
   protected newRunScanTool = signal<string | null>(null);
   protected newRunIntegrationTestTool = signal<string | null>(null);
+  // Environment keys the selected config declares under cloud.environments. When
+  // non-empty, the env dropdown is restricted to these so a user can't pick an
+  // environment the config doesn't define (which the pipeline would reject).
+  protected newRunConfiguredEnvironments = signal<string[]>([]);
   protected newRunValidating = signal(false);
+
+  // The env <option>s to offer: the config's configured environments when it
+  // declares a per-env map, else the full default set. Drives the dropdown.
+  protected readonly allEnvironments = ['dev', 'test', 'qa', 'uat', 'stage', 'prod'];
+  protected newRunEnvironmentOptions = computed(() => {
+    const configured = this.newRunConfiguredEnvironments();
+    return configured.length > 0 ? configured : this.allEnvironments;
+  });
   private lastValidatedBranch = '';
 
   protected newAppRepo = '';
@@ -1140,12 +1156,13 @@ export class App implements OnInit, OnDestroy {
     this.availableConfigs.set([]);
     this.newRunHasInfra.set(false);
     this.newRunHasInfraParams.set(false);
-    this.newRunHasS3Backend.set(false);
+    this.newRunHasRemoteBackend.set(false);
     this.newRunHasTfState.set(false);
     this.newRunConfigAppType.set(null);
     this.newRunBuildTestTool.set(null);
     this.newRunScanTool.set(null);
     this.newRunIntegrationTestTool.set(null);
+    this.newRunConfiguredEnvironments.set([]);
     this.newRunValidating.set(false);
     this.lastValidatedBranch = '';
     this.newRunReview = true;
@@ -1176,7 +1193,7 @@ export class App implements OnInit, OnDestroy {
     this.newRunConfig = '';
     this.newRunHasInfra.set(false);
     this.newRunHasInfraParams.set(false);
-    this.newRunHasS3Backend.set(false);
+    this.newRunHasRemoteBackend.set(false);
     this.newRunHasTfState.set(false);
     this.newRunConfigAppType.set(null);
     this.newRunBuildTestTool.set(null);
@@ -1187,6 +1204,7 @@ export class App implements OnInit, OnDestroy {
   protected onNewRunBranchBlur(): void {
     const branch = this.newRunBranch.trim();
     const repo = this.newRunApp()?.github?.repo;
+    const source = this.newRunApp()?.github?.source ?? undefined;
     if (!branch || !repo) {
       this.configSearchStatus.set('idle');
       return;
@@ -1199,9 +1217,9 @@ export class App implements OnInit, OnDestroy {
     this.newRunConfig = '';
     this.newRunHasInfra.set(false);
     this.newRunHasInfraParams.set(false);
-    this.newRunHasS3Backend.set(false);
+    this.newRunHasRemoteBackend.set(false);
     this.newRunHasTfState.set(false);
-    this.appService.getConfigs(repo, branch).subscribe({
+    this.appService.getConfigs(repo, branch, source).subscribe({
       next: result => {
         if (result.configs.length === 0) {
           this.configSearchStatus.set('not-found');
@@ -1242,7 +1260,7 @@ export class App implements OnInit, OnDestroy {
     if (!repo || !branch || !this.newRunConfig) return;
     this.newRunHasInfra.set(false);
     this.newRunHasInfraParams.set(false);
-    this.newRunHasS3Backend.set(false);
+    this.newRunHasRemoteBackend.set(false);
     this.newRunHasTfState.set(false);
     this.newRunBuildTestTool.set(null);
     this.newRunScanTool.set(null);
@@ -1256,32 +1274,47 @@ export class App implements OnInit, OnDestroy {
   }
 
   private checkInfraForConfig(repo: string, branch: string, config: string): void {
-    this.appService.checkConfigInfra(repo, branch, config).subscribe({
+    const source = this.newRunApp()?.github?.source ?? undefined;
+    this.appService.checkConfigInfra(repo, branch, config, source).subscribe({
       next: result => {
         this.newRunHasInfra.set(result.hasInfra);
         this.newRunHasInfraParams.set(result.hasInfraParams);
-        this.newRunHasS3Backend.set(result.hasS3Backend);
+        this.newRunHasRemoteBackend.set(result.hasRemoteBackend);
+        this.newRunExpectedBackend.set(result.expectedBackend ?? 's3');
         this.newRunHasTfState.set(result.hasTfState);
         this.newRunConfigAppType.set(result.appType);
         this.newRunBuildTestTool.set(result.buildTestTool);
         this.newRunScanTool.set(result.scanTool);
         this.newRunIntegrationTestTool.set(result.integrationTestTool);
+        this.newRunConfiguredEnvironments.set(result.configuredEnvironments ?? []);
+        // If the config declares a per-env map and the currently-selected env
+        // isn't in it, snap to the first configured env so the dropdown never
+        // shows an environment the config (and pipeline) would reject.
+        const envs = result.configuredEnvironments ?? [];
+        if (envs.length > 0 && !envs.includes(this.newRunEnvironment) && !this.newRunEnvLocked()) {
+          this.newRunEnvironment = envs[0];
+        }
         this.applyAppTypeDefaults(result.appType);
-        // Default to Apply when the resolved infra folder exists
-        // (.infra/ or the epic.json-specified infraPath). If there's no
-        // S3 backend, Apply stays selected but disabled, which keeps the
-        // Run button disabled until the user adds the backend.
-        // BTP keeps its "Plan ONLY" default from applyAppTypeDefaults.
-        if (result.hasInfra && result.appType !== 'btp') this.newRunDeployInfra = 'apply';
+        // Default to Apply only when infra can ACTUALLY deploy — i.e. the infra
+        // folder exists AND has an EPIC-manageable remote backend. Without a
+        // usable backend the deploy radios are disabled, so defaulting to Apply
+        // would strand deployInfra on a value the user can't change and block the
+        // Run button even for a Review-only run. Leaving it at 'none' keeps the
+        // run valid; the informational "no backend" hint still explains why infra
+        // won't deploy. BTP keeps its "Plan ONLY" default from applyAppTypeDefaults.
+        if (result.hasInfra && result.appType !== 'btp' && result.hasRemoteBackend) {
+          this.newRunDeployInfra = 'apply';
+        }
       },
       error: () => {
         this.newRunHasInfra.set(false);
         this.newRunHasInfraParams.set(false);
-        this.newRunHasS3Backend.set(false);
+        this.newRunHasRemoteBackend.set(false);
         this.newRunHasTfState.set(false);
         this.newRunBuildTestTool.set(null);
         this.newRunScanTool.set(null);
         this.newRunIntegrationTestTool.set(null);
+        this.newRunConfiguredEnvironments.set([]);
         this.newRunValidating.set(false);
       },
       complete: () => this.newRunValidating.set(false)
@@ -1290,15 +1323,23 @@ export class App implements OnInit, OnDestroy {
 
   private applyAppTypeDefaults(appType: string | null): void {
     if (appType === 'btp' || appType === 'infra') {
-      // Review is app-code only — infrastructure appTypes (btp/infra) have no
-      // Review stage, so force it off alongside the other app stages.
+      // Infrastructure appTypes: default Review OFF (but still selectable — see
+      // reviewDisabled). Many infra repos also carry app source (e.g. a Container
+      // Apps backend whose codePath holds the Express app), and IA-05 secret
+      // scanning is valuable on .tfvars/.tfstate too, so the compliance gate is
+      // available on opt-in; it just isn't forced on the way it is for app types.
       this.newRunReview = false;
       this.newRunBuild = false;
       this.newRunDeploy = false;
       this.newRunIntegrations = false;
       this.newRunTests = false;
       this.newRunScan = false;
-      this.newRunDeployInfra = 'apply';
+      // Default to Apply only when infra can actually deploy (has the
+      // EPIC-managed remote backend for its cloud — s3 for AWS/SAP, azurerm for
+      // Azure). Without one the deploy radios are disabled, so defaulting to
+      // Apply would strand deployInfra on an unchangeable value and block the
+      // Run button — even for a Review-only run. 'none' keeps the run valid.
+      this.newRunDeployInfra = this.newRunHasRemoteBackend() ? 'apply' : 'none';
     }
     // BTP defaults: environment "other" and infrastructure "Plan ONLY" (plan),
     // unless a release branch has locked the environment to prod.
@@ -1328,11 +1369,13 @@ export class App implements OnInit, OnDestroy {
     return this.configSearchStatus() === 'not-found';
   }
 
-  // Review (PG&E compliance gate) is app-code only: available for any app once
-  // a config is selected — or when the repo has NO config at all (contract-less
-  // Review-only run) — but never for infrastructure appTypes (btp/infra).
+  // Review (PG&E compliance gate) is available for ANY appType once a config is
+  // selected — or when the repo has NO config at all (contract-less Review-only
+  // run). Infrastructure appTypes (btp/infra) are no longer excluded: their
+  // codePath often contains app source, and IA-05 secret scanning covers
+  // .tfvars/.tfstate. It defaults OFF for infra/btp (applyAppTypeDefaults) but
+  // stays selectable. Only truly disabled when no config is resolved yet.
   protected get reviewDisabled(): boolean {
-    if (this.newRunConfigAppType() === 'btp' || this.newRunConfigAppType() === 'infra') return true;
     return !this.newRunConfig && !this.noConfig;
   }
 
@@ -1389,6 +1432,21 @@ export class App implements OnInit, OnDestroy {
     return this.newRunDeployInfra === 'plan' && this.newRunDeploy;
   }
 
+  // At least one stage or an infra action must be selected — otherwise the run
+  // is a no-op. Guards against submitting an empty run (nothing ticked + infra
+  // "None"), which the pipeline would start and then skip every stage.
+  protected get hasRunnableSelection(): boolean {
+    return (
+      this.newRunReview ||
+      this.newRunBuild ||
+      this.newRunTests ||
+      this.newRunScan ||
+      this.newRunDeploy ||
+      this.newRunIntegrations ||
+      this.newRunDeployInfra !== 'none'
+    );
+  }
+
   protected get canRunNewPipeline(): boolean {
     const branchOk = !!this.newRunBranch.trim() && !this.newRunBranchError() && !!this.newRunEnvironment;
     if (!branchOk) return false;
@@ -1397,31 +1455,34 @@ export class App implements OnInit, OnDestroy {
     return (
       this.configSearchStatus() === 'found' &&
       !!this.newRunConfig.trim() &&
-      // An infra deploy needs an S3 remote backend for EPIC-managed state.
-      !this.infraDeployBlockedNoS3Backend
+      // An infra deploy needs an EPIC-managed remote backend for the state.
+      !this.infraDeployBlockedNoBackend &&
+      // Don't allow an empty run — at least one stage or infra action selected.
+      this.hasRunnableSelection
     );
   }
 
   /**
-   * Infra folder exists but its Terraform has no S3 remote backend, so EPIC
-   * can't manage the state. Apply/Destroy are unavailable in this case.
+   * Infra folder exists but its Terraform has no EPIC-managed remote backend
+   * for its cloud (s3 for AWS/SAP, azurerm for Azure), so EPIC can't manage the
+   * state. Apply/Destroy are unavailable in this case.
    */
-  protected get missingS3Backend(): boolean {
-    return this.newRunHasInfra() && !this.newRunHasS3Backend();
+  protected get missingRemoteBackend(): boolean {
+    return this.newRunHasInfra() && !this.newRunHasRemoteBackend();
   }
 
-  /** Infra deploy was requested but the Terraform has no S3 remote backend. */
-  protected get infraDeployBlockedNoS3Backend(): boolean {
-    return this.newRunDeployInfra !== 'none' && this.missingS3Backend;
+  /** Infra deploy was requested but the Terraform has no EPIC-managed remote backend. */
+  protected get infraDeployBlockedNoBackend(): boolean {
+    return this.newRunDeployInfra !== 'none' && this.missingRemoteBackend;
   }
 
   /**
    * Show the "Force State Copy" option only when a committed tfstate was found
-   * AND the run can actually deploy infra (S3 backend present, Apply/Destroy
+   * AND the run can actually deploy infra (remote backend present, Apply/Destroy
    * selected) — otherwise there's no init to migrate state into.
    */
   protected get showForceStateCopy(): boolean {
-    return this.newRunHasTfState() && this.newRunHasS3Backend() && this.newRunDeployInfra !== 'none';
+    return this.newRunHasTfState() && this.newRunHasRemoteBackend() && this.newRunDeployInfra !== 'none';
   }
 
   protected closeNewRunModal(): void {

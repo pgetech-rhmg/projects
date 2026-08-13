@@ -79,10 +79,25 @@ variable "admin_username" {
 
 variable "admin_password" {
   type        = string
-  description = "Administrator password. If null, a 24-character password is auto-generated"
+  description = "Administrator password. If null, a 24-character password is auto-generated. If you pass a value that is unknown at plan time (e.g. random_password.x.result created in the same run), also set generate_admin_password = false so the module doesn't try to derive that intent from an unknown value."
   sensitive   = true
   default     = null
   nullable    = true
+}
+
+variable "generate_admin_password" {
+  type        = bool
+  description = <<-EOT
+    Explicitly control whether the module generates the admin password.
+    - null (default): infer from admin_password (generate when it is null).
+      Safe ONLY when admin_password is known at plan time (a literal or an
+      already-existing value).
+    - false: never generate; use the supplied admin_password. Set this when you
+      pass an apply-time/computed admin_password (e.g. random_password.x.result)
+      so `count` stays plan-known and avoids "Invalid count argument".
+    - true: always generate; admin_password is ignored.
+  EOT
+  default     = null
 }
 
 variable "databases" {

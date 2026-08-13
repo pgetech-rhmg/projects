@@ -134,6 +134,16 @@ resource "azurerm_application_gateway" "this" {
           name          = rewrite_rule.value.name
           rule_sequence = rewrite_rule.value.rule_sequence
 
+          dynamic "condition" {
+            for_each = { for c in rewrite_rule.value.conditions : c.variable => c }
+            content {
+              variable    = condition.value.variable
+              pattern     = condition.value.pattern
+              ignore_case = condition.value.ignore_case
+              negate      = condition.value.negate
+            }
+          }
+
           dynamic "url" {
             for_each = rewrite_rule.value.url != null ? [rewrite_rule.value.url] : []
             content {
