@@ -261,7 +261,7 @@ The following secrets and variable groups must be configured in Azure DevOps:
 | `PORTKEY_BASE_URL` | `GV-account-access` | Portkey gateway base URL |
 | `PORTKEY_MODEL` | `GV-account-access` | LLM model routed via Portkey (Opus 4.8) |
 | AWS credentials | `AWS` service connection | Base credentials for STS role assumption |
-| Azure credentials | `Azure` service connection (default) | Azure deployments. Apps targeting a non-default subscription/tenant reference their own connection by name via `cloud.azureServiceConnection` (or the per-environment `cloud.environments.<env>.azureServiceConnection`); create these as **App registration (manual) + secret** connections so a tenant can be set explicitly. |
+| Azure credentials | `Azure` service connection (default) | Azure deployments. Apps targeting a non-default subscription/tenant reference their own connection by name via `cloud.azureServiceConnection` (or the per-environment `cloud.environments.<env>.azureServiceConnection`). Both **Workload Identity Federation (WIF/OIDC)** and **App registration (manual) + secret** connections work — EPIC auto-detects the scheme at run time (see [Credential Flow](#credential-flow)). WIF is the recommended/default approach; secret-based connections remain fully supported. |
 | `SYSTEM_ACCESSTOKEN` | Built-in | REST API call from orchestrator to engine |
 
 ---
@@ -354,6 +354,7 @@ The state account name is **derived from the target subscription** (one account 
 1. EPIC selects the ADO service connection for this run — `cloud.environments.<env>.azureServiceConnection` if set, else the flat `cloud.azureServiceConnection`, else the default `Azure`. This lets different environments target different subscriptions/tenants from one config.
 2. The connection's Service Principal authenticates to its tenant, and the **target subscription is taken from the connection itself** (`az account show`) — `epic.json` does not restate the subscription ID.
 3. A **resource group** is passed to Terraform as `-var="resource_group_name=<rg>"` when `epic.json` provides one (per-environment `cloud.environments.<env>.resourceGroup`, or flat `cloud.resourceGroupName`); otherwise the `.infra`'s own default applies.
+4. **Terraform auth scheme is auto-detected** from the connection type (WIF is the default/recommended approach). Each Terraform step runs under `AzureCLI@2` with `addSpnToEnvironment: true` and inspects the exposed variables: a **WIF/OIDC** connection exposes a federated `$idToken` (no stored secret) → EPIC exports `ARM_USE_OIDC=true` + `ARM_OIDC_TOKEN`; an **App-registration + secret** connection exposes `$servicePrincipalKey` → EPIC exports `ARM_CLIENT_SECRET`. Both the `azurerm` provider and the `azurerm` state backend honor these, so `init`/`plan`/`apply`/`destroy` all authenticate the same way with no per-app configuration. Non-Terraform Azure steps (state bootstrap, `az acr build` image builds, static `$web` upload, App Service / Function deploys) run inside `AzureCLI@2` and use the task's native login, so WIF is transparent to them.
 
 ### Behavior
 
@@ -690,6 +691,33 @@ When an app genuinely needs *different values per environment* — most commonly
   }
 }
 ```
+
+### Per-environment Terraform variable overrides (Azure)
+
+Sometimes the values that differ per environment aren't EPIC's own well-known fields (connection, resource group, state) but **your `.infra`'s own Terraform variables** — e.g. per-environment Entra client IDs or security-group object IDs. The industry-standard pattern is *one codebase across all branches, dev defaults committed in `*.auto.tfvars`, and the pipeline injects per-environment overrides at plan/apply* — with no per-branch tfvars divergence. EPIC supports this via an optional **`terraformVars`** map (flat `cloud.terraformVars` and/or per-env `cloud.environments.<env>.terraformVars`):
+
+```jsonc
+"cloud": {
+  "environments": {
+    "dev":  { "azureServiceConnection": "MyConn-NonProd", "resourceGroup": "rg-app-dev" },
+    // dev keeps its defaults in the committed .infra/*.auto.tfvars — no override needed
+    "qa": {
+      "azureServiceConnection": "MyConn-NonProd", "resourceGroup": "rg-app-qa",
+      "terraformVars": {                      // injected as a Terraform -var-file at plan/apply
+        "entra_client_id": "…",
+        "entra_group_prefix": "MyApp-QA-"
+      }
+    }
+  }
+}
+```
+
+How it works: the Azure infra stage merges `cloud.terraformVars` (flat) with `cloud.environments.<env>.terraformVars` (per-env wins), writes the result as a Terraform `*.tfvars.json`, and passes it via `-var-file` on `plan`, `apply` (including the staged container-image apply), and `plan -destroy`. Each value keeps its JSON type (string/number/bool/list/object). The `-var-file` is placed **before** EPIC's own managed `-var` flags (`subscription_id`, `tenant_id`, `environment`, `azure_region`, `resource_group_name`), so those can never be overridden by the map. Rules of thumb:
+
+- **NON-SECRET values only.** Secrets belong in Key Vault, never in `epic.json`. Client IDs and group object IDs are not secrets; a client *secret* is.
+- **Every key must be a declared `variable` in your `.infra`** — Terraform errors on an override for an undeclared variable.
+- **Apps that define no `terraformVars` are completely unaffected** (no file is written; no flag is added).
+- Currently implemented for the **Azure** infra path.
 
 ### Fail-fast on an unconfigured environment
 

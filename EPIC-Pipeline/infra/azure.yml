@@ -105,6 +105,31 @@ steps:
           echo "##vso[task.setvariable variable=IMAGE_BUILD]false"
         fi
 
+        # Per-environment Terraform variable overrides (NON-SECRET values only —
+        # secrets belong in Key Vault, never here). Lets an app keep DEV defaults
+        # in its committed *.auto.tfvars and have EPIC inject DIFFERENT values per
+        # environment WITHOUT per-branch tfvars divergence — one codebase, per-env
+        # config resolved at plan/apply. Merge order: flat cloud.terraformVars,
+        # then per-env cloud.environments.<env>.terraformVars (per-env wins). Each
+        # value keeps its JSON type (string/number/bool/list/object), so it maps
+        # cleanly onto the matching Terraform variable. Written as a Terraform
+        # *.tfvars.json and passed via -var-file, which outranks the committed
+        # auto.tfvars; EPIC's own managed -var flags (subscription_id/tenant_id/
+        # environment/azure_region/resource_group_name) are listed AFTER it on the
+        # command line, so they always win. When neither key is present the file is
+        # not written and TF_VAR_FILE stays empty — existing apps are unaffected.
+        TF_OVERRIDES=$(jq -c --arg env "$ENVIRONMENT" \
+          '((.cloud.terraformVars // {}) + ((.cloud.environments[$env].terraformVars) // {}))' "$CONFIG")
+        if [ -n "$TF_OVERRIDES" ] && [ "$TF_OVERRIDES" != "{}" ]; then
+          OVERRIDE_FILE="$(System.DefaultWorkingDirectory)/epic-tfvars-override.json"
+          echo "$TF_OVERRIDES" > "$OVERRIDE_FILE"
+          # Log only the keys, never the values.
+          echo ">> Per-env Terraform overrides: $(echo "$TF_OVERRIDES" | jq -r 'keys | join(", ")') -> $OVERRIDE_FILE"
+          echo "##vso[task.setvariable variable=TF_VAR_FILE]$OVERRIDE_FILE"
+        else
+          echo "##vso[task.setvariable variable=TF_VAR_FILE]"
+        fi
+
   ###########################################################################
   # Bootstrap State Backend (opt-in, idempotent)
   #
@@ -180,9 +205,18 @@ steps:
         cd ${{ parameters.appName }}/${{ parameters.infraPath }}
 
         export ARM_CLIENT_ID=$servicePrincipalId
-        export ARM_CLIENT_SECRET=$servicePrincipalKey
         export ARM_TENANT_ID=$tenantId
         export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
+        # Auth scheme auto-detect (addSpnToEnvironment exposes different vars):
+        #   WIF connection  -> $idToken set, no stored secret -> use OIDC
+        #   SP+secret conn. -> $servicePrincipalKey set        -> use the secret
+        # Keeps existing secret-based connections working unchanged.
+        if [ -n "${idToken:-}" ]; then
+          export ARM_USE_OIDC=true
+          export ARM_OIDC_TOKEN=$idToken
+        else
+          export ARM_CLIENT_SECRET=$servicePrincipalKey
+        fi
 
         # When the repo ships a committed tfstate, -force-copy migrates it into
         # the remote backend non-interactively (answers Terraform's "copy
@@ -229,16 +263,31 @@ steps:
           cd ${{ parameters.appName }}/${{ parameters.infraPath }}
 
           export ARM_CLIENT_ID=$servicePrincipalId
-          export ARM_CLIENT_SECRET=$servicePrincipalKey
           export ARM_TENANT_ID=$tenantId
           export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
+          # Auth scheme auto-detect (addSpnToEnvironment exposes different vars):
+          #   WIF connection  -> $idToken set, no stored secret -> use OIDC
+          #   SP+secret conn. -> $servicePrincipalKey set        -> use the secret
+          # Keeps existing secret-based connections working unchanged.
+          if [ -n "${idToken:-}" ]; then
+            export ARM_USE_OIDC=true
+            export ARM_OIDC_TOKEN=$idToken
+          else
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+          fi
 
           # Pass the per-env resource group only when epic.json set one; otherwise
           # the .infra's own resource_group_name default applies.
           RG_ARG=""
           if [ -n "$(CLOUD_RESOURCE_GROUP)" ]; then RG_ARG="-var=resource_group_name=$(CLOUD_RESOURCE_GROUP)"; fi
 
+          # Per-env Terraform var overrides from epic.json (empty for apps that
+          # define none). Placed first so EPIC's managed -var flags below win.
+          VAR_FILE_ARG=""
+          if [ -n "$(TF_VAR_FILE)" ]; then VAR_FILE_ARG="-var-file=$(TF_VAR_FILE)"; fi
+
           terraform plan \
+            $VAR_FILE_ARG \
             -var="subscription_id=$(CLOUD_AZURE_SUBSCRIPTION_ID)" \
             -var="tenant_id=$tenantId" \
             -var="environment=${{ parameters.environment }}" \
@@ -261,14 +310,31 @@ steps:
           cd ${{ parameters.appName }}/${{ parameters.infraPath }}
 
           export ARM_CLIENT_ID=$servicePrincipalId
-          export ARM_CLIENT_SECRET=$servicePrincipalKey
           export ARM_TENANT_ID=$tenantId
           export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
+          # Auth scheme auto-detect (addSpnToEnvironment exposes different vars):
+          #   WIF connection  -> $idToken set, no stored secret -> use OIDC
+          #   SP+secret conn. -> $servicePrincipalKey set        -> use the secret
+          # Keeps existing secret-based connections working unchanged.
+          if [ -n "${idToken:-}" ]; then
+            export ARM_USE_OIDC=true
+            export ARM_OIDC_TOKEN=$idToken
+          else
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+          fi
 
           # Pass the per-env resource group only when epic.json set one; otherwise
           # the .infra's own resource_group_name default applies.
           RG_ARG=""
           if [ -n "$(CLOUD_RESOURCE_GROUP)" ]; then RG_ARG="-var=resource_group_name=$(CLOUD_RESOURCE_GROUP)"; fi
+
+          # Per-env Terraform var overrides from epic.json (empty for apps that
+          # define none). Placed first so EPIC's managed -var flags below win.
+          # The single-pass apply below uses a saved plan (which already captured
+          # these at plan time), so it takes no -var/-var-file; only the staged
+          # image-build applies re-specify vars and therefore need this.
+          VAR_FILE_ARG=""
+          if [ -n "$(TF_VAR_FILE)" ]; then VAR_FILE_ARG="-var-file=$(TF_VAR_FILE)"; fi
 
           if [ "$(IMAGE_BUILD)" == "true" ]; then
             # ---- Staged apply: build the image mid-apply so the container app
@@ -282,6 +348,7 @@ steps:
             # registry (and its dependencies).
             terraform apply -auto-approve \
               -target="$(IMG_REGISTRY_TARGET)" \
+              $VAR_FILE_ARG \
               -var="subscription_id=$(CLOUD_AZURE_SUBSCRIPTION_ID)" \
               -var="tenant_id=$tenantId" \
               -var="environment=${{ parameters.environment }}" \
@@ -307,6 +374,7 @@ steps:
 
             echo ">> [3/3] Full apply with $(IMG_TAG_VAR)=${IMAGE_TAG}"
             terraform apply -auto-approve \
+              $VAR_FILE_ARG \
               -var="subscription_id=$(CLOUD_AZURE_SUBSCRIPTION_ID)" \
               -var="tenant_id=$tenantId" \
               -var="environment=${{ parameters.environment }}" \
@@ -345,14 +413,29 @@ steps:
           cd ${{ parameters.appName }}/${{ parameters.infraPath }}
 
           export ARM_CLIENT_ID=$servicePrincipalId
-          export ARM_CLIENT_SECRET=$servicePrincipalKey
           export ARM_TENANT_ID=$tenantId
           export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
+          # Auth scheme auto-detect (addSpnToEnvironment exposes different vars):
+          #   WIF connection  -> $idToken set, no stored secret -> use OIDC
+          #   SP+secret conn. -> $servicePrincipalKey set        -> use the secret
+          # Keeps existing secret-based connections working unchanged.
+          if [ -n "${idToken:-}" ]; then
+            export ARM_USE_OIDC=true
+            export ARM_OIDC_TOKEN=$idToken
+          else
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+          fi
 
           RG_ARG=""
           if [ -n "$(CLOUD_RESOURCE_GROUP)" ]; then RG_ARG="-var=resource_group_name=$(CLOUD_RESOURCE_GROUP)"; fi
 
+          # Per-env Terraform var overrides from epic.json (empty for apps that
+          # define none). Placed first so EPIC's managed -var flags below win.
+          VAR_FILE_ARG=""
+          if [ -n "$(TF_VAR_FILE)" ]; then VAR_FILE_ARG="-var-file=$(TF_VAR_FILE)"; fi
+
           terraform plan -destroy \
+            $VAR_FILE_ARG \
             -var="subscription_id=$(CLOUD_AZURE_SUBSCRIPTION_ID)" \
             -var="tenant_id=$tenantId" \
             -var="environment=${{ parameters.environment }}" \
@@ -373,8 +456,17 @@ steps:
           cd ${{ parameters.appName }}/${{ parameters.infraPath }}
 
           export ARM_CLIENT_ID=$servicePrincipalId
-          export ARM_CLIENT_SECRET=$servicePrincipalKey
           export ARM_TENANT_ID=$tenantId
           export ARM_SUBSCRIPTION_ID=$(CLOUD_AZURE_SUBSCRIPTION_ID)
+          # Auth scheme auto-detect (addSpnToEnvironment exposes different vars):
+          #   WIF connection  -> $idToken set, no stored secret -> use OIDC
+          #   SP+secret conn. -> $servicePrincipalKey set        -> use the secret
+          # Keeps existing secret-based connections working unchanged.
+          if [ -n "${idToken:-}" ]; then
+            export ARM_USE_OIDC=true
+            export ARM_OIDC_TOKEN=$idToken
+          else
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+          fi
 
           terraform apply -auto-approve tfplan-destroy

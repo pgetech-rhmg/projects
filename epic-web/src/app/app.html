@@ -1534,30 +1534,6 @@
             }
           </div>
           <div class="form-field">
-            <label for="new-run-env">Environment <span class="form-required">*</span></label>
-            <select
-              id="new-run-env"
-              [(ngModel)]="newRunEnvironment"
-              [ngModelOptions]="{ standalone: true }"
-              [disabled]="newRunEnvLocked()"
-            >
-              @for (env of newRunEnvironmentOptions(); track env) {
-                <option [value]="env">{{ env }}</option>
-              }
-              @if (newRunEnvLocked() && !newRunEnvironmentOptions().includes('prod')) {
-                <option value="prod">prod</option>
-              }
-              @if (newRunConfigAppType() === 'btp') {
-                <option value="other">other</option>
-              }
-            </select>
-            @if (newRunEnvLocked()) {
-              <span class="field-hint field-hint--info">Release branches always deploy to prod.</span>
-            } @else if (newRunConfiguredEnvironments().length > 0) {
-              <span class="field-hint field-hint--info">This config defines environments: {{ newRunConfiguredEnvironments().join(', ') }}.</span>
-            }
-          </div>
-          <div class="form-field">
             <span class="field-label">EPIC Config <span class="form-required">*</span></span>
             @if (configSearchStatus() === 'idle') {
               <span class="field-hint">Enter a branch to discover config files.</span>
@@ -1586,6 +1562,30 @@
                   <option [value]="cfg">{{ cfg }}</option>
                 }
               </select>
+            }
+          </div>
+          <div class="form-field">
+            <label for="new-run-env">Environment <span class="form-required">*</span></label>
+            <select
+              id="new-run-env"
+              [(ngModel)]="newRunEnvironment"
+              [ngModelOptions]="{ standalone: true }"
+              [disabled]="newRunEnvDisabled"
+            >
+              @for (env of newRunEnvironmentOptions(); track env) {
+                <option [value]="env">{{ env }}</option>
+              }
+              @if (newRunEnvLocked() && !newRunEnvironmentOptions().includes('prod')) {
+                <option value="prod">prod</option>
+              }
+              @if (newRunConfigAppType() === 'btp') {
+                <option value="other">other</option>
+              }
+            </select>
+            @if (newRunEnvLocked()) {
+              <span class="field-hint field-hint--info">Release branches always deploy to prod.</span>
+            } @else if (newRunConfiguredEnvironments().length > 0) {
+              <span class="field-hint field-hint--info">This config defines environments: {{ newRunConfiguredEnvironments().join(', ') }}.</span>
             }
           </div>
 

@@ -1379,6 +1379,14 @@ export class App implements OnInit, OnDestroy {
     return !this.newRunConfig && !this.noConfig;
   }
 
+  // Environment is locked until an EPIC Config is resolved: either a single
+  // epic.json was auto-selected, the user picked one from the multi-config list
+  // (both set newRunConfig), or the repo is contract-less (noConfig → Review-only,
+  // env still applies). Also stays disabled when a release branch forces prod.
+  protected get newRunEnvDisabled(): boolean {
+    return this.newRunEnvLocked() || (!this.newRunConfig && !this.noConfig);
+  }
+
   // Build Tests / Scan / Integration Tests each require the corresponding tool
   // to be declared in epic.json's `app` section — without it the stage is a no-op.
   protected get buildTestsDisabled(): boolean {
