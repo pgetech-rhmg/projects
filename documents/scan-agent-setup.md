@@ -29,7 +29,7 @@ Everything else stays on Microsoft-hosted `ubuntu-latest` / `windows-latest`.
   - Azure DevOps — `dev.azure.com`, `*.vssps.visualstudio.com`, `*.dev.azure.com`
   - Internal SonarQube server (`*.lab.pge.com` or wherever it lives)
   - Wiz — `wizcli.app.wiz.io` and your Wiz tenant API
-  - AWS Secrets Manager (if pulling `WIZ_*` / `GITHUB_PAT` from there)
+  - AWS Secrets Manager (if pulling `WIZ_*` from there)
   - No **inbound** rules are required — SSM Session Manager is outbound-initiated.
 
 ---
@@ -51,7 +51,7 @@ From `EPIC AWS Resources/Scan Agent/`:
 1. Review `terraform.auto.tfvars`. The VPC/subnet default to the shared EPIC nonprod
    network (same as epic-api); the egress-only SG is created by the stack. The only value
    you may need to set:
-   - `scan_secret_arns` — ARNs of the Wiz / GitHub PAT secrets (or leave `[]`)
+   - `scan_secret_arns` — ARNs of the Wiz secrets (or leave `[]`)
    - (Override `vpc_id` / `subnet_id` only if you stand up dedicated networking.)
 2. Apply:
    ```bash

@@ -51,7 +51,7 @@ public sealed class GitHubMultiSourceTests
             FakeHttpMessageHandler.Build(HttpStatusCode.OK,
                 """{ "name": "vm-onboarding", "default_branch": "main", "private": true, "language": "TypeScript" }"""));
         var svc = new GitHubService(new HttpClient(handler), config,
-            new GitHubSourceRegistry(config), TestData.Logger<GitHubService>(), TestData.NewCache());
+            new GitHubSourceRegistry(config), new StubGitHubAppTokenProvider(), TestData.Logger<GitHubService>(), TestData.NewCache());
 
         // Pull the SAME repo name from each org — must hit different org paths,
         // both against api.github.com, both with the shared PAT.
@@ -75,12 +75,54 @@ public sealed class GitHubMultiSourceTests
             FakeHttpMessageHandler.Build(HttpStatusCode.OK,
                 """{ "name": "epic-web", "default_branch": "main", "private": false, "language": "TypeScript" }"""));
         var svc = new GitHubService(new HttpClient(handler), config,
-            new GitHubSourceRegistry(config), TestData.Logger<GitHubService>(), TestData.NewCache());
+            new GitHubSourceRegistry(config), new StubGitHubAppTokenProvider(), TestData.Logger<GitHubService>(), TestData.NewCache());
 
         await svc.GetRepoAsync("epic-web"); // no source → default (pgetech)
 
         Assert.Equal("https://api.github.com/repos/pgetech/epic-web", handler.Requests[0].RequestUri!.ToString());
         Assert.Equal("shared-tok", handler.Requests[0].Headers.Authorization!.Parameter);
+    }
+
+    [Fact]
+    public void Registry_ParsesInstallationId_AndAllowsMissingTokenKey()
+    {
+        // An App source has an InstallationId and NO TokenKey — must still register.
+        var config = TestData.Config(
+            ("GitHubSources:pgetech:ApiBase", "https://api.github.com"),
+            ("GitHubSources:pgetech:Org", "pgetech"),
+            ("GitHubSources:pgetech:InstallationId", "158059996"));
+        var src = new GitHubSourceRegistry(config).Resolve("pgetech");
+
+        Assert.Equal(158059996L, src.InstallationId);
+        Assert.Null(src.TokenKey);
+    }
+
+    [Fact]
+    public async Task GetRepo_AppSource_SendsMintedInstallationToken()
+    {
+        // pgetech is an App source (InstallationId set); pgedc stays on the PAT.
+        var config = TestData.Config(
+            ("GitHubSources:pgetech:ApiBase", "https://api.github.com"),
+            ("GitHubSources:pgetech:Org", "pgetech"),
+            ("GitHubSources:pgetech:InstallationId", "158059996"),
+            ("GitHubSources:pgedc:ApiBase", "https://api.github.com"),
+            ("GitHubSources:pgedc:Org", "PGEDigitalCatalyst"),
+            ("GitHubSources:pgedc:TokenKey", "GITHUB_TOKEN"),
+            ("GITHUB_TOKEN", "pat-tok"),
+            ("GitHubDefaultSource", "pgetech"));
+        var handler = new FakeHttpMessageHandler(_ =>
+            FakeHttpMessageHandler.Build(HttpStatusCode.OK,
+                """{ "name": "epic-web", "default_branch": "main", "private": true, "language": "TypeScript" }"""));
+        var appTokens = new StubGitHubAppTokenProvider("minted-inst-tok");
+        var svc = new GitHubService(new HttpClient(handler), config,
+            new GitHubSourceRegistry(config), appTokens, TestData.Logger<GitHubService>(), TestData.NewCache());
+
+        await svc.GetRepoAsync("epic-web", "pgetech"); // App source → minted token
+        await svc.GetRepoAsync("epic-web", "pgedc");   // PAT source → config token
+
+        Assert.Equal("minted-inst-tok", handler.Requests[0].Headers.Authorization!.Parameter);
+        Assert.Equal(1, appTokens.Calls); // provider used for the App source only
+        Assert.Equal("pat-tok", handler.Requests[1].Headers.Authorization!.Parameter);
     }
 
     [Fact]

@@ -129,8 +129,25 @@ builder.Services.AddScoped<Epic.Api.Auth.IAuditLog, Epic.Api.Auth.AuditLog>();
 // GitHub origins (org + host + PAT) EPIC can read from — one, or several for
 // multi-org/Enterprise setups. Singleton: derived once from configuration.
 builder.Services.AddSingleton<IGitHubSourceRegistry, GitHubSourceRegistry>();
+// Mints/caches GitHub App installation tokens for sources that carry an
+// InstallationId (App-based auth); sources without one fall back to their PAT.
+builder.Services.AddHttpClient<IGitHubAppTokenProvider, GitHubAppTokenProvider>(c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddHttpClient<IGitHubService, GitHubService>(c => c.Timeout = TimeSpan.FromSeconds(60));
-builder.Services.AddHttpClient<IAdoService, AdoService>(c =>
+// ADO REST auth: an Entra ID service principal (client-credentials) instead of a
+// user PAT. The credential mints/caches ~1h bearer tokens for the Azure DevOps
+// resource; AdoAuthHandler applies them to every AdoService request. These three
+// keys arrive from AWS Secrets Manager (SecretsLoader) in non-dev, and from
+// launchSettings/env vars locally.
+builder.Services.AddSingleton<Azure.Core.TokenCredential>(sp =>
+{
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    return new Azure.Identity.ClientSecretCredential(
+        cfg["ADO_TENANT_ID"] ?? throw new InvalidOperationException("ADO_TENANT_ID not configured."),
+        cfg["ADO_CLIENT_ID"] ?? throw new InvalidOperationException("ADO_CLIENT_ID not configured."),
+        cfg["ADO_CLIENT_SECRET"] ?? throw new InvalidOperationException("ADO_CLIENT_SECRET not configured."));
+});
+builder.Services.AddTransient<Epic.Api.Services.AdoAuthHandler>();
+var adoClientBuilder = builder.Services.AddHttpClient<IAdoService, AdoService>(c =>
 {
     c.Timeout = TimeSpan.FromSeconds(60);
     // Azure DevOps throttles unidentified traffic first (lower TSTU budget) and
@@ -138,28 +155,31 @@ builder.Services.AddHttpClient<IAdoService, AdoService>(c =>
     // 429 mitigation. Accept keeps the JSON responses explicit.
     c.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("EPIC-API", "1.0"));
     c.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-})
-    // Retry-only resilience: retries transient failures (5xx, 408) and, crucially,
-    // 429 throttling — honoring ADO's Retry-After header (ShouldRetryAfterHeader).
-    // Deliberately NOT AddStandardResilienceHandler: its circuit breaker throws
-    // BrokenCircuitException, which would break AdoService's "return null / serve
-    // stale on failure" contract. A retry strategy returns the final response, so
-    // the existing IsSuccessStatusCode handling stays intact.
-    .AddResilienceHandler("ado-retry", b => b.AddRetry(new HttpRetryStrategyOptions
-    {
-        ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
-            .HandleResult(r => r.StatusCode is System.Net.HttpStatusCode.TooManyRequests
-                or System.Net.HttpStatusCode.RequestTimeout
-                or >= System.Net.HttpStatusCode.InternalServerError)
-            .Handle<HttpRequestException>(),
-        MaxRetryAttempts = 3,
-        BackoffType = DelayBackoffType.Exponential,
-        UseJitter = true,
-        Delay = TimeSpan.FromSeconds(1),
-        // Respect ADO's Retry-After (seconds or HTTP-date) when present, overriding
-        // the computed backoff so we wait exactly as long as the server asks.
-        ShouldRetryAfterHeader = true,
-    }));
+});
+// Retry-only resilience: retries transient failures (5xx, 408) and, crucially,
+// 429 throttling — honoring ADO's Retry-After header (ShouldRetryAfterHeader).
+// Deliberately NOT AddStandardResilienceHandler: its circuit breaker throws
+// BrokenCircuitException, which would break AdoService's "return null / serve
+// stale on failure" contract. A retry strategy returns the final response, so
+// the existing IsSuccessStatusCode handling stays intact.
+adoClientBuilder.AddResilienceHandler("ado-retry", b => b.AddRetry(new HttpRetryStrategyOptions
+{
+    ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+        .HandleResult(r => r.StatusCode is System.Net.HttpStatusCode.TooManyRequests
+            or System.Net.HttpStatusCode.RequestTimeout
+            or >= System.Net.HttpStatusCode.InternalServerError)
+        .Handle<HttpRequestException>(),
+    MaxRetryAttempts = 3,
+    BackoffType = DelayBackoffType.Exponential,
+    UseJitter = true,
+    Delay = TimeSpan.FromSeconds(1),
+    // Respect ADO's Retry-After (seconds or HTTP-date) when present, overriding
+    // the computed backoff so we wait exactly as long as the server asks.
+    ShouldRetryAfterHeader = true,
+}));
+// Auth handler registered after the retry handler → sits innermost (closest to
+// the network), so every retry re-applies a fresh (possibly refreshed) token.
+adoClientBuilder.AddHttpMessageHandler<Epic.Api.Services.AdoAuthHandler>();
 builder.Services.AddScoped<IAppService, AppService>();
 
 // ---------------------------------------------------------------------------

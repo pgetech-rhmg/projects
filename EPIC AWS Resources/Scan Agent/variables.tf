@@ -53,7 +53,7 @@ variable "subnet_id" {
 }
 
 variable "scan_secret_arns" {
-  description = "ARNs of the Secrets Manager secrets the agent may read (e.g. WIZ_CLIENT_ID/SECRET, GITHUB_PAT). Grants secretsmanager:GetSecretValue on these only."
+  description = "ARNs of the Secrets Manager secrets the agent may read (e.g. WIZ_CLIENT_ID/SECRET). Grants secretsmanager:GetSecretValue on these only."
   type        = list(string)
   default     = []
 }

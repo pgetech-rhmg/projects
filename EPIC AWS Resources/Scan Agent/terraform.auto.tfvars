@@ -19,7 +19,7 @@ root_volume_size = 60
 vpc_id    = "vpc-8c57a5f4"
 subnet_id = "subnet-f9206980"
 
-# TODO: ARNs of the scan secrets the agent reads at runtime (Wiz creds, GitHub PAT).
+# TODO: ARNs of the scan secrets the agent reads at runtime (e.g. Wiz creds).
 # Leave empty [] if the agent will not pull secrets from Secrets Manager.
 scan_secret_arns = []
 

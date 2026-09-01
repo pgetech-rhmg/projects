@@ -19,7 +19,7 @@ public sealed class AdoServiceCoverageTests
     private static AdoService Make(HttpMessageHandler handler)
     {
         var http = new HttpClient(handler);
-        return new AdoService(http, TestData.Config(("ADO_PAT", "pat")), TestData.Logger<AdoService>(), TestData.NewCache());
+        return new AdoService(http, TestData.Logger<AdoService>(), TestData.NewCache());
     }
 
     // ---- GetRecentRuns branch fallbacks ----

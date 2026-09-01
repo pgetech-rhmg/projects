@@ -18,7 +18,7 @@ public sealed class GitHubServiceTests
         var http = new HttpClient(handler);
         var config = TestData.Config(("GITHUB_BASE_URL", "https://github.pge.com/pgetech"), ("GITHUB_TOKEN", "tok"));
         var sources = new GitHubSourceRegistry(config);
-        return new GitHubService(http, config, sources, TestData.Logger<GitHubService>(), TestData.NewCache());
+        return new GitHubService(http, config, sources, new StubGitHubAppTokenProvider(), TestData.Logger<GitHubService>(), TestData.NewCache());
     }
 
     // ---- Configuration guards ----
@@ -39,7 +39,7 @@ public sealed class GitHubServiceTests
         var http = new HttpClient(FakeHttpMessageHandler.Fixed(HttpStatusCode.OK, "{}"));
         var config = TestData.Config(("GITHUB_BASE_URL", "https://github.pge.com/pgetech"));
         var sources = new GitHubSourceRegistry(config);
-        var svc = new GitHubService(http, config, sources, TestData.Logger<GitHubService>(), TestData.NewCache());
+        var svc = new GitHubService(http, config, sources, new StubGitHubAppTokenProvider(), TestData.Logger<GitHubService>(), TestData.NewCache());
         await Assert.ThrowsAsync<InvalidOperationException>(() => svc.GetRepoAsync("epic-web"));
     }
 

@@ -29,13 +29,22 @@ jobs:
 
 
     ###########################################################################
+    # Mint a GitHub token (App installation, PAT fallback) → $(GH_TOKEN)
+    # No repo → resolve the org-level install for the module owner (github.com).
+    ###########################################################################
+    - template: /common/gh-app-token.yml
+      parameters:
+        owner: ${{ parameters.owner }}
+        githubHost: "github.com"
+
+    ###########################################################################
     # Configure Git Credentials for Terraform
     ###########################################################################
     - bash: |
-        git config --global url."https://$(GITHUB_PAT)@github.com/".insteadOf "https://github.com/"
+        git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       displayName: 'Configure Git credentials for Terraform'
       env:
-        GITHUB_PAT: $(GITHUB_PAT)
+        GH_TOKEN: $(GH_TOKEN)
 
 
     ###########################################################################

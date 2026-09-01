@@ -19,6 +19,9 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
+    <!-- ADO REST auth: mints Entra ID service-principal bearer tokens (client-credentials)
+         via ClientSecretCredential, replacing the old ADO_PAT Basic auth. -->
+    <PackageReference Include="Azure.Identity" Version="1.14.2" />
   </ItemGroup>
 
 </Project>

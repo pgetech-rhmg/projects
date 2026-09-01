@@ -13,8 +13,16 @@ namespace Epic.Api.Services;
 /// GitHub Enterprise is <c>https://&lt;host&gt;/api/v3</c>.
 /// </param>
 /// <param name="Org">GitHub org/owner segment spliced into repo URLs.</param>
-/// <param name="TokenKey">Configuration key holding the PAT for this source.</param>
-public sealed record GitHubSource(string Name, string ApiBase, string Org, string TokenKey);
+/// <param name="TokenKey">
+/// Configuration key holding the PAT for this source. Null for GitHub App sources
+/// (which authenticate via <paramref name="InstallationId"/> instead).
+/// </param>
+/// <param name="InstallationId">
+/// GitHub App installation ID for this org. When set, the source authenticates
+/// with a minted App installation token (see GitHubAppTokenProvider) instead of a
+/// PAT. Null → legacy PAT auth via <paramref name="TokenKey"/>.
+/// </param>
+public sealed record GitHubSource(string Name, string ApiBase, string Org, string? TokenKey, long? InstallationId);
 
 /// <summary>
 /// Thrown when a request names a GitHub source that isn't configured. Distinct
@@ -69,10 +77,15 @@ public sealed class GitHubSourceRegistry : IGitHubSourceRegistry
             var apiBase = child["ApiBase"];
             var org = child["Org"];
             var tokenKey = child["TokenKey"];
-            if (string.IsNullOrWhiteSpace(apiBase) || string.IsNullOrWhiteSpace(org) || string.IsNullOrWhiteSpace(tokenKey))
+            long? installationId = long.TryParse(child["InstallationId"], out var id) ? id : null;
+            // A source authenticates either via a PAT (TokenKey) or a GitHub App
+            // installation (InstallationId) — require ApiBase + Org + at least one.
+            if (string.IsNullOrWhiteSpace(apiBase) || string.IsNullOrWhiteSpace(org)
+                || (string.IsNullOrWhiteSpace(tokenKey) && installationId is null))
                 continue;
 
-            _sources[child.Key] = new GitHubSource(child.Key, apiBase.TrimEnd('/'), org.Trim('/'), tokenKey);
+            _sources[child.Key] = new GitHubSource(child.Key, apiBase.TrimEnd('/'), org.Trim('/'),
+                string.IsNullOrWhiteSpace(tokenKey) ? null : tokenKey, installationId);
         }
 
         if (_sources.Count == 0)
@@ -87,7 +100,7 @@ public sealed class GitHubSourceRegistry : IGitHubSourceRegistry
             var apiBase = uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
                 ? "https://api.github.com"
                 : $"{uri.Scheme}://{uri.Host}/api/v3";
-            var legacy = new GitHubSource("default", apiBase, org, "GITHUB_TOKEN");
+            var legacy = new GitHubSource("default", apiBase, org, "GITHUB_TOKEN", null);
             _sources[legacy.Name] = legacy;
             _default = legacy;
             return;

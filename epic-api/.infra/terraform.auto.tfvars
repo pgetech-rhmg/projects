@@ -21,6 +21,7 @@ environment = "dev"
 
 health_check_path = "/api/health"
 app_executable    = "Epic.Api"
+instance_type     = "t3.medium"
 
 
 ###############################################################################
@@ -62,23 +63,40 @@ secrets = {
   # GitHubSources entries are configured. Harmless alongside GitHubSources.
   "GITHUB_BASE_URL" = "https://github.com/pgetech"
   "GITHUB_TOKEN"    = "CHANGE_ME"
-  "ADO_PAT"         = "CHANGE_ME"
 
-  # Multi-org GitHub sources (org + API host + PAT config key). Keys use the
-  # __ separator, normalized to : for .NET config by SecretsLoader. See
-  # GitHubSourceRegistry. When any GitHubSources entry exists, the legacy
-  # GITHUB_BASE_URL/GITHUB_TOKEN pair above is ignored.
+  # ADO REST auth: Entra ID service principal (client-credentials flow) — replaces
+  # ADO_PAT. AdoService mints/caches bearer tokens for the Azure DevOps resource
+  # via ClientSecretCredential (see Program.cs / AdoAuthHandler). Real values are
+  # hand-set in Secrets Manager post-create; the module uses ignore_changes = all,
+  # so applies never overwrite them — these placeholders only seed a from-scratch
+  # recreate. ADO_PAT is retained (unused by code) for first-deploy rollback safety.
+  "ADO_PAT"           = "CHANGE_ME"
+  "ADO_TENANT_ID"     = "CHANGE_ME"
+  "ADO_CLIENT_ID"     = "CHANGE_ME"
+  "ADO_CLIENT_SECRET" = "CHANGE_ME"
+
+  # GitHub App auth (bot identity, per-org install, short-lived installation
+  # tokens). Shared across all App sources: GitHubService mints an RS256 app JWT
+  # from these and exchanges it for a ~1h installation token per InstallationId
+  # (see GitHubAppTokenProvider). Real values hand-set in Secrets Manager
+  # (ignore_changes = all). PRIVATE_KEY is the PEM (newlines as \n or literal).
+  "GITHUB_APP_ID"          = "CHANGE_ME"
+  "GITHUB_APP_PRIVATE_KEY" = "CHANGE_ME"
+
+  # Multi-org GitHub sources. Keys use the __ separator, normalized to : for
+  # .NET config by SecretsLoader. See GitHubSourceRegistry. When any GitHubSources
+  # entry exists, the legacy GITHUB_BASE_URL/GITHUB_TOKEN pair above is ignored.
   #
-  # Both orgs are on public github.com and share the SAME PAT (GITHUB_TOKEN) —
-  # the PAT owner just needs membership in both orgs. To split them later
-  # (e.g. a GitHub App per install), point each source at its own TokenKey.
-  "GitHubSources__pgetech__ApiBase"  = "https://api.github.com"
-  "GitHubSources__pgetech__Org"      = "pgetech"
-  "GitHubSources__pgetech__TokenKey" = "GITHUB_TOKEN"
+  # Per-source auth: a source with an InstallationId authenticates via the GitHub
+  # App (above); a source with only a TokenKey uses that PAT. Both orgs are now on
+  # the App (each has an InstallationId), so GITHUB_TOKEN is an unused fallback.
+  "GitHubSources__pgetech__ApiBase"        = "https://api.github.com"
+  "GitHubSources__pgetech__Org"            = "pgetech"
+  "GitHubSources__pgetech__InstallationId" = "158059996"
 
-  "GitHubSources__pgedc__ApiBase"  = "https://api.github.com"
-  "GitHubSources__pgedc__Org"      = "PGEDigitalCatalyst"
-  "GitHubSources__pgedc__TokenKey" = "GITHUB_TOKEN"
+  "GitHubSources__pgedc__ApiBase"        = "https://api.github.com"
+  "GitHubSources__pgedc__Org"            = "PGEDigitalCatalyst"
+  "GitHubSources__pgedc__InstallationId" = "158086222"
 
   # Default source used when a request/app doesn't name one.
   "GitHubDefaultSource" = "pgetech"

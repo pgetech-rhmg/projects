@@ -5,7 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Epic.Api.Services;
 
-public sealed class AdoService(HttpClient httpClient, IConfiguration configuration, ILogger<AdoService> logger, IMemoryCache cache) : IAdoService
+public sealed class AdoService(HttpClient httpClient, ILogger<AdoService> logger, IMemoryCache cache) : IAdoService
 {
     // Timelines for completed builds are immutable — cache for 24h.
     private static readonly TimeSpan TimelineCacheTtl = TimeSpan.FromHours(24);
@@ -39,13 +39,11 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
     private const string SystemActor = "System";
     private const string DefaultEnvironment = "dev";
     private const string UnknownStatus = "unknown";
-    private const string BasicScheme = "Basic";
     private const string UnparseableParamsLog = "ADO build parameters not parseable — using defaults";
 
-    private string Pat =>
-        configuration["ADO_PAT"]
-        ?? throw new InvalidOperationException("ADO_PAT not configured.");
-
+    // ADO REST auth (Bearer token) is applied centrally by AdoAuthHandler, a
+    // DelegatingHandler on this typed HttpClient — see Program.cs. Individual
+    // methods no longer set an Authorization header.
     private static string BaseUrl => $"https://dev.azure.com/{Org}/{Project}/_apis";
 
     // Reads a DateTime-valued property, treating absent/null as no value.
@@ -885,8 +883,6 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         var url = $"{BaseUrl}/build/builds/{buildId}/logs/{logId}?api-version=7.1";
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{Pat}"));
-        request.Headers.Authorization = new AuthenticationHeaderValue(BasicScheme, credentials);
 
         var response = await httpClient.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
@@ -1139,8 +1135,6 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
-        var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{Pat}"));
-        request.Headers.Authorization = new AuthenticationHeaderValue(BasicScheme, credentials);
 
         var response = await httpClient.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
@@ -1172,8 +1166,6 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
     private async Task<string?> SendAsync(string url, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{Pat}"));
-        request.Headers.Authorization = new AuthenticationHeaderValue(BasicScheme, credentials);
 
         var response = await httpClient.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
@@ -1286,8 +1278,6 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         var json = JsonSerializer.Serialize(payload);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
-        var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{Pat}"));
-        request.Headers.Authorization = new AuthenticationHeaderValue(BasicScheme, credentials);
         request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
         var response = await httpClient.SendAsync(request, ct);
@@ -1312,8 +1302,6 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
         var json = JsonSerializer.Serialize(new { status = "cancelling" });
 
         using var request = new HttpRequestMessage(HttpMethod.Patch, url);
-        var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{Pat}"));
-        request.Headers.Authorization = new AuthenticationHeaderValue(BasicScheme, credentials);
         request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
         var response = await httpClient.SendAsync(request, ct);
@@ -1349,8 +1337,6 @@ public sealed class AdoService(HttpClient httpClient, IConfiguration configurati
     private async Task<(JsonElement? Json, string? ContinuationToken)> CallApiWithContinuationAsync(string url, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{Pat}"));
-        request.Headers.Authorization = new AuthenticationHeaderValue(BasicScheme, credentials);
 
         var response = await httpClient.SendAsync(request, ct);
 

@@ -38,6 +38,7 @@ EPIC-Pipeline/
 ├── epic-orchestrator.yml        # REST-driven entry point; reads epic.json .app section, invokes engine
 ├── epic-engine.yml              # Control plane; wires stages, enforces ordering and gating
 ├── common/
+│   ├── gh-app-token.yml         # Mints a GitHub App installation token (PAT fallback) → $(GH_TOKEN)
 │   ├── download.yml             # Clones application source from GitHub
 │   ├── github-status.yml        # Posts a rollup "EPIC" commit status to GitHub (CI merge-gating)
 │   └── jfrog/
@@ -133,7 +134,7 @@ The entry point for external systems. It can be started three ways:
 
 **What it does:**
 1. Validates `repo`, `branch`, `config`, and `environment` parameters (a webhook push fills `repo`/`branch`/`owner` from the `epicHook` payload instead)
-2. Shallow-clones the application repository (from the resolved GitHub `owner`/`githubHost` — see [Multi-org GitHub](#multi-org-github-sources)) and reads the `app` section of the specified epic.json config. If the repo/branch has **no `epic.json`**, it synthesizes a minimal Review-only payload instead of failing (see [Contract-less runs](#contract-less-review-only-runs))
+2. Shallow-clones the application repository (from the resolved GitHub `owner`/`githubHost` — see [Multi-org GitHub](#multi-org-github-sources); auth via a GitHub App installation token minted by `common/gh-app-token.yml`, PAT fallback) and reads the `app` section of the specified epic.json config. If the repo/branch has **no `epic.json`**, it synthesizes a minimal Review-only payload instead of failing (see [Contract-less runs](#contract-less-review-only-runs))
 3. Detects cloud provider from `epic.json` (`appType: "btp"` or `"cap"` → SAP, then `awsAccountId` → AWS, then an Azure service connection — `azureServiceConnection` flat or per-environment, or a legacy `azureSubscriptionId` — → Azure)
 4. Resolves `infraPath` (defaults to `.infra`) and checks whether infrastructure exists
 5. Resolves `requireApproval` from `approvalEnvironments` array if the target environment is listed
@@ -201,7 +202,7 @@ EPIC can be driven by a GitHub push, not just the IDP/REST path, and report a si
 | `ReportSuccess` | `condition: succeeded()`, `dependsOn` every created stage | `state=success` |
 | `ReportFailure` | `condition: not(succeeded())`, same deps | `state=failure` |
 
-All three call the reusable `common/github-status.yml` job, which POSTs to the GitHub Commit Statuses API (`/repos/{owner}/{repo}/statuses/{sha}`) with context **`EPIC`** and a `target_url` linking back to the ADO run. It uses `GITHUB_PAT` (needs `repo:status`), computes the API base (`api.github.com` for `github.com`, else `https://<host>/api/v3` for GitHub Enterprise), and fails the run only on a non-201 **pending** post (catches a bad PAT early without masking real results). Mark the `EPIC` context a required status check on the target branch in GitHub to block merges on a failing pipeline.
+All three call the reusable `common/github-status.yml` job, which POSTs to the GitHub Commit Statuses API (`/repos/{owner}/{repo}/statuses/{sha}`) with context **`EPIC`** and a `target_url` linking back to the ADO run. Auth is a **GitHub App installation token** minted by `common/gh-app-token.yml` (App needs *Commit statuses: Read & Write*), falling back to `GITHUB_PAT` (`repo:status`) for orgs without an App install; it computes the API base (`api.github.com` for `github.com`, else `https://<host>/api/v3` for GitHub Enterprise), and fails the run only on a non-201 **pending** post (catches a bad token early without masking real results). Mark the `EPIC` context a required status check on the target branch in GitHub to block merges on a failing pipeline.
 
 > ⚠️ Never send `""` for a string templateParameter through the ADO runs REST API — it is rejected (`PipelineValidationException`). The orchestrator **omits** `commitSha` when empty so the engine's `default: ""` applies and the report stages stay off.
 
@@ -209,7 +210,9 @@ All three call the reusable `common/github-status.yml` job, which POSTs to the G
 
 ## Multi-org GitHub Sources
 
-EPIC is not hardwired to one GitHub org. Every GitHub-touching stage threads an `owner` (org) and `githubHost` (default `pgetech` / `github.com`), so the orchestrator can clone, the download stage can fetch, and the commit-status job can post against whichever org a given app lives in. The EPIC API resolves the source (org + host + PAT key) from its named source registry and passes `owner`/`githubHost` into the orchestrator; a webhook push derives them from `epicHook.repository.owner.login`. Both PG&E orgs currently share a single PAT whose owner is a member of both.
+EPIC is not hardwired to one GitHub org. Every GitHub-touching stage threads an `owner` (org) and `githubHost` (default `pgetech` / `github.com`), so the orchestrator can clone, the download stage can fetch, and the commit-status job can post against whichever org a given app lives in. The EPIC API resolves the source from its named source registry and passes `owner`/`githubHost` into the orchestrator; a webhook push derives them from `epicHook.repository.owner.login`.
+
+Auth is per-org via a **GitHub App**: each pipeline job mints a short-lived installation token (`common/gh-app-token.yml` resolves the install for the repo's org at runtime), and the EPIC API mints per-source installation tokens keyed by each source's `InstallationId`. An org without an App installation falls back to the shared `GITHUB_PAT` (whose owner must be a member of that org). Currently `pgetech` runs on the App; `PGEDigitalCatalyst` remains on the PAT until its install lands.
 
 ---
 
@@ -252,7 +255,8 @@ The following secrets and variable groups must be configured in Azure DevOps:
 
 | Secret / Variable | Variable Group | Purpose |
 |-------------------|----------------|---------|
-| `GITHUB_PAT` | `GV-account-access` | Clone private application repositories, read `epic.json`/infra, and post the `EPIC` commit status (`repo:status`). Its owner must be a member of every org EPIC pulls from (see [Multi-org GitHub](#multi-org-github-sources)). |
+| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` | `GV-account-access` | GitHub App used to clone application repos, read `epic.json`/infra, and post the `EPIC` commit status. `common/gh-app-token.yml` mints a short-lived installation token per job (resolved for the repo's org). App needs *Contents: Read* + *Commit statuses: Read & Write*. |
+| `GITHUB_PAT` | `GV-account-access` | Fallback for orgs without a GitHub App installation (e.g. not-yet-migrated). Needs `repo` + `repo:status`; owner must be a member of every such org (see [Multi-org GitHub](#multi-org-github-sources)). |
 | `epic-github` (webhook) | Service connection | Incoming GitHub webhook connection bound to the `epicHook` resource for push-triggered CI runs |
 | `WIZ_CLIENT_ID` | `GV-account-access` | Wiz service account client ID |
 | `WIZ_CLIENT_SECRET` | `GV-account-access` | Wiz service account client secret |

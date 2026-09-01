@@ -1,0 +1,90 @@
+###############################################################################
+# Reusable steps template: mint a GitHub token and expose it as GH_TOKEN.
+#
+# Prefers a short-lived GitHub App INSTALLATION token: signs an RS256 app JWT
+# from GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY (GV-account-access variable group),
+# resolves the installation for the repo (or org), and exchanges the JWT for a
+# ~1h installation token. Falls back to the shared PAT ($(GITHUB_PAT)) when the
+# App isn't configured OR the repo's org has no installation (e.g. an org not yet
+# migrated) — so nothing breaks pre-cutover.
+#
+# Sets a secret, job-scoped variable GH_TOKEN. Later steps in the SAME job use it
+# as $(GH_TOKEN) (bind via env: GH_TOKEN: $(GH_TOKEN)).
+###############################################################################
+parameters:
+  - name: owner
+    type: string
+    default: "pgetech"
+  - name: repo
+    type: string
+    default: ""
+  - name: githubHost
+    type: string
+    default: "github.com"
+
+steps:
+  - bash: |
+      set -euo pipefail
+
+      OWNER="${{ parameters.owner }}"
+      REPO="${{ parameters.repo }}"
+      HOST="${{ parameters.githubHost }}"
+
+      # No App configured → use the shared PAT (pre-migration behavior).
+      if [[ -z "${GITHUB_APP_ID:-}" ]]; then
+        echo ">> GITHUB_APP_ID not set — using fallback PAT"
+        echo "##vso[task.setvariable variable=GH_TOKEN;issecret=true]${FALLBACK_PAT}"
+        exit 0
+      fi
+
+      # Public GitHub REST is api.github.com; Enterprise is https://<host>/api/v3.
+      if [[ "$HOST" == "github.com" ]]; then
+        API_BASE="https://api.github.com"
+      else
+        API_BASE="https://${HOST}/api/v3"
+      fi
+
+      b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+
+      # ADO stores the PEM single-line with literal \n — un-escape before signing.
+      PEM_FILE="${RUNNER_TEMP:-/tmp}/gh_app_key.pem"
+      printf '%b' "$GITHUB_APP_PRIVATE_KEY" > "$PEM_FILE"
+
+      NOW=$(date +%s)
+      HEADER=$(printf '%s' '{"alg":"RS256","typ":"JWT"}' | b64url)
+      # iat backdated 60s for clock skew; exp 9 min (GitHub max is 10).
+      PAYLOAD=$(printf '{"iat":%s,"exp":%s,"iss":"%s"}' "$((NOW-60))" "$((NOW+540))" "$GITHUB_APP_ID" | b64url)
+      SIG=$(printf '%s' "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -sign "$PEM_FILE" -binary | b64url)
+      JWT="${HEADER}.${PAYLOAD}.${SIG}"
+      rm -f "$PEM_FILE"
+
+      # Resolve the installation for this repo (or the org when no repo given).
+      if [[ -n "$REPO" ]]; then
+        INST_URL="${API_BASE}/repos/${OWNER}/${REPO}/installation"
+      else
+        INST_URL="${API_BASE}/orgs/${OWNER}/installation"
+      fi
+      INST_ID=$(curl -sS -H "Authorization: Bearer ${JWT}" -H "Accept: application/vnd.github+json" "$INST_URL" | jq -r '.id // empty')
+
+      if [[ -z "$INST_ID" ]]; then
+        echo ">> No GitHub App installation for ${OWNER}${REPO:+/$REPO} — using fallback PAT"
+        echo "##vso[task.setvariable variable=GH_TOKEN;issecret=true]${FALLBACK_PAT}"
+        exit 0
+      fi
+
+      TOKEN=$(curl -sS -X POST -H "Authorization: Bearer ${JWT}" -H "Accept: application/vnd.github+json" \
+        "${API_BASE}/app/installations/${INST_ID}/access_tokens" | jq -r '.token // empty')
+
+      if [[ -z "$TOKEN" ]]; then
+        echo ">> Installation token exchange failed — using fallback PAT"
+        echo "##vso[task.setvariable variable=GH_TOKEN;issecret=true]${FALLBACK_PAT}"
+        exit 0
+      fi
+
+      echo ">> Minted GitHub App installation token (installation ${INST_ID})"
+      echo "##vso[task.setvariable variable=GH_TOKEN;issecret=true]${TOKEN}"
+    displayName: "Mint GitHub token (App install, PAT fallback)"
+    env:
+      GITHUB_APP_ID: $(GITHUB_APP_ID)
+      GITHUB_APP_PRIVATE_KEY: $(GITHUB_APP_PRIVATE_KEY)
+      FALLBACK_PAT: $(GITHUB_PAT)

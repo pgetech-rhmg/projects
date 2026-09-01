@@ -245,6 +245,14 @@ stages:
               echo ">> VALID!"
             displayName: "Validate parameters"
 
+          # Mint a GitHub token (App installation, PAT fallback) → $(GH_TOKEN).
+          # Effective owner/repo/host are runtime macros, expanded in the step.
+          - template: /common/gh-app-token.yml
+            parameters:
+              owner: $(EFFECTIVE_OWNER)
+              repo: $(EFFECTIVE_REPO)
+              githubHost: $(EFFECTIVE_HOST)
+
           - bash: |
               set -euo pipefail
 
@@ -252,7 +260,7 @@ stages:
 
               # Clone repo to temp dir (org + host come from the effective values
               # so EPIC can pull from more than one org / an Enterprise host).
-              git clone --depth 1 --branch "$(EFFECTIVE_BRANCH)" "https://${GITHUB_PAT}@$(EFFECTIVE_HOST)/$(EFFECTIVE_OWNER)/$(EFFECTIVE_REPO).git" /tmp/repo
+              git clone --depth 1 --branch "$(EFFECTIVE_BRANCH)" "https://x-access-token:${GH_TOKEN}@$(EFFECTIVE_HOST)/$(EFFECTIVE_OWNER)/$(EFFECTIVE_REPO).git" /tmp/repo
 
               REPO="$(EFFECTIVE_REPO)"
               BRANCH="$(EFFECTIVE_BRANCH)"
@@ -518,7 +526,7 @@ stages:
               rm -rf /tmp/repo
             displayName: "Generate payload"
             env:
-              GITHUB_PAT: $(GITHUB_PAT)
+              GH_TOKEN: $(GH_TOKEN)
 
           - bash: |
               set -euo pipefail

@@ -1,0 +1,51 @@
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - task: AWSShellScript@1
+    displayName: 'Empty and Delete S3 Bucket'
+    inputs:
+      awsCredentials: 'AWS'
+      regionName: 'us-west-2'
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        BUCKET="pge-epic-terraform-state"
+        ACCOUNT="750713712981"
+
+        echo ">> Service role identity"
+        aws sts get-caller-identity
+
+        echo ">> Assuming deployment role"
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::${ACCOUNT}:role/pge-epic-deployment-role" \
+          --role-session-name "delete-bucket" \
+          --duration-seconds 3600 \
+          --output json)
+
+        export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')
+        export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')
+        export AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r '.Credentials.SessionToken')
+
+        echo ">> Deployment role identity"
+        aws sts get-caller-identity
+
+        echo ">> Deleting all object versions and delete markers"
+        aws s3api list-object-versions --bucket "$BUCKET" --output json \
+        | jq -c '{Objects: [(.Versions // [])[], (.DeleteMarkers // [])[]] | map({Key, VersionId}) | select(length > 0)}' \
+        | while read -r batch; do
+            if [ "$batch" != '{"Objects":[]}' ] && [ -n "$batch" ]; then
+              aws s3api delete-objects --bucket "$BUCKET" --delete "$batch"
+            fi
+          done
+
+        echo ">> Removing bucket policy"
+        aws s3api delete-bucket-policy --bucket "$BUCKET" || echo "(policy delete blocked — continuing)"
+
+        echo ">> Deleting bucket"
+        aws s3 rb "s3://$BUCKET"
+
+        echo ">> Done"

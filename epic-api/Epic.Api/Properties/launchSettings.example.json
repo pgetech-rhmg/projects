@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+
+  "//": "TEMPLATE — copy to launchSettings.json (gitignored) and fill the <...> placeholders. In Development, SecretsLoader is a no-op, so all secrets come from here. Non-secret values (URLs, org, ApiBase, InstallationId) are left real. PEM: store the App private key on ONE line with literal \\n between each line — e.g. `perl -0777 -pe 's/\\n/\\\\n/g' key.pem`.",
+
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5000",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ConnectionStrings__EpicDb": "Host=localhost;Port=5432;Database=epicdb;Username=epic;Password=epic",
+
+        "GITHUB_BASE_URL": "https://github.com/pgetech",
+
+        "//ADO": "Azure DevOps REST auth — Entra service principal (client-credentials). ADO_PAT is no longer read.",
+        "ADO_TENANT_ID": "<ado-entra-tenant-id>",
+        "ADO_CLIENT_ID": "<ado-entra-client-id>",
+        "ADO_CLIENT_SECRET": "<ado-entra-client-secret>",
+
+        "//GitHubApp": "GitHub App creds (shared across App sources). App ID is the numeric id, NOT the Iv... client id.",
+        "GITHUB_APP_ID": "<github-app-numeric-id>",
+        "GITHUB_APP_PRIVATE_KEY": "-----BEGIN RSA PRIVATE KEY-----\\n<paste-pem-as-one-line-with-\\n-between-lines>\\n-----END RSA PRIVATE KEY-----\\n",
+
+        "//GitHubPat": "Optional fallback PAT for a source WITHOUT an InstallationId (needs repo + repo:status). Both orgs are on the App now, so this is unused unless you add a PAT-only source; keep it for safety or drop it.",
+        "GITHUB_TOKEN": "<github-classic-pat-fallback>",
+
+        "//Sources": "Both orgs authenticate via the GitHub App (InstallationId set). A source with only a TokenKey (no InstallationId) would fall back to that PAT instead.",
+        "GitHubSources__pgetech__ApiBase": "https://api.github.com",
+        "GitHubSources__pgetech__Org": "pgetech",
+        "GitHubSources__pgetech__InstallationId": "158059996",
+        "GitHubSources__pgedc__ApiBase": "https://api.github.com",
+        "GitHubSources__pgedc__Org": "PGEDigitalCatalyst",
+        "GitHubSources__pgedc__InstallationId": "158086222",
+        "GitHubDefaultSource": "pgetech"
+      }
+    },
+    "Epic.Api": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5000",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ConnectionStrings__EpicDb": "Host=localhost;Port=5432;Database=epicdb;Username=epic;Password=epic",
+
+        "GITHUB_BASE_URL": "https://github.com/pgetech",
+
+        "ADO_TENANT_ID": "<ado-entra-tenant-id>",
+        "ADO_CLIENT_ID": "<ado-entra-client-id>",
+        "ADO_CLIENT_SECRET": "<ado-entra-client-secret>",
+
+        "GITHUB_APP_ID": "<github-app-numeric-id>",
+        "GITHUB_APP_PRIVATE_KEY": "-----BEGIN RSA PRIVATE KEY-----\\n<paste-pem-as-one-line-with-\\n-between-lines>\\n-----END RSA PRIVATE KEY-----\\n",
+
+        "GITHUB_TOKEN": "<github-classic-pat-fallback>",
+
+        "GitHubSources__pgetech__ApiBase": "https://api.github.com",
+        "GitHubSources__pgetech__Org": "pgetech",
+        "GitHubSources__pgetech__InstallationId": "158059996",
+        "GitHubSources__pgedc__ApiBase": "https://api.github.com",
+        "GitHubSources__pgedc__Org": "PGEDigitalCatalyst",
+        "GitHubSources__pgedc__InstallationId": "158086222",
+        "GitHubDefaultSource": "pgetech"
+      }
+    }
+  }
+}

@@ -374,7 +374,9 @@ systemctl daemon-reload
 systemctl enable ${var.app_name}-api
 EOF
 
-  tags = module.tags.tags
+  tags = merge(module.tags.tags, {
+    OffHourStop = "false"
+  })
 }
 
 

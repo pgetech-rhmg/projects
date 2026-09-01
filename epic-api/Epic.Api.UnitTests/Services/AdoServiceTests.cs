@@ -12,22 +12,13 @@ public sealed class AdoServiceTests
     private const int Engine = 194;
     private const int Orch = 133;
 
-    private static AdoService Make(HttpMessageHandler handler, bool withPat = true)
+    // Auth (bearer token) is applied by AdoAuthHandler on the DI'd HttpClient, not
+    // by AdoService — these tests inject a bare HttpClient, so no credential is
+    // needed. AdoAuthHandler itself is covered by AdoAuthHandlerTests.
+    private static AdoService Make(HttpMessageHandler handler)
     {
         var http = new HttpClient(handler);
-        var config = withPat
-            ? TestData.Config(("ADO_PAT", "test-pat"))
-            : TestData.Config();
-        return new AdoService(http, config, TestData.Logger<AdoService>(), TestData.NewCache());
-    }
-
-    // ---- Configuration guard ----
-
-    [Fact]
-    public async Task MissingPat_Throws()
-    {
-        var svc = Make(FakeHttpMessageHandler.Fixed(HttpStatusCode.OK, "{}"), withPat: false);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.GetTotalRunCountAsync("epic-web"));
+        return new AdoService(http, TestData.Logger<AdoService>(), TestData.NewCache());
     }
 
     // ---- GetRunsForAppAsync ----

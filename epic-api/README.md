@@ -36,6 +36,33 @@ Swagger UI is served at `/swagger` in all environments.
 
 In **Development** the app listens on `http://localhost:5000`, **bypasses authentication** (see below), and expects a local PostgreSQL at the connection string in `Epic.Api/Properties/launchSettings.json`. Running against a real database locally is not otherwise wired up — set `ConnectionStrings:EpicDb` manually if you need a different target.
 
+### Local `launchSettings.json`
+
+`Epic.Api/Properties/launchSettings.json` is **gitignored** (it carries real PATs), so it isn't in the repo — create it yourself. Below is a sanitized template; replace the placeholder token values with your own. The `GITHUB_TOKEN` needs SSO authorized for the `pgetech` org, and the `ADO_PAT` needs Build (read & execute) scope on the `EPIC-Pipeline` project.
+
+```jsonc
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5000",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ConnectionStrings__EpicDb": "Host=localhost;Port=5432;Database=epicdb;Username=epic;Password=epic",
+        "GITHUB_BASE_URL": "https://github.com/pgetech",
+        "GITHUB_TOKEN": "<your-github-pat>",
+        "ADO_PAT": "<your-azure-devops-pat>"
+      }
+    }
+  }
+}
+```
+
+The connection string matches the local PostgreSQL that [`local.sh`](../local.sh) starts in Docker. Note that `__` (double underscore) in the env var names maps to the config `:` separator (`ConnectionStrings__EpicDb` → `ConnectionStrings:EpicDb`).
+
 ## Configuration
 
 Configuration is layered: `appsettings.json` → `appsettings.{Environment}.json` → environment variables.

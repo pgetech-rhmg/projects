@@ -63,8 +63,8 @@ resource "aws_security_group" "scan_agent" {
 ###############################################################################
 # Secrets Manager Read Policy
 #
-# Lets the agent pull scan credentials (WIZ_CLIENT_ID/SECRET, GITHUB_PAT) at
-# runtime, scoped to the listed secret ARNs only. Skipped when none provided.
+# Lets the agent pull scan credentials (e.g. WIZ_CLIENT_ID/SECRET) at runtime,
+# scoped to the listed secret ARNs only. Skipped when none provided.
 ###############################################################################
 
 data "aws_iam_policy_document" "scan_secrets" {
@@ -129,5 +129,6 @@ module "scan_agent" {
   tags = merge(module.tags.tags, {
     Role = "ado-scan-agent"
     Pool = "EPIC - Self-hosted"
+    OffHourStop = "false"
   })
 }

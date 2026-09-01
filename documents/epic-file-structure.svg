@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="600" viewBox="0 0 560 600" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <style>
+      .bg      { fill: #0f172a; }
+      .root    { fill: #1e293b; stroke: #38bdf8; stroke-width: 2; }
+      .folder  { fill: #1e293b; stroke: #475569; stroke-width: 1.5; }
+      .rootTxt { fill: #e2e8f0; font-size: 19px; font-weight: 700; }
+      .dirTxt  { fill: #93c5fd; font-size: 16px; font-weight: 600; }
+      .icon    { fill: #38bdf8; }
+      .line    { stroke: #475569; stroke-width: 1.5; fill: none; }
+      .title   { fill: #f1f5f9; font-size: 15px; font-weight: 700; }
+      .subtitle{ fill: #64748b; font-size: 12px; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="560" height="600"/>
+
+  <!-- Header -->
+  <text x="40" y="42" class="title">EPIC — Enterprise Pipeline for Infrastructure and Cloud</text>
+  <text x="40" y="62" class="subtitle">Workspace folder structure</text>
+
+  <!-- Root node -->
+  <rect class="root" x="40" y="86" width="210" height="44" rx="8"/>
+  <text x="60" y="114" class="icon" font-size="18">📁</text>
+  <text x="88" y="114" class="rootTxt">EPIC &lt;root&gt;</text>
+
+  <!-- Trunk line -->
+  <path class="line" d="M 70 130 L 70 500"/>
+
+  <!-- 1 -->
+  <path class="line" d="M 70 176 L 110 176"/>
+  <rect class="folder" x="110" y="154" width="320" height="44" rx="6"/>
+  <text x="126" y="182" class="icon">📁</text>
+  <text x="152" y="182" class="dirTxt">EPIC AWS Resources</text>
+
+  <!-- 2 -->
+  <path class="line" d="M 70 240 L 110 240"/>
+  <rect class="folder" x="110" y="218" width="320" height="44" rx="6"/>
+  <text x="126" y="246" class="icon">📁</text>
+  <text x="152" y="246" class="dirTxt">EPIC Azure Resources</text>
+
+  <!-- 3 -->
+  <path class="line" d="M 70 304 L 110 304"/>
+  <rect class="folder" x="110" y="282" width="320" height="44" rx="6"/>
+  <text x="126" y="310" class="icon">📁</text>
+  <text x="152" y="310" class="dirTxt">epic-api</text>
+
+  <!-- 4 -->
+  <path class="line" d="M 70 368 L 110 368"/>
+  <rect class="folder" x="110" y="346" width="320" height="44" rx="6"/>
+  <text x="126" y="374" class="icon">📁</text>
+  <text x="152" y="374" class="dirTxt">epic-compliance</text>
+
+  <!-- 5 -->
+  <path class="line" d="M 70 432 L 110 432"/>
+  <rect class="folder" x="110" y="410" width="320" height="44" rx="6"/>
+  <text x="126" y="438" class="icon">📁</text>
+  <text x="152" y="438" class="dirTxt">epic-pipeline</text>
+
+  <!-- 6 -->
+  <path class="line" d="M 70 496 L 110 496"/>
+  <rect class="folder" x="110" y="474" width="320" height="44" rx="6"/>
+  <text x="126" y="502" class="icon">📁</text>
+  <text x="152" y="502" class="dirTxt">epic-pipeline-modules</text>
+
+  <!-- 7 -->
+  <path class="line" d="M 70 560 L 110 560"/>
+  <rect class="folder" x="110" y="538" width="320" height="44" rx="6"/>
+  <text x="126" y="566" class="icon">📁</text>
+  <text x="152" y="566" class="dirTxt">epic-web</text>
+</svg>

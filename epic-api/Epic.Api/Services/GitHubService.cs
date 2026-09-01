@@ -5,7 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Epic.Api.Services;
 
-public sealed class GitHubService(HttpClient httpClient, IConfiguration configuration, IGitHubSourceRegistry sources, ILogger<GitHubService> logger, IMemoryCache cache) : IGitHubService
+public sealed class GitHubService(HttpClient httpClient, IConfiguration configuration, IGitHubSourceRegistry sources, IGitHubAppTokenProvider appTokens, ILogger<GitHubService> logger, IMemoryCache cache) : IGitHubService
 {
     // GitHub reads here back UI previews (config discovery + infra check) and the
     // periodic app refresh — never the actual pipeline trigger, which passes the
@@ -16,10 +16,15 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
     // volatile-data TTL AdoService uses.
     private static readonly TimeSpan ApiCacheTtl = TimeSpan.FromSeconds(30);
 
-    // Resolves the PAT for a source from configuration by its TokenKey.
-    private string TokenFor(GitHubSource source) =>
-        configuration[source.TokenKey]
-        ?? throw new InvalidOperationException($"GitHub token '{source.TokenKey}' for source '{source.Name}' not configured.");
+    // Resolves the PAT for a legacy (non-App) source from configuration by its
+    // TokenKey. Only reached when the source has no InstallationId.
+    private string TokenFor(GitHubSource source)
+    {
+        var key = source.TokenKey
+            ?? throw new InvalidOperationException($"GitHub source '{source.Name}' has neither a TokenKey nor an InstallationId.");
+        return configuration[key]
+            ?? throw new InvalidOperationException($"GitHub token '{key}' for source '{source.Name}' not configured.");
+    }
 
     // Builds the repo API root for a source, e.g. https://api.github.com/repos/pgetech/foo
     // or https://github.pge.com/api/v3/repos/PGEDigitalCatalyst/foo.
@@ -397,8 +402,14 @@ public sealed class GitHubService(HttpClient httpClient, IConfiguration configur
         if (cache.TryGetValue<JsonElement>(url, out var cached))
             return cached;
 
+        // App sources (InstallationId set) mint a short-lived installation token;
+        // legacy sources fall back to their PAT. Header is Bearer either way.
+        var token = source.InstallationId is not null
+            ? await appTokens.GetInstallationTokenAsync(source, ct)
+            : TokenFor(source);
+
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TokenFor(source));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("EPIC-API", "1.0"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
 

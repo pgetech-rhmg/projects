@@ -5,8 +5,9 @@
 # API so branch protection can require it and gate PR merges. Called from the
 # engine's Report* stages on webhook-push (CI) runs only.
 #
-# Auth uses the same GITHUB_PAT / ORG as the download job (GV-account-access
-# variable group). The PAT needs the repo:status scope.
+# Auth uses a GitHub App installation token minted by common/gh-app-token.yml
+# (App needs Commit statuses: Read & Write), falling back to GITHUB_PAT
+# (repo:status scope) for orgs without an App installation.
 ###############################################################################
 parameters:
   - name: repo
@@ -34,6 +35,12 @@ jobs:
     pool:
       vmImage: ubuntu-latest
     steps:
+      - template: /common/gh-app-token.yml
+        parameters:
+          owner: ${{ parameters.owner }}
+          repo: ${{ parameters.repo }}
+          githubHost: ${{ parameters.githubHost }}
+
       - bash: |
           set -euo pipefail
 
@@ -72,7 +79,7 @@ jobs:
             }')
 
           HTTP_CODE=$(curl -sS -o /tmp/gh-status-resp.json -w "%{http_code}" -X POST \
-            -H "Authorization: Bearer ${GITHUB_PAT}" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
             -d "$BODY" \
@@ -93,4 +100,4 @@ jobs:
           fi
         displayName: "POST commit status to GitHub"
         env:
-          GITHUB_PAT: $(GITHUB_PAT)
+          GH_TOKEN: $(GH_TOKEN)
